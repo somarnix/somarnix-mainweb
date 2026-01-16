@@ -1,0 +1,101 @@
+// app\api\products\route.ts
+import { db } from "@/lib/db";
+import type { RowDataPacket } from "mysql2";
+
+type ProductRow = RowDataPacket & {
+  id: number;
+  title: string;
+  slug: string;
+  level: "beginner" | "advanced" | "pro";
+  image_url: string | null;
+  stock_qty: number;
+  is_unlimited_stock: 0 | 1;
+  category: string;
+  posted_by_email: string;
+  avg_rating: number | null; // may come as string depending mysql2 config
+  rating_count: number;
+  buyers_count: number;
+  min_price: number | null; // may come as string depending mysql2 config
+  min_original_price: number | null; // may come as string depending mysql2 config
+};
+
+export async function GET(req: Request) {
+  try {
+    const url = new URL(req.url);
+    const category = url.searchParams.get("category"); // course/program/game/tools
+    const q = url.searchParams.get("q"); // search title
+    const limit = Math.min(Number(url.searchParams.get("limit") ?? 20), 50);
+
+    const params: (string | number)[] = [];
+    const whereParts: string[] = ["p.is_active = 1"];
+
+    if (category) {
+      whereParts.push("c.name = ?");
+      params.push(category);
+    }
+
+    if (q) {
+      whereParts.push("p.title LIKE ?");
+      params.push(`%${q}%`);
+    }
+
+    const where = whereParts.join(" AND ");
+
+    const sql = `
+      SELECT
+        p.id, p.title, p.slug, p.level, p.image_url, p.stock_qty, p.is_unlimited_stock,
+        c.name AS category,
+        u.email AS posted_by_email,
+
+        -- rating
+        ROUND(AVG(r.rating), 2) AS avg_rating,
+        COUNT(r.id) AS rating_count,
+
+        -- buyers count (count approved/completed items)
+        (
+          SELECT COALESCE(SUM(oi.qty),0)
+          FROM order_items oi
+          JOIN orders o ON o.id = oi.order_id
+          WHERE oi.product_id = p.id AND o.state IN ('approved','delivered','done')
+        ) AS buyers_count,
+
+        -- price from variants
+        (SELECT MIN(v.price) FROM product_variants v WHERE v.product_id = p.id AND v.is_active = 1) AS min_price,
+        (SELECT MIN(v.original_price) FROM product_variants v WHERE v.product_id = p.id AND v.is_active = 1) AS min_original_price
+
+      FROM products p
+      JOIN product_categories c ON c.id = p.category_id
+      JOIN users u ON u.id = p.posted_by
+      LEFT JOIN product_reviews r ON r.product_id = p.id
+
+      WHERE ${where}
+      GROUP BY p.id
+      ORDER BY p.created_at DESC
+      LIMIT ?
+    `;
+
+    params.push(limit);
+
+    const [rows] = await db.query<ProductRow[]>(sql, params);
+
+    // Optional: normalize decimals (mysql2 may return DECIMAL as string)
+    const normalized = rows.map((r) => ({
+      ...r,
+      avg_rating: r.avg_rating === null ? null : Number(r.avg_rating),
+      min_price: r.min_price === null ? null : Number(r.min_price),
+      min_original_price: r.min_original_price === null ? null : Number(r.min_original_price),
+      rating_count: Number(r.rating_count),
+      buyers_count: Number(r.buyers_count),
+      stock_qty: Number(r.stock_qty),
+      is_unlimited_stock: Number(r.is_unlimited_stock) as 0 | 1,
+    }));
+
+    return Response.json(normalized);
+  } catch (err: unknown) {
+    const message = err instanceof Error ? err.message : String(err);
+    return Response.json(
+      { error: "Server error", detail: message },
+      { status: 500 }
+    );
+  }
+}

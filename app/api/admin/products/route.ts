@@ -1,0 +1,93 @@
+// app/api/admin/products/route.ts
+import { db } from "@/lib/db";
+import { getAuthUser } from "@/lib/auth";
+import type { ResultSetHeader, RowDataPacket } from "mysql2";
+
+export const runtime = "nodejs";
+
+/* =========================
+   GET: LIST PRODUCTS (ADMIN)
+========================= */
+export async function GET(req: Request) {
+  try {
+    const auth = await getAuthUser(req);
+    if (!auth || auth.role !== "admin") {
+      return Response.json({ products: [], error: "Forbidden" }, { status: 403 });
+    }
+
+    const [rows] = await db.query<RowDataPacket[]>(
+      `
+      SELECT
+        CAST(p.id AS UNSIGNED) AS id,
+        p.title,
+        p.slug,
+        p.category_id,
+        p.image_url,
+        p.level,
+        p.stock_qty,
+        p.is_unlimited_stock,
+        p.is_active,
+        p.created_at,
+        c.name AS category_name,
+        MIN(v.price) AS min_price,
+        COUNT(v.id) AS variant_count
+      FROM products p
+      JOIN product_categories c ON c.id = p.category_id
+      LEFT JOIN product_variants v
+        ON v.product_id = p.id AND v.is_active = 1
+      GROUP BY p.id
+      ORDER BY p.created_at DESC
+      `
+    );
+
+    return Response.json({ products: rows ?? [] });
+  } catch (err) {
+    console.error("ADMIN PRODUCTS ERROR:", err);
+    return Response.json({ products: [], error: "Server error" }, { status: 500 });
+  }
+}
+
+/* =========================
+   POST: CREATE PRODUCT (ADMIN)
+========================= */
+export async function POST(req: Request) {
+  try {
+    const auth = await getAuthUser(req);
+    if (!auth || auth.role !== "admin") {
+      return Response.json({ error: "Forbidden" }, { status: 403 });
+    }
+
+    const body: unknown = await req.json().catch(() => ({}));
+    const b = (typeof body === "object" && body !== null ? (body as Record<string, unknown>) : {});
+
+    const title = typeof b.title === "string" ? b.title.trim() : "";
+    const slug = typeof b.slug === "string" ? b.slug.trim() : "";
+    const categoryId = Number(b.category_id);
+
+    if (!title || !slug || !Number.isFinite(categoryId) || categoryId <= 0) {
+      return Response.json({ error: "Invalid title, slug, or category" }, { status: 400 });
+    }
+
+    const [exists] = await db.query<RowDataPacket[]>(
+      `SELECT id FROM products WHERE slug = ? LIMIT 1`,
+      [slug]
+    );
+    if (exists.length > 0) {
+      return Response.json({ error: "Slug already exists" }, { status: 409 });
+    }
+
+    const [result] = await db.query<ResultSetHeader>(
+      `
+      INSERT INTO products
+        (title, slug, category_id, posted_by, is_active)
+      VALUES (?, ?, ?, ?, 1)
+      `,
+      [title, slug, categoryId, auth.userId]
+    );
+
+    return Response.json({ success: true, productId: result.insertId });
+  } catch (err) {
+    console.error("CREATE PRODUCT ERROR:", err);
+    return Response.json({ error: "Server error" }, { status: 500 });
+  }
+}
