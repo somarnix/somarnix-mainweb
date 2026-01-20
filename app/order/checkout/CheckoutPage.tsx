@@ -9,6 +9,8 @@ import { toast } from "sonner";
 
 type DbCartItem = {
   cart_item_id: number;
+  product_id: number;
+  variant_id: number | null;
   title: string;
   image_url: string | null;
   qty: number;
@@ -16,13 +18,21 @@ type DbCartItem = {
   line_total: number;
   duration_label: string | null;
   device_label: string | null;
+  khqr: string | null;
+  usdqr: string | null;
 };
 
 interface CheckoutPageProps {
   onNavigate: (page: string) => void;
+  selectedCartItemId: number | null;
+  onClearSelection: () => void;
 }
 
-export function CheckoutPage({ onNavigate }: CheckoutPageProps) {
+export function CheckoutPage({
+  onNavigate,
+  selectedCartItemId,
+  onClearSelection,
+}: CheckoutPageProps) {
   const { language } = useLanguage();
   const { user } = useAuth();
   const { formatPrice } = useCurrency();
@@ -32,6 +42,8 @@ export function CheckoutPage({ onNavigate }: CheckoutPageProps) {
   const [showQRModal, setShowQRModal] = useState(false);
   const [orderPlaced, setOrderPlaced] = useState(false);
   const [submitting, setSubmitting] = useState(false);
+  const [lastOrderTotal, setLastOrderTotal] = useState(0);
+  const [lastOrderItemsCount, setLastOrderItemsCount] = useState(0);
 
   // -----------------------
   // Load DB cart
@@ -43,24 +55,37 @@ export function CheckoutPage({ onNavigate }: CheckoutPageProps) {
       .finally(() => setLoading(false));
   }, []);
 
-  const subtotal = items.reduce((s, i) => s + i.line_total, 0);
-  const tax = Math.round(subtotal * 0.1 * 100) / 100;
+  const selectedItem = selectedCartItemId
+    ? items.find((it) => it.cart_item_id === selectedCartItemId) ?? null
+    : null;
+  const subtotal = selectedItem?.line_total ?? 0;
+  const tax = 0;
   const total = subtotal + tax;
+  const taxDisplay = tax === 0 ? (language === "km" ? "ឥតគិតថ្លៃ" : "Free") : formatPrice(tax);
 
   // -----------------------
   // Create order + submit payment
   // -----------------------
-  const createOrderAndSubmitPayment = async (paymentInfo: {
-    idPay: string;
-    purchaseId: string;
-    dateTimePay: string;
-  }) => {
+  const createOrderAndSubmitPayment = async (
+    cartItemId: number,
+    paymentInfo: {
+      accountName: string;
+      accountNumber: string;
+      paymentApv: string;
+      method: string;
+      dateTimePay: string;
+    }
+  ) => {
     if (!user || submitting) return;
 
     setSubmitting(true);
 
     try {
-      const res1 = await fetch("/api/orders/create", { method: "POST" });
+      const res1 = await fetch("/api/orders/create", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ cartItemId }),
+      });
       const data1 = await res1.json();
 
       if (!res1.ok) {
@@ -78,8 +103,10 @@ export function CheckoutPage({ onNavigate }: CheckoutPageProps) {
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
           orderId,
-          paymentId: paymentInfo.idPay,
-          purchaseId: paymentInfo.purchaseId,
+          accountName: paymentInfo.accountName,
+          accountNumber: paymentInfo.accountNumber,
+          paymentApv: paymentInfo.paymentApv,
+          method: paymentInfo.method,
           paidAt: paymentInfo.dateTimePay,
         }),
       });
@@ -93,8 +120,19 @@ export function CheckoutPage({ onNavigate }: CheckoutPageProps) {
         return;
       }
 
+      const purchasedItem = items.find((it) => it.cart_item_id === cartItemId);
+      if (purchasedItem) {
+        setLastOrderTotal(Number(purchasedItem.line_total));
+        setLastOrderItemsCount(Number(purchasedItem.qty ?? 1));
+      } else {
+        setLastOrderTotal(0);
+        setLastOrderItemsCount(0);
+      }
+
       setShowQRModal(false);
       setOrderPlaced(true);
+      setItems((prev) => prev.filter((it) => it.cart_item_id !== cartItemId));
+      onClearSelection();
 
       toast.success(
         language === "km"
@@ -118,10 +156,22 @@ export function CheckoutPage({ onNavigate }: CheckoutPageProps) {
       return;
     }
 
+    if (!selectedItem) {
+      toast.error(
+        language === "km"
+          ? "សូមត្រឡប់ទៅកន្ត្រកដើម្បីជ្រើសផលិតផលមួយ"
+          : "Select an item in your cart first."
+      );
+      onNavigate("cart");
+      return;
+    }
+
     if (total === 0) {
-      await createOrderAndSubmitPayment({
-        idPay: "FREE-" + Date.now(),
-        purchaseId: "FREE-" + Date.now(),
+      await createOrderAndSubmitPayment(selectedItem.cart_item_id, {
+        accountName: "FREE ORDER",
+        accountNumber: "0000",
+        paymentApv: "FREE",
+        method: "manual",
         dateTimePay: new Date().toISOString(),
       });
       return;
@@ -131,11 +181,14 @@ export function CheckoutPage({ onNavigate }: CheckoutPageProps) {
   };
 
   const handlePaymentSuccess = async (paymentInfo: {
-    idPay: string;
-    purchaseId: string;
+    accountName: string;
+    accountNumber: string;
+    paymentApv: string;
+    method: string;
     dateTimePay: string;
   }) => {
-    await createOrderAndSubmitPayment(paymentInfo);
+    if (!selectedItem) return;
+    await createOrderAndSubmitPayment(selectedItem.cart_item_id, paymentInfo);
   };
 
   // -----------------------
@@ -158,9 +211,9 @@ export function CheckoutPage({ onNavigate }: CheckoutPageProps) {
               <div className="text-sm mb-2">
                 {language === "km" ? "សរុប" : "Order Total"}
               </div>
-              <div className="text-3xl font-bold">{formatPrice(total)}</div>
+              <div className="text-3xl font-bold">{formatPrice(lastOrderTotal)}</div>
               <div className="text-sm mt-2">
-                {items.length}{" "}
+                {lastOrderItemsCount}{" "}
                 {language === "km" ? "មុខទំនិញ" : "item(s)"}
               </div>
             </div>
@@ -190,6 +243,18 @@ export function CheckoutPage({ onNavigate }: CheckoutPageProps) {
 
         {loading ? (
           <div>Loading...</div>
+        ) : !selectedItem ? (
+          <div className="bg-white dark:bg-gray-800 rounded-xl p-8 text-center">
+            <ShoppingBag className="w-12 h-12 mx-auto text-gray-400 mb-4" />
+            <p className="text-lg font-semibold mb-2">
+              {language === "km"
+                ? "សូមត្រឡប់ទៅកន្ត្រកដើម្បីជ្រើសរើសមុខទំនិញ"
+                : "Select an item in your cart to continue."}
+            </p>
+            <Button onClick={() => onNavigate("cart")}>
+              {language === "km" ? "ត្រឡប់ទៅកន្ត្រក" : "Back to Cart"}
+            </Button>
+          </div>
         ) : (
           <div className="grid lg:grid-cols-3 gap-8">
             {/* Order Summary */}
@@ -199,30 +264,28 @@ export function CheckoutPage({ onNavigate }: CheckoutPageProps) {
                 {language === "km" ? "សង្ខេបការបញ្ជាទិញ" : "Order Summary"}
               </h2>
 
-              <div className="space-y-4">
-                {items.map((it) => (
-                  <div
-                    key={it.cart_item_id}
-                    className="flex gap-4 p-4 bg-gray-50 dark:bg-gray-900 rounded-lg"
-                  >
-                    <img
-                      src={it.image_url ?? "/placeholder.png"}
-                      className="w-20 h-20 rounded-lg object-cover"
-                    />
-                    <div className="flex-1">
-                      <div className="font-bold">{it.title}</div>
-                      <div className="text-sm text-gray-500">
-                        {it.duration_label}
-                        {it.device_label ? ` • ${it.device_label}` : ""}
-                        {" • "}
-                        {language === "km" ? "បរិមាណ" : "Qty"}: {it.qty}
-                      </div>
-                      <div className="font-bold text-blue-600 mt-2">
-                        {formatPrice(it.line_total)}
-                      </div>
-                    </div>
+              <div className="flex gap-4 p-4 bg-gray-50 dark:bg-gray-900 rounded-lg">
+                <img
+                  src={selectedItem.image_url ?? "/placeholder.png"}
+                  className="w-24 h-24 rounded-lg object-cover"
+                />
+                <div className="flex-1">
+                  <div className="font-bold text-lg">{selectedItem.title}</div>
+                  <div className="text-sm text-gray-500">
+                    {selectedItem.duration_label}
+                    {selectedItem.device_label
+                      ? ` • ${selectedItem.device_label}`
+                      : ""}
                   </div>
-                ))}
+                  <div className="mt-1 text-xs text-gray-400">
+                    {language === "km"
+                      ? "មុខទំនិញផ្សេងទៀតនៅក្នុងកន្ត្រករបស់អ្នក"
+                      : "Other items stay in your cart for later."}
+                  </div>
+                  <div className="font-bold text-blue-600 mt-3 text-xl">
+                    {formatPrice(selectedItem.line_total)}
+                  </div>
+                </div>
               </div>
             </div>
 
@@ -230,7 +293,7 @@ export function CheckoutPage({ onNavigate }: CheckoutPageProps) {
             <div className="bg-white dark:bg-gray-800 rounded-xl p-6 sticky top-24">
               <div className="space-y-3 mb-6">
                 <Row label="Subtotal" value={formatPrice(subtotal)} />
-                <Row label="Tax (10%)" value={formatPrice(tax)} />
+                <Row label="Tax (10%)" value={taxDisplay} />
                 <Row
                   label={language === "km" ? "សរុប" : "Total"}
                   value={formatPrice(total)}
@@ -241,7 +304,7 @@ export function CheckoutPage({ onNavigate }: CheckoutPageProps) {
               <Button
                 onClick={handleCheckout}
                 disabled={submitting}
-                className="w-full bg-gradient-to-r from-blue-600 to-purple-600"
+                className="w-full bg-gradient-to-r from-blue-600 to-purple-600 disabled:opacity-50"
               >
                 {submitting
                   ? language === "km"
@@ -260,6 +323,23 @@ export function CheckoutPage({ onNavigate }: CheckoutPageProps) {
             amount={total}
             onClose={() => setShowQRModal(false)}
             onSuccess={handlePaymentSuccess}
+            productTitle={selectedItem?.title ?? ""}
+            variantLabel={
+              selectedItem
+                ? [
+                    selectedItem.duration_label,
+                    selectedItem.device_label,
+                  ]
+                    .filter(Boolean)
+                    .join(" • ")
+                : ""
+            }
+            khqrUrl={selectedItem?.khqr ?? undefined}
+            usdQrUrl={
+              selectedItem && selectedItem.usdqr && selectedItem.usdqr !== "none"
+                ? selectedItem.usdqr
+                : undefined
+            }
           />
         )}
       </div>

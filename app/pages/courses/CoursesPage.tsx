@@ -87,7 +87,6 @@ export function CoursesPage({ onOpenProductDetail }: { onOpenProductDetail: (slu
           </p>
         </div>
       </div>
-
       {/* ================= CONTENT ================= */}
       <div className="max-w-7xl mx-auto px-4 py-12">
         <div className="grid lg:grid-cols-4 gap-8">

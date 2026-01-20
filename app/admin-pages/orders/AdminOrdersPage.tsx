@@ -1,10 +1,12 @@
 "use client";
 
 import { useEffect, useMemo, useState } from "react";
+import type { OrderStatus } from "@/lib/order-status";
+import { getStatusLabel } from "@/app/pages/order-page/orderStatusConfig";
 
 /* ================= TYPES ================= */
 
-type OrderState = "pending" | "approved" | "cancelled";
+type OrderState = OrderStatus;
 type OrderResult = "none" | "done" | "failed";
 
 type Order = {
@@ -107,6 +109,12 @@ export default function AdminOrdersPage() {
     });
   }, [orders, search, filterState]);
 
+  const deriveResult = (state: OrderState): OrderResult => {
+    if (state === "completed") return "done";
+    if (state === "cancelled" || state === "resolution") return "failed";
+    return "none";
+  };
+
   /* ================= SAVE EDIT ================= */
 
   const saveEdit = async () => {
@@ -162,7 +170,10 @@ export default function AdminOrdersPage() {
             <option value="all">All states</option>
             <option value="pending">pending</option>
             <option value="approved">approved</option>
+            <option value="delivering">delivering</option>
+            <option value="completed">completed</option>
             <option value="cancelled">cancelled</option>
+            <option value="resolution">resolution</option>
           </select>
 
           <button
@@ -207,7 +218,9 @@ export default function AdminOrdersPage() {
                     <tr key={o.id}>
                       <td className="p-3 font-medium">#{o.id}</td>
                       <td className="p-3">{o.user_email ?? "-"}</td>
-                      <td className="p-3">{o.state}</td>
+                      <td className="p-3">
+                        {getStatusLabel(o.state, "en")}
+                      </td>
                       <td className="p-3">{o.result}</td>
                       <td className="p-3 text-right font-semibold">
                         ${formatTotal(o).toFixed(2)}
@@ -240,7 +253,10 @@ export default function AdminOrdersPage() {
                           onClick={() => {
                             setEditOrder(o);
                             setEditState(o.state);
-                            setEditResult(o.result);
+                            setEditResult(
+                              (o.result as OrderResult) ??
+                                deriveResult(o.state)
+                            );
                             setEditDeliveryTitle(o.delivery_title ?? "");
                             setEditDeliveryMessage(o.delivery_message ?? "");
                           }}
@@ -288,7 +304,7 @@ export default function AdminOrdersPage() {
                 <div className="mt-3 grid grid-cols-2 gap-2 text-sm">
                   <div>
                     <div className="text-xs text-gray-500">State</div>
-                    <div>{o.state}</div>
+                    <div>{getStatusLabel(o.state, "en")}</div>
                   </div>
                   <div>
                     <div className="text-xs text-gray-500">Result</div>
@@ -321,7 +337,10 @@ export default function AdminOrdersPage() {
                   onClick={() => {
                     setEditOrder(o);
                     setEditState(o.state);
-                    setEditResult(o.result);
+                    setEditResult(
+                      (o.result as OrderResult) ??
+                        deriveResult(o.state)
+                    );
                     setEditDeliveryTitle(o.delivery_title ?? "");
                     setEditDeliveryMessage(o.delivery_message ?? "");
                   }}
@@ -357,16 +376,19 @@ export default function AdminOrdersPage() {
                 </label>
                 <select
                   value={editState}
-                  onChange={e =>
-                    setEditState(
-                      e.target.value as OrderState
-                    )
-                  }
+                  onChange={e => {
+                    const next = e.target.value as OrderState;
+                    setEditState(next);
+                    setEditResult(deriveResult(next));
+                  }}
                   className="w-full border rounded-lg px-3 py-2"
                 >
                   <option value="pending">pending</option>
                   <option value="approved">approved</option>
+                  <option value="delivering">delivering</option>
+                  <option value="completed">completed</option>
                   <option value="cancelled">cancelled</option>
+                  <option value="resolution">resolution</option>
                 </select>
               </div>
 

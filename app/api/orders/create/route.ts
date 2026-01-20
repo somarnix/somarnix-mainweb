@@ -28,6 +28,17 @@ export async function POST(req: Request) {
   const taxRate = 10.0; // UI says 10%
 
   try {
+    const body: unknown = await req.json().catch(() => ({}));
+    const cartItemIdRaw =
+      typeof body === "object" && body !== null
+        ? (body as Record<string, unknown>).cartItemId
+        : undefined;
+    const cartItemId = Number(cartItemIdRaw);
+
+    if (!Number.isFinite(cartItemId) || cartItemId <= 0) {
+      return Response.json({ error: "cartItemId is required" }, { status: 400 });
+    }
+
     // 1) get active cart
     const [cRows] = await db.query<CartIdRow[]>(
       "SELECT id FROM carts WHERE user_id=? AND status='active' LIMIT 1",
@@ -51,13 +62,13 @@ export async function POST(req: Request) {
         pv.original_price
       FROM cart_items ci
       LEFT JOIN product_variants pv ON pv.id = ci.variant_id
-      WHERE ci.cart_id = ?
+      WHERE ci.cart_id = ? AND ci.id = ?
       `,
-      [cartId]
+      [cartId, cartItemId]
     );
 
     if (items.length === 0) {
-      return Response.json({ error: "Cart empty" }, { status: 400 });
+      return Response.json({ error: "Cart item not found" }, { status: 404 });
     }
 
     // 3) totals
@@ -71,15 +82,47 @@ export async function POST(req: Request) {
     const orderNumber = makeOrderNumber();
 
     // 4) create order
-    const [orderIns] = await db.query<ResultSetHeader>(
-      `
-      INSERT INTO orders (user_id, order_number, status, subtotal, tax_rate, tax_amount, total)
-      VALUES (?, ?, 'pending', ?, ?, ?, ?)
-      `,
-      [auth.userId, orderNumber, subtotal, taxRate, taxAmount, total]
-    );
+    let orderId: number;
+    let usedLegacyInsert = false;
+    try {
+      const [orderIns] = await db.query<ResultSetHeader>(
+        `
+        INSERT INTO orders (
+          user_id,
+          order_number,
+          state,
+          result,
+          subtotal,
+          tax_rate,
+          tax_amount,
+          total,
+          total_amount
+        )
+        VALUES (?, ?, 'pending', 'none', ?, ?, ?, ?, ?)
+        `,
+        [auth.userId, orderNumber, subtotal, taxRate, taxAmount, total, total]
+      );
+      orderId = Number(orderIns.insertId);
+    } catch (err) {
+      const message = err instanceof Error ? err.message : String(err);
+      const needsLegacyInsert =
+        message.includes("state") ||
+        message.includes("total_amount") ||
+        message.includes("result");
+      if (!needsLegacyInsert) {
+        throw err;
+      }
 
-    const orderId = Number(orderIns.insertId);
+      const [legacyIns] = await db.query<ResultSetHeader>(
+        `
+        INSERT INTO orders (user_id, order_number, status, subtotal, tax_rate, tax_amount, total)
+        VALUES (?, ?, 'pending', ?, ?, ?, ?)
+        `,
+        [auth.userId, orderNumber, subtotal, taxRate, taxAmount, total]
+      );
+      orderId = Number(legacyIns.insertId);
+      usedLegacyInsert = true;
+    }
 
     // 5) create order items
     for (const it of items) {
@@ -96,10 +139,10 @@ export async function POST(req: Request) {
       );
     }
 
-    // 6) mark cart converted (locked)
+    // 6) remove purchased cart item
     await db.query<ResultSetHeader>(
-      "UPDATE carts SET status='converted' WHERE id=?",
-      [cartId]
+      "DELETE FROM cart_items WHERE id = ? AND cart_id = ?",
+      [cartItemId, cartId]
     );
 
     return Response.json({
@@ -110,7 +153,9 @@ export async function POST(req: Request) {
       taxRate,
       taxAmount,
       total,
-      status: "pending",
+      status: usedLegacyInsert ? "pending" : undefined,
+      state: usedLegacyInsert ? undefined : "pending",
+      result: usedLegacyInsert ? undefined : "none",
     });
   } catch (err: unknown) {
     const message = err instanceof Error ? err.message : String(err);

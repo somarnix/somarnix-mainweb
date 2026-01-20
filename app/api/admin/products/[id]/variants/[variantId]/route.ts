@@ -6,6 +6,9 @@ import type { ResultSetHeader, RowDataPacket } from "mysql2";
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
 
+const DEFAULT_KH_QR = "/paymentQR/khmer_qr.jpg";
+const USD_QR_NONE = "none";
+
 type RouteCtx = { params: { variantId: string } | Promise<{ variantId: string }> };
 
 async function readVariantId(ctx: RouteCtx): Promise<string> {
@@ -125,6 +128,26 @@ export async function PUT(req: Request, ctx: RouteCtx) {
         return Response.json({ error: "Invalid price" }, { status: 400 });
       }
       sets.push("price = ?");
+      values.push(v);
+    }
+
+    if ("khqr" in b) {
+      if (!(typeof b.khqr === "string" || b.khqr === null)) {
+        return Response.json({ error: "Invalid khqr" }, { status: 400 });
+      }
+      const raw = typeof b.khqr === "string" ? b.khqr : "";
+      const v = raw.trim() || DEFAULT_KH_QR;
+      sets.push("khqr = ?");
+      values.push(v);
+    }
+
+    if ("usdqr" in b) {
+      if (!(typeof b.usdqr === "string" || b.usdqr === null)) {
+        return Response.json({ error: "Invalid usdqr" }, { status: 400 });
+      }
+      const raw = typeof b.usdqr === "string" ? b.usdqr : "";
+      const v = raw.trim() || USD_QR_NONE;
+      sets.push("usdqr = ?");
       values.push(v);
     }
 

@@ -32,7 +32,7 @@ interface HomePageProps {
 
 /* ================= PAGE ================= */
 
-export default function HomePage({ onNavigate }: HomePageProps) {
+export default function HomePage({ onNavigate, onOpenProductDetail }: HomePageProps) {
   const { t } = useLanguage();
 
   const [featured, setFeatured] = useState<DbProduct[]>([]);
@@ -105,6 +105,7 @@ export default function HomePage({ onNavigate }: HomePageProps) {
                   image={p.image_url}
                   price={p.min_price}
                   originalPrice={p.min_original_price}
+                  onViewDetails={() => onOpenProductDetail(p.slug)}
                 />
               ))}
             </div>

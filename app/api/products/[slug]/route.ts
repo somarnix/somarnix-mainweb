@@ -21,9 +21,13 @@ type ProductDetailRow = RowDataPacket & {
 
   category: string;
   posted_by_email: string;
+  posted_by_name: string | null;
+  posted_by_username: string | null;
+  posted_by_avatar: string | null;
 
   avg_rating: number | null;
   rating_count: number;
+  buyers_count: number;
 };
 
 type VariantRow = RowDataPacket & {
@@ -36,6 +40,21 @@ type VariantRow = RowDataPacket & {
   is_unlimited_device: 0 | 1;
   original_price: number;
   price: number;
+  khqr: string | null;
+  usdqr: string | null;
+};
+
+type ReviewRow = RowDataPacket & {
+  id: number;
+  product_id: number;
+  user_id: number;
+  rating: number;
+  comment: string | null;
+  created_at: Date | string;
+  first_name: string | null;
+  last_name: string | null;
+  username: string | null;
+  avatar_url: string | null;
 };
 
 export async function GET(
@@ -51,8 +70,17 @@ export async function GET(
         p.*,
         c.name AS category,
         u.email AS posted_by_email,
+        CONCAT_WS(' ', NULLIF(TRIM(u.first_name),''), NULLIF(TRIM(u.last_name),'')) AS posted_by_name,
+        u.username AS posted_by_username,
+        u.avatar_url AS posted_by_avatar,
         ROUND((SELECT AVG(r.rating) FROM product_reviews r WHERE r.product_id = p.id), 2) AS avg_rating,
-        (SELECT COUNT(*) FROM product_reviews r WHERE r.product_id = p.id) AS rating_count
+        (SELECT COUNT(*) FROM product_reviews r WHERE r.product_id = p.id) AS rating_count,
+        (
+          SELECT COALESCE(SUM(oi.qty), 0)
+          FROM order_items oi
+          JOIN orders o ON o.id = oi.order_id
+          WHERE oi.product_id = p.id AND o.state = 'completed'
+        ) AS buyers_count
       FROM products p
       JOIN product_categories c ON c.id = p.category_id
       JOIN users u ON u.id = p.posted_by
@@ -73,7 +101,8 @@ export async function GET(
       SELECT
         id, duration_label, duration_note, duration_days,
         device_label, device_limit, is_unlimited_device,
-        original_price, price
+        original_price, price,
+        khqr, usdqr
       FROM product_variants
       WHERE product_id = ? AND is_active = 1
       ORDER BY price ASC
@@ -87,6 +116,7 @@ export async function GET(
       rating_count: Number(product.rating_count),
       stock_qty: Number(product.stock_qty),
       is_unlimited_stock: Number(product.is_unlimited_stock) as 0 | 1,
+      buyers_count: Number(product.buyers_count ?? 0),
     };
 
     const normalizedVariants = vRows.map((v) => ({
@@ -96,11 +126,52 @@ export async function GET(
       is_unlimited_device: Number(v.is_unlimited_device) as 0 | 1,
       duration_days: v.duration_days === null ? null : Number(v.duration_days),
       device_limit: v.device_limit === null ? null : Number(v.device_limit),
+      khqr: v.khqr,
+      usdqr: v.usdqr,
+    }));
+
+    const [reviewRows] = await db.query<ReviewRow[]>(
+      `
+      SELECT
+        r.id,
+        r.product_id,
+        r.user_id,
+        r.rating,
+        r.comment,
+        r.created_at,
+        u.first_name,
+        u.last_name,
+        u.username,
+        u.avatar_url
+      FROM product_reviews r
+      JOIN users u ON u.id = r.user_id
+      WHERE r.product_id = ?
+      ORDER BY r.created_at DESC
+      LIMIT 50
+      `,
+      [product.id]
+    );
+
+    const reviews = reviewRows.map((r) => ({
+      id: r.id,
+      product_id: r.product_id,
+      user_id: r.user_id,
+      rating: Number(r.rating),
+      comment: r.comment,
+      created_at: r.created_at instanceof Date ? r.created_at.toISOString() : String(r.created_at),
+      user_name:
+        (r.first_name || r.last_name
+          ? [r.first_name, r.last_name].filter(Boolean).join(" ")
+          : null) ||
+        r.username ||
+        "User",
+      user_avatar: r.avatar_url,
     }));
 
     return Response.json({
       product: normalizedProduct,
       variants: normalizedVariants,
+      reviews,
     });
   } catch (err: unknown) {
     const message = err instanceof Error ? err.message : String(err);

@@ -4,14 +4,15 @@ import type { RowDataPacket } from "mysql2";
 
 export async function GET(
   req: Request,
-  { params }: { params: { id: string } }
+  ctx: { params: Promise<{ id: string }> }
 ) {
   const auth = await getAuthUser(req);
   if (!auth || auth.role !== "admin") {
     return Response.json({ error: "Forbidden" }, { status: 403 });
   }
 
-  const orderId = Number(params.id);
+  const { id } = await ctx.params;
+  const orderId = Number(id);
   if (!Number.isFinite(orderId)) {
     return Response.json({ error: "Invalid order id" }, { status: 400 });
   }

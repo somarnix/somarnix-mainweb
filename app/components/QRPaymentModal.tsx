@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react';
-import { X, CheckCircle2, XCircle, Loader2, ExternalLink, Copy, Check, User } from 'lucide-react';
+import { X, CheckCircle2, XCircle, Loader2, User } from 'lucide-react';
 import { useLanguage } from '../contexts/LanguageContext';
 import { useAuth } from '../contexts/AuthContext';
 import { Button } from './ui/button';
@@ -8,8 +8,10 @@ import { Label } from './ui/label';
 
 interface PaymentInfo {
   userId: string;
-  idPay: string;
-  purchaseId: string;
+  accountName: string;
+  accountNumber: string;
+  paymentApv: string;
+  method: string;
   dateTimePay: string;
 }
 
@@ -17,44 +19,66 @@ interface QRPaymentModalProps {
   amount: number;
   onClose: () => void;
   onSuccess: (paymentInfo: PaymentInfo) => void;
+  productTitle: string;
+  variantLabel?: string;
+  khqrUrl?: string;
+  usdQrUrl?: string;
 }
 
-export function QRPaymentModal({ amount, onClose, onSuccess }: QRPaymentModalProps) {
+const DEFAULT_KH_QR = "/paymentQR/khmer_qr.jpg";
+
+export function QRPaymentModal({
+  amount,
+  onClose,
+  onSuccess,
+  productTitle,
+  variantLabel,
+  khqrUrl,
+  usdQrUrl,
+}: QRPaymentModalProps) {
   const { language } = useLanguage();
   const { user } = useAuth();
   const [timeLeft, setTimeLeft] = useState(300); // 5 minutes = 300 seconds
   const [step, setStep] = useState<'qr' | 'form' | 'processing' | 'success' | 'expired'>('qr');
+  const PAYMENT_METHODS = [
+    { value: 'manual', label: language === 'km' ? 'ដៃគូផ្សេង' : 'Manual / Other' },
+    { value: 'ABA Bank', label: 'ABA Bank' },
+    { value: 'ACLEDA Bank', label: 'ACLEDA Bank' },
+    { value: 'Wing Bank', label: 'Wing Bank' },
+    { value: 'Canadia Bank', label: 'Canadia Bank' },
+    { value: 'Other', label: language === 'km' ? 'ធនាគារផ្សេង' : 'Other Bank' }
+  ];
+
   const [paymentInfo, setPaymentInfo] = useState<PaymentInfo>({
     userId: user?.id || '',
-    idPay: '',
-    purchaseId: '',
+    accountName: '',
+    accountNumber: '',
+    paymentApv: '',
+    method: PAYMENT_METHODS[0].value,
     dateTimePay: ''
   });
-  const [copiedLink, setCopiedLink] = useState(false);
-
-  // Detect if user is on mobile device
-  const [isMobile, setIsMobile] = useState(false);
-
   useEffect(() => {
-    const checkMobile = () => {
-      const userAgent = navigator.userAgent || navigator.vendor || (window as any).opera;
-      const mobileCheck = /android|webos|iphone|ipad|ipod|blackberry|iemobile|opera mini/i.test(userAgent.toLowerCase());
-      const touchScreen = 'ontouchstart' in window || navigator.maxTouchPoints > 0;
-      const smallScreen = window.innerWidth <= 768;
-      
-      setIsMobile(mobileCheck || (touchScreen && smallScreen));
-    };
-    
-    checkMobile();
-    window.addEventListener('resize', checkMobile);
-    return () => window.removeEventListener('resize', checkMobile);
-  }, []);
+    setPaymentInfo((prev) => ({ ...prev, userId: user?.id || '' }));
+  }, [user?.id]);
 
-  // PayWay link with amount
-  const payWayLink = `https://link.payway.com.kh/ABAPAYNw404494A`;
+  const resolvedKhQr = khqrUrl && khqrUrl.trim() ? khqrUrl : DEFAULT_KH_QR;
+  const resolvedUsdQr =
+    usdQrUrl &&
+    usdQrUrl.trim() &&
+    usdQrUrl.trim().toLowerCase() !== 'none'
+      ? usdQrUrl
+      : null;
+  const [activeQrType, setActiveQrType] = useState<'khqr' | 'usdqr'>(
+    resolvedKhQr ? 'khqr' : 'usdqr'
+  );
+  useEffect(() => {
+    if (activeQrType === 'usdqr' && !resolvedUsdQr) {
+      setActiveQrType('khqr');
+    }
+  }, [activeQrType, resolvedUsdQr]);
 
-  // Generate QR code URL using Google Charts API with the PayWay link and amount
-  const qrCodeUrl = `https://api.qrserver.com/v1/create-qr-code/?size=300x300&data=${encodeURIComponent(payWayLink)}`;
+  const activeQrUrl =
+    activeQrType === 'usdqr' && resolvedUsdQr ? resolvedUsdQr : resolvedKhQr;
 
   // Countdown timer
   useEffect(() => {
@@ -95,7 +119,14 @@ export function QRPaymentModal({ amount, onClose, onSuccess }: QRPaymentModalPro
 
   const handleSubmitPaymentInfo = async () => {
     // Validate all fields
-    if (!paymentInfo.userId || !paymentInfo.idPay || !paymentInfo.purchaseId || !paymentInfo.dateTimePay) {
+    if (
+      !paymentInfo.userId ||
+      !paymentInfo.accountName ||
+      !paymentInfo.accountNumber ||
+      !paymentInfo.paymentApv ||
+      !paymentInfo.method ||
+      !paymentInfo.dateTimePay
+    ) {
       return;
     }
 
@@ -108,74 +139,13 @@ export function QRPaymentModal({ amount, onClose, onSuccess }: QRPaymentModalPro
     }, 1500);
   };
 
-  const isFormValid = paymentInfo.userId && paymentInfo.idPay && paymentInfo.purchaseId && paymentInfo.dateTimePay;
-
-  const handleOpenPaymentLink = () => {
-    // Open in a phone-width popup to trigger mobile version of PayWay
-    const width = 360; // iPhone/Mobile width to trigger mobile site
-    const height = 740; // Taller height for better visibility
-    const left = (window.screen.width / 2) - (width / 2);
-    const top = (window.screen.height / 2) - (height / 2);
-    
-    window.open(
-      payWayLink,
-      'ABA PayWay Payment',
-      `width=${width},height=${height},left=${left},top=${top},toolbar=no,location=no,status=no,menubar=no,scrollbars=yes,resizable=yes`
-    );
-  };
-
-  const handleCopyLink = async () => {
-    try {
-      // Try modern Clipboard API first
-      if (navigator.clipboard && navigator.clipboard.writeText) {
-        await navigator.clipboard.writeText(payWayLink);
-        setCopiedLink(true);
-        setTimeout(() => setCopiedLink(false), 2000);
-      } else {
-        // Fallback for older browsers or blocked Clipboard API
-        const textArea = document.createElement('textarea');
-        textArea.value = payWayLink;
-        textArea.style.position = 'fixed';
-        textArea.style.left = '-999999px';
-        textArea.style.top = '-999999px';
-        document.body.appendChild(textArea);
-        textArea.focus();
-        textArea.select();
-        
-        try {
-          document.execCommand('copy');
-          setCopiedLink(true);
-          setTimeout(() => setCopiedLink(false), 2000);
-        } catch (err) {
-          console.error('Fallback copy failed:', err);
-        }
-        
-        document.body.removeChild(textArea);
-      }
-    } catch (err) {
-      console.error('Failed to copy:', err);
-      
-      // Final fallback - create temporary textarea
-      const textArea = document.createElement('textarea');
-      textArea.value = payWayLink;
-      textArea.style.position = 'fixed';
-      textArea.style.left = '-999999px';
-      textArea.style.top = '-999999px';
-      document.body.appendChild(textArea);
-      textArea.focus();
-      textArea.select();
-      
-      try {
-        document.execCommand('copy');
-        setCopiedLink(true);
-        setTimeout(() => setCopiedLink(false), 2000);
-      } catch (fallbackErr) {
-        console.error('All copy methods failed:', fallbackErr);
-      }
-      
-      document.body.removeChild(textArea);
-    }
-  };
+  const isFormValid =
+    paymentInfo.userId &&
+    paymentInfo.accountName &&
+    paymentInfo.accountNumber &&
+    paymentInfo.paymentApv &&
+    paymentInfo.method &&
+    paymentInfo.dateTimePay;
 
   return (
     <>
@@ -189,7 +159,7 @@ export function QRPaymentModal({ amount, onClose, onSuccess }: QRPaymentModalPro
       <div className="fixed inset-0 z-50 flex items-center justify-center p-4 overflow-y-auto">
         <div className="bg-white dark:bg-gray-800 rounded-2xl shadow-2xl max-w-md w-full my-8">
           {/* Header with Timer */}
-          <div className="relative bg-gradient-to-r from-red-500 to-red-600 text-white px-6 py-4 rounded-t-2xl">
+          <div className="relative bg-gradient-to-r from-red-500 to-red-600 text-white px-6 py-3 rounded-t-2xl">
             <div className="flex items-center justify-between">
               <div className="flex items-center gap-3">
                 {step === 'processing' && (
@@ -216,7 +186,7 @@ export function QRPaymentModal({ amount, onClose, onSuccess }: QRPaymentModalPro
               </button>
             </div>
 
-            <div className="text-center font-bold text-xl mt-2">
+            <div className="text-center font-bold text-xl">
               ABA PayWay
             </div>
           </div>
@@ -228,7 +198,7 @@ export function QRPaymentModal({ amount, onClose, onSuccess }: QRPaymentModalPro
               <>
                 {/* User Info Display */}
                 {user && (
-                  <div className="bg-gradient-to-r from-blue-50 to-purple-50 dark:from-blue-900/20 dark:to-purple-900/20 rounded-xl p-4 mb-6 border border-blue-200 dark:border-blue-800">
+                  <div className="bg-gradient-to-r from-blue-50 to-purple-50 dark:from-blue-900/20 dark:to-purple-900/20 rounded-xl p-2 mb-3 border border-blue-200 dark:border-blue-800">
                     <div className="flex items-center gap-3">
                       <div className="w-12 h-12 rounded-full bg-gradient-to-br from-blue-500 to-purple-600 flex items-center justify-center text-white">
                         <User className="w-6 h-6" />
@@ -246,7 +216,7 @@ export function QRPaymentModal({ amount, onClose, onSuccess }: QRPaymentModalPro
                 )}
 
                 {/* Amount Display */}
-                <div className="bg-gray-50 dark:bg-gray-900 rounded-xl p-4 mb-6">
+                <div className="bg-gray-50 dark:bg-gray-900 rounded-xl p-2 mb-2">
                   <div className="font-bold text-gray-900 dark:text-white text-lg mb-1">
                     {language === 'km' ? 'ចំនួនទឹកប្រាក់' : 'Total Amount'}
                   </div>
@@ -255,69 +225,69 @@ export function QRPaymentModal({ amount, onClose, onSuccess }: QRPaymentModalPro
                   </div>
                 </div>
 
-                {/* Mobile: Click to Pay Button */}
-                {isMobile && (
-                  <Button
-                    onClick={handleOpenPaymentLink}
-                    className="w-full bg-gradient-to-r from-green-600 to-green-700 hover:from-green-700 hover:to-green-800 text-white mb-4"
-                    size="lg"
-                  >
-                    <ExternalLink className="w-5 h-5 mr-2" />
-                    {language === 'km' ? 'ចុចដើម្បីទូទាត់ប្រាក់' : 'Click to Pay Money'}
-                  </Button>
-                )}
-
-                {/* PC Mode: Show Warning and Payment Link */}
-                {!isMobile && (
-                  <>
-                    {/* PC Mode Warning */}
-                    <div className="bg-orange-50 dark:bg-orange-900/20 border border-orange-200 dark:border-orange-800 rounded-xl p-4 mb-4">
-                      <div className="flex items-start gap-3">
-                        <div className="text-2xl">📱</div>
-                        <div className="flex-1">
-                          <div className="font-bold text-orange-800 dark:text-orange-400 mb-1">
-                            {language === 'km' ? 'ការជូនដំណឹង' : 'Notice'}
-                          </div>
-                          <div className="text-sm text-orange-700 dark:text-orange-300">
-                            {language === 'km' 
-                              ? 'ការទូទាត់អាចស្កេនបានតែនៅក្នុងទូរស័ព្ទប៉ុណ្ណោះ មិនមែននៅលើកុំព្យូទ័រទេ។ សូមស្កេនប្រាក់នៅក្នុងទូរស័ព្ទ។'
-                              : 'The payment can scan just in Phone device not PC device. Please scan money in phone.'}
-                          </div>
-                        </div>
-                      </div>
+                {/* Product Info */}
+                <div className="bg-white dark:bg-gray-900 rounded-xl p-2 mb-4 border border-gray-200 dark:border-gray-700">
+                  <div className="text-xs text-gray-500 dark:text-gray-400 uppercase tracking-wide">
+                    {language === 'km' ? 'ផលិតផល' : 'Product'}
+                  </div>
+                  <div className="font-semibold text-gray-900 dark:text-white">
+                    {productTitle}
+                  </div>
+                  {variantLabel && (
+                    <div className="text-sm text-gray-500 dark:text-gray-400 mt-1">
+                      {variantLabel}
                     </div>
+                  )}
+                </div>
 
-                    {/* Copyable PayWay Link */}
-                    <div className="bg-gray-50 dark:bg-gray-900 rounded-xl p-4 mb-6">
-                      <div className="text-sm font-bold text-gray-900 dark:text-white mb-2">
-                        {language === 'km' ? 'តំណភ្ជាប់ទូទាត់' : 'Payment Link'}
+                {/* QR Selector */}
+                <div className="mb-3">
+                  <div className="flex gap-3 mb-4">
+                    <Button
+                      onClick={() => setActiveQrType('khqr')}
+                      variant={activeQrType === 'khqr' ? 'default' : 'outline'}
+                      className="flex-1"
+                    >
+                      KHQR
+                    </Button>
+                    <Button
+                      onClick={() => setActiveQrType('usdqr')}
+                      variant={activeQrType === 'usdqr' ? 'default' : 'outline'}
+                      className="flex-1"
+                      disabled={!resolvedUsdQr}
+                    >
+                      USD QR
+                    </Button>
+                  </div>
+
+                  <div className="flex flex-col items-center">
+                    {activeQrUrl ? (
+                      <div className="bg-white dark:bg-gray-900 border border-gray-200 dark:border-gray-700 rounded-2xl p-4 shadow-lg">
+                        <img
+                          src={activeQrUrl}
+                          alt="Payment QR"
+                          className="w-56 h-56 object-contain"
+                        />
                       </div>
-                      <div className="flex items-center gap-2">
-                        <div className="flex-1 bg-white dark:bg-gray-800 border border-gray-300 dark:border-gray-700 rounded-lg px-3 py-2 text-xs text-gray-600 dark:text-gray-400 break-all">
-                          {payWayLink}
-                        </div>
-                        <Button
-                          onClick={handleCopyLink}
-                          variant="outline"
-                          size="sm"
-                          className="flex-shrink-0"
-                        >
-                          {copiedLink ? (
-                            <>
-                              <Check className="w-4 h-4 mr-1 text-green-600" />
-                              {language === 'km' ? 'ចម្លង!' : 'Copied!'}
-                            </>
-                          ) : (
-                            <>
-                              <Copy className="w-4 h-4 mr-1" />
-                              {language === 'km' ? 'ចម្លង' : 'Copy'}
-                            </>
-                          )}
-                        </Button>
+                    ) : (
+                      <div className="w-full rounded-2xl border border-dashed border-gray-300 dark:border-gray-700 p-6 text-center text-sm text-gray-500 dark:text-gray-400">
+                        {language === 'km'
+                          ? 'មិនមាន QR code សម្រាប់ជម្រើសនេះទេ'
+                          : 'QR code not available for this option.'}
                       </div>
-                    </div>
-                  </>
-                )}
+                    )}
+                    <img
+                      src="/paymentQR/bank_support.webp"
+                      alt="Bank Support"
+                      className="w-full h-8 mx-auto mt-3"
+                    />
+                    <p className="text-sm text-gray-600 dark:text-gray-400 mt-3">
+                      {language === 'km'
+                        ? 'ស្កេន QR ដែលបានជ្រើសជាមួយ ABA Mobile របស់អ្នកដើម្បីបន្តការទូទាត់។'
+                        : 'Scan the selected QR with your ABA Mobile app to pay.'}
+                    </p>
+                  </div>
+                </div>
 
                 {/* Continue Button */}
                 <Button
@@ -364,39 +334,72 @@ export function QRPaymentModal({ amount, onClose, onSuccess }: QRPaymentModalPro
                     </Label>
                     <Input
                       value={paymentInfo.userId}
-                      onChange={(e) => setPaymentInfo(prev => ({ ...prev, userId: e.target.value }))}
+                      readOnly
+                      disabled
                       placeholder={language === 'km' ? 'បញ្ចូលអត្តសញ្ញាណអ្នកប្រើប្រាស់' : 'Enter User ID'}
                       className="mt-1 dark:bg-gray-900 dark:border-gray-700"
                       required
                     />
                   </div>
 
-                  {/* ID Pay */}
+                  {/* Account Name */}
                   <div>
                     <Label className="text-gray-900 dark:text-white">
-                      {language === 'km' ? 'លេខសម្គាល់ការទូទាត់' : 'Payment ID'} *
+                      {language === 'km' ? 'ឈ្មោះគណនី' : 'Account Name'} *
                     </Label>
                     <Input
-                      value={paymentInfo.idPay}
-                      onChange={(e) => setPaymentInfo(prev => ({ ...prev, idPay: e.target.value }))}
-                      placeholder={language === 'km' ? 'បញ្ចូលលេខសម្គាល់ការទូទាត់' : 'Enter Payment ID'}
+                      value={paymentInfo.accountName}
+                      onChange={(e) => setPaymentInfo(prev => ({ ...prev, accountName: e.target.value }))}
+                      placeholder={language === 'km' ? 'បញ្ចូលឈ្មោះគណនី' : 'Enter account name'}
                       className="mt-1 dark:bg-gray-900 dark:border-gray-700"
                       required
                     />
                   </div>
 
-                  {/* Purchase ID */}
+                  {/* Account Number */}
                   <div>
                     <Label className="text-gray-900 dark:text-white">
-                      {language === 'km' ? 'លេខសម្គាល់ការទិញ' : 'Purchase ID'} *
+                      {language === 'km' ? 'លេខគណនី' : 'Account Number'} *
                     </Label>
                     <Input
-                      value={paymentInfo.purchaseId}
-                      onChange={(e) => setPaymentInfo(prev => ({ ...prev, purchaseId: e.target.value }))}
-                      placeholder={language === 'km' ? 'បញ្ចូលលេខសម្គាល់ការទិញ' : 'Enter Purchase ID'}
+                      value={paymentInfo.accountNumber}
+                      onChange={(e) => setPaymentInfo(prev => ({ ...prev, accountNumber: e.target.value }))}
+                      placeholder={language === 'km' ? 'បញ្ចូលលេខគណនី' : 'Enter account number'}
                       className="mt-1 dark:bg-gray-900 dark:border-gray-700"
                       required
                     />
+                  </div>
+
+                  {/* Purchase Apv */}
+                  <div>
+                    <Label className="text-gray-900 dark:text-white">
+                      {language === 'km' ? 'លេខទទួលបញ្ជី' : 'Purchase Apv'} *
+                    </Label>
+                    <Input
+                      value={paymentInfo.paymentApv}
+                      onChange={(e) => setPaymentInfo(prev => ({ ...prev, paymentApv: e.target.value }))}
+                      placeholder={language === 'km' ? 'បញ្ចូល Purchase Apv' : 'Enter Purchase Apv'}
+                      className="mt-1 dark:bg-gray-900 dark:border-gray-700"
+                      required
+                    />
+                  </div>
+
+                  {/* Method */}
+                  <div>
+                    <Label className="text-gray-900 dark:text-white">
+                      {language === 'km' ? 'វិធីសាស្ត្រទូទាត់' : 'Payment Method'} *
+                    </Label>
+                    <select
+                      value={paymentInfo.method}
+                      onChange={(e) => setPaymentInfo(prev => ({ ...prev, method: e.target.value }))}
+                      className="mt-1 w-full border rounded-lg px-3 py-2 text-sm dark:bg-gray-900 dark:border-gray-700"
+                    >
+                      {PAYMENT_METHODS.map((m) => (
+                        <option value={m.value} key={m.value}>
+                          {m.label}
+                        </option>
+                      ))}
+                    </select>
                   </div>
 
                   {/* Date Time Pay */}

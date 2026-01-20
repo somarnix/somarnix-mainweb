@@ -2,6 +2,15 @@ import { db } from "@/lib/db";
 import { getAuthUser } from "@/lib/auth";
 import type { RowDataPacket, ResultSetHeader } from "mysql2";
 
+const ALLOWED_METHODS = [
+  "manual",
+  "ABA Bank",
+  "ACLEDA Bank",
+  "Wing Bank",
+  "Canadia Bank",
+  "Other",
+] as const;
+
 type OrderStatus =
   | "pending"
   | "waiting_admin"
@@ -10,9 +19,15 @@ type OrderStatus =
   | "done"
   | "cancelled";
 
-type OrderRow = RowDataPacket & {
+type OrderRowLegacy = RowDataPacket & {
   id: number;
   status: OrderStatus;
+};
+
+type OrderRowState = RowDataPacket & {
+  id: number;
+  state: string;
+  result?: string | null;
 };
 
 function toMysqlDatetime(input: string): string | null {
@@ -34,22 +49,31 @@ export async function POST(req: Request) {
     const b = body as Record<string, unknown>;
 
     const oid = Number(b.orderId);
-    const paymentId = b.paymentId;
-    const purchaseId = b.purchaseId;
+    const accountName = b.accountName;
+    const accountNumber = b.accountNumber;
+    const paymentApv = b.paymentApv;
+    const method = b.method;
     const paidAt = b.paidAt;
 
     if (
       !Number.isFinite(oid) ||
       oid <= 0 ||
-      typeof paymentId !== "string" ||
-      paymentId.trim() === "" ||
-      typeof purchaseId !== "string" ||
-      purchaseId.trim() === "" ||
+      typeof accountName !== "string" ||
+      accountName.trim() === "" ||
+      typeof accountNumber !== "string" ||
+      accountNumber.trim() === "" ||
+      typeof paymentApv !== "string" ||
+      paymentApv.trim() === "" ||
+      typeof method !== "string" ||
+      !ALLOWED_METHODS.includes(method as (typeof ALLOWED_METHODS)[number]) ||
       typeof paidAt !== "string" ||
       paidAt.trim() === ""
     ) {
       return Response.json(
-        { error: "orderId, paymentId, purchaseId, paidAt required" },
+        {
+          error:
+            "orderId, accountName, accountNumber, paymentApv, method (valid option), paidAt required",
+        },
         { status: 400 }
       );
     }
@@ -63,17 +87,45 @@ export async function POST(req: Request) {
     }
 
     // Ensure order belongs to user
-    const [oRows] = await db.query<OrderRow[]>(
-      "SELECT id, status FROM orders WHERE id=? AND user_id=? LIMIT 1",
-      [oid, auth.userId]
-    );
+    let useLegacyStatus = false;
+    let orderStateRow: OrderRowState | null = null;
+    try {
+      const [rows] = await db.query<OrderRowState[]>(
+        "SELECT id, state, result FROM orders WHERE id=? AND user_id=? LIMIT 1",
+        [oid, auth.userId]
+      );
+      orderStateRow = rows.length ? rows[0] : null;
+    } catch (err) {
+      const message = err instanceof Error ? err.message : String(err);
+      if (
+        message.includes("Unknown column 'state'") ||
+        message.includes("Unknown column 'result'")
+      ) {
+        useLegacyStatus = true;
+      } else {
+        throw err;
+      }
+    }
 
-    if (oRows.length === 0) {
+    let orderLegacyRow: OrderRowLegacy | null = null;
+    if (useLegacyStatus) {
+      const [rows] = await db.query<OrderRowLegacy[]>(
+        "SELECT id, status FROM orders WHERE id=? AND user_id=? LIMIT 1",
+        [oid, auth.userId]
+      );
+      orderLegacyRow = rows.length ? rows[0] : null;
+    }
+
+    const orderExists = useLegacyStatus ? orderLegacyRow !== null : orderStateRow !== null;
+    if (!orderExists) {
       return Response.json({ error: "Order not found" }, { status: 404 });
     }
 
-    // Only allow submit from pending
-    if (oRows[0].status !== "pending") {
+    const currentState = useLegacyStatus
+      ? (orderLegacyRow!.status ?? "").toString()
+      : (orderStateRow!.state ?? "").toString();
+
+    if (currentState !== "pending") {
       return Response.json({ error: "Order not pending" }, { status: 400 });
     }
 
@@ -91,23 +143,48 @@ export async function POST(req: Request) {
 
     await db.query<ResultSetHeader>(
       `
-      INSERT INTO payments (order_id, user_id, payment_id, purchase_id, paid_at, method)
-      VALUES (?,?,?,?,?, 'manual')
+      INSERT INTO payments (order_id, user_id, account_id, payment_id, payment_apv, paid_at, method)
+      VALUES (?,?,?,?,?,?,?)
       `,
-      [oid, auth.userId, paymentId.trim(), purchaseId.trim(), mysqlPaidAt]
+      [
+        oid,
+        auth.userId,
+        accountName.trim(),
+        accountNumber.trim(),
+        paymentApv.trim(),
+        mysqlPaidAt,
+        method,
+      ]
     );
 
-    // ✅ Move order to waiting_admin
-    await db.query<ResultSetHeader>(
-      "UPDATE orders SET status='waiting_admin' WHERE id=? AND user_id=?",
-      [oid, auth.userId]
-    );
+    // Update order state/result to reflect submission
+    const updateParts: string[] = [];
+    const updateValues: Array<string | number> = [];
+
+    if (useLegacyStatus) {
+      updateParts.push("status = ?");
+      updateValues.push("waiting_admin");
+    } else {
+      updateParts.push("state = ?");
+      updateValues.push("pending");
+      updateParts.push("result = ?");
+      updateValues.push("none");
+    }
+
+    if (updateParts.length > 0) {
+      updateValues.push(oid, auth.userId);
+      await db.query<ResultSetHeader>(
+        `UPDATE orders SET ${updateParts.join(", ")} WHERE id=? AND user_id=?`,
+        updateValues
+      );
+    }
 
     return Response.json({
       success: true,
       message: "Payment submitted. Waiting admin review.",
       orderId: oid,
-      status: "waiting_admin",
+      state: useLegacyStatus ? "waiting_admin" : "pending",
+      result: useLegacyStatus ? undefined : "none",
     });
   } catch (err: unknown) {
     const message = err instanceof Error ? err.message : String(err);

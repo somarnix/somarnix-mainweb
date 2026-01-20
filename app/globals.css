@@ -1,3 +1,29 @@
+/* =======================
+   IMPORTS (MUST BE FIRST)
+======================= */
+
+@import url('https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@400;500;600;700&display=swap');
 @import '../styles/fonts.css';
 @import '../styles/tailwind.css';
 @import '../styles/theme.css';
+
+/* =======================
+   GLOBAL OVERRIDES
+======================= */
+
+/* Align main content containers with the sidebar (no centered max-width). */
+#main_container .content_area>.max-w-7xl,
+#main_container .content_area>.max-w-6xl,
+#main_container .content_area>.max-w-5xl,
+#main_container .content_area>.max-w-4xl,
+#main_container .content_area>.max-w-3xl,
+#main_container .content_area>.max-w-2xl {
+  max-width: none;
+  margin-left: 0;
+  margin-right: 0;
+  width: 100%;
+}
+
+.video-blog-page {
+  font-family: 'Space Grotesk', 'Trebuchet MS', sans-serif;
+}

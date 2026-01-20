@@ -42,6 +42,8 @@ type Variant = {
 
   original_price?: number | null;
   price?: number | null;
+  khqr?: string | null;
+  usdqr?: string | null;
 };
 
 type ProductDetail = {

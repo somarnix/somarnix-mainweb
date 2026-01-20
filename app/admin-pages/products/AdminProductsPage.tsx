@@ -2,7 +2,7 @@
 // app/admin-pages/products/AdminProductsPage.tsx
 "use client";
 
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 
 /* ================= TYPES ================= */
 
@@ -49,8 +49,17 @@ type Variant = {
   original_price?: number | string | null;
   price?: number | string | null;
 
+  khqr?: string | null;
+  usdqr?: string | null;
+
   is_active: number;
   created_at?: string | null;
+};
+
+type QrImageOption = {
+  filename: string;
+  label: string;
+  url: string;
 };
 
 /* ================= HELPERS ================= */
@@ -93,6 +102,9 @@ function getErrorMessage(err: unknown): string {
   if (err instanceof Error) return err.message;
   return String(err);
 }
+
+const DEFAULT_KH_QR = "/paymentQR/khmer_qr.jpg";
+const USD_QR_NONE = "none";
 
 /* ================= PAGE ================= */
 
@@ -147,6 +159,14 @@ export default function AdminProductsPage() {
 
   const [vOriginalPrice, setVOriginalPrice] = useState<string>("");
   const [vPrice, setVPrice] = useState<string>("");
+  const [vKhQr, setVKhQr] = useState<string>(DEFAULT_KH_QR);
+  const [vUsdQr, setVUsdQr] = useState<string>(USD_QR_NONE);
+
+
+  const [usdQrOptions, setUsdQrOptions] = useState<QrImageOption[]>([]);
+  const [usdQrLoading, setUsdQrLoading] = useState(false);
+  const [usdQrUploading, setUsdQrUploading] = useState(false);
+  const usdQrUploadInputRef = useRef<HTMLInputElement | null>(null);
 
   /* ================= LOAD CATEGORIES ================= */
 
@@ -183,6 +203,41 @@ export default function AdminProductsPage() {
     if (mapped.length > 0) {
       setCCategoryId((prev) => (prev === 0 ? mapped[0].id : prev));
       setFCategoryId((prev) => (prev === 0 ? mapped[0].id : prev));
+    }
+  };
+
+  const loadUsdQrOptions = async () => {
+    try {
+      setUsdQrLoading(true);
+      const res = await fetch("/api/admin/payment-qr/usd", { credentials: "include" });
+      const data: unknown = await res.json().catch(() => ({}));
+      if (!res.ok) throw new Error(parseErrorMessage(data, "Failed to load USD QR images"));
+
+      const filesRaw =
+        typeof data === "object" && data !== null && "files" in data
+          ? (data as { files?: unknown }).files
+          : null;
+
+      const mapped: QrImageOption[] = Array.isArray(filesRaw)
+        ? filesRaw
+            .map((item) => {
+              if (typeof item !== "object" || item === null) return null;
+              const r = item as Record<string, unknown>;
+              const filename = typeof r.filename === "string" ? r.filename : null;
+              const label = typeof r.label === "string" ? r.label : null;
+              const url = typeof r.url === "string" ? r.url : null;
+              if (!filename || !label || !url) return null;
+              return { filename, label, url };
+            })
+            .filter(Boolean) as QrImageOption[]
+        : [];
+
+      setUsdQrOptions(mapped);
+    } catch (err) {
+      console.error(err);
+      setUsdQrOptions([]);
+    } finally {
+      setUsdQrLoading(false);
     }
   };
 
@@ -281,6 +336,11 @@ export default function AdminProductsPage() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
+  useEffect(() => {
+    void loadUsdQrOptions();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
   /* ================= UPLOAD IMAGE ================= */
 
   const uploadImage = async (file: File): Promise<string> => {
@@ -303,6 +363,53 @@ export default function AdminProductsPage() {
 
     if (typeof url === "string" && url.trim()) return url;
     throw new Error("Upload failed (no url)");
+  };
+
+  const uploadUsdQrImage = async (file: File) => {
+    const suggested = file.name?.split(".")?.[0] ?? "";
+    const customName = window
+      .prompt("USD QR name (example: 3$). Same name replaces the old image.", suggested)
+      ?.trim();
+
+    if (!customName) {
+      alert("USD QR name is required.");
+      if (usdQrUploadInputRef.current) usdQrUploadInputRef.current.value = "";
+      return;
+    }
+
+    try {
+      setUsdQrUploading(true);
+      const form = new FormData();
+      form.append("file", file);
+      form.append("name", customName);
+
+      const res = await fetch("/api/admin/payment-qr/usd", {
+        method: "POST",
+        credentials: "include",
+        body: form,
+      });
+
+      const data: unknown = await res.json().catch(() => ({}));
+      if (!res.ok) throw new Error(parseErrorMessage(data, "Failed to upload USD QR"));
+
+      const url =
+        typeof data === "object" && data !== null && "url" in data
+          ? (data as { url?: unknown }).url
+          : null;
+
+      if (typeof url === "string" && url.trim()) {
+        setVUsdQr(url);
+      }
+
+      await loadUsdQrOptions();
+    } catch (err) {
+      alert(getErrorMessage(err));
+    } finally {
+      setUsdQrUploading(false);
+      if (usdQrUploadInputRef.current) {
+        usdQrUploadInputRef.current.value = "";
+      }
+    }
   };
 
   /* ================= QUICK SAVE FIELD ================= */
@@ -443,6 +550,8 @@ export default function AdminProductsPage() {
 
         const original_price = r.original_price as number | string | null;
         const price = r.price as number | string | null;
+        const khqr = typeof r.khqr === "string" ? r.khqr : null;
+        const usdqr = typeof r.usdqr === "string" ? r.usdqr : null;
 
         const is_active = Number(r.is_active) ? 1 : 0;
         const created_at = typeof r.created_at === "string" ? r.created_at : null;
@@ -458,6 +567,8 @@ export default function AdminProductsPage() {
           is_unlimited_device,
           original_price,
           price,
+          khqr,
+          usdqr,
           is_active,
           created_at,
         };
@@ -534,6 +645,8 @@ export default function AdminProductsPage() {
         is_unlimited_device: vUnlimitedDevice ? 1 : 0,
         original_price: origNum,
         price: priceNum,
+        khqr: vKhQr && vKhQr.trim() ? vKhQr : DEFAULT_KH_QR,
+        usdqr: vUsdQr && vUsdQr !== USD_QR_NONE ? vUsdQr : USD_QR_NONE,
       };
 
       const res = await fetch(`/api/admin/products/${productId}/variants`, {
@@ -555,6 +668,8 @@ export default function AdminProductsPage() {
       setVUnlimitedDevice(0);
       setVOriginalPrice("");
       setVPrice("");
+      setVKhQr(DEFAULT_KH_QR);
+      setVUsdQr(USD_QR_NONE);
 
       await loadVariants(productId);
       await loadProducts({ silent: true }); // update min_price + variant_count
@@ -645,6 +760,9 @@ export default function AdminProductsPage() {
     setVUnlimitedDevice(0);
     setVOriginalPrice("");
     setVPrice("");
+    setVKhQr(DEFAULT_KH_QR);
+    setVUsdQr(USD_QR_NONE);
+    setEditingVariant(null);
 
     setEditOpen(true);
 
@@ -662,6 +780,18 @@ export default function AdminProductsPage() {
     setVariants([]);
     setVariantsLoading(false);
     setVariantsSaving(false);
+    setVDurationLabel("");
+    setVDurationNote("");
+    setVDurationDays("");
+    setVDeviceLabel("");
+    setVDeviceLimit("");
+    setVUnlimitedDevice(0);
+    setVOriginalPrice("");
+    setVPrice("");
+    setVKhQr(DEFAULT_KH_QR);
+    setVUsdQr(USD_QR_NONE);
+    setEditingVariant(null);
+    setShowVariants(false);
   };
 
   const saveEdit = async () => {
@@ -1317,6 +1447,94 @@ export default function AdminProductsPage() {
                             className="mt-1 w-full border rounded-lg px-3 py-2 text-sm"
                           />
                         </div>
+
+                        <div className="md:col-span-2 rounded-xl border border-gray-200 bg-gray-50 p-3">
+                          <div className="text-xs font-semibold text-gray-700 mb-3">
+                            QR Payment
+                          </div>
+                          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                            <div>
+                              <div className="text-xs text-gray-600 mb-1">KHQR (Auto)</div>
+                              <div className="flex items-center gap-3">
+                                <img
+                                  src={vKhQr || DEFAULT_KH_QR}
+                                  alt="KHQR"
+                                  className="w-20 h-20 rounded-lg border object-cover bg-white"
+                                />
+                                <div className="text-xs text-gray-500 break-all">
+                                  {vKhQr || DEFAULT_KH_QR}
+                                </div>
+                              </div>
+                              <p className="text-[11px] text-gray-500 mt-2">
+                                Always uses the default Khmer QR for every variant.
+                              </p>
+                            </div>
+                            <div>
+                              <div className="text-xs text-gray-600 mb-1">USD QR</div>
+                              <select
+                                value={vUsdQr}
+                                onChange={(e) => setVUsdQr(e.target.value)}
+                                className="mt-1 w-full border rounded-lg px-3 py-2 text-sm"
+                              >
+                                <option value={USD_QR_NONE}>None</option>
+                                {usdQrOptions.map((opt) => (
+                                  <option key={opt.filename} value={opt.url}>
+                                    {opt.label}
+                                  </option>
+                                ))}
+                              </select>
+                              {usdQrLoading ? (
+                                <p className="text-[11px] text-gray-500 mt-1">Loading USD QR list...</p>
+                              ) : null}
+                              <div className="mt-2 flex flex-wrap gap-2">
+                                <button
+                                  type="button"
+                                  className="text-xs px-3 py-1.5 rounded border bg-white hover:bg-gray-100"
+                                  onClick={() => usdQrUploadInputRef.current?.click()}
+                                  disabled={usdQrUploading}
+                                >
+                                  {usdQrUploading ? "Uploading..." : "Upload / Replace"}
+                                </button>
+                                <button
+                                  type="button"
+                                  className="text-xs px-3 py-1.5 rounded border"
+                                  onClick={() => {
+                                    void loadUsdQrOptions();
+                                  }}
+                                  disabled={usdQrLoading}
+                                >
+                                  Refresh List
+                                </button>
+                              </div>
+                              <input
+                                type="file"
+                                ref={usdQrUploadInputRef}
+                                accept="image/*"
+                                className="hidden"
+                                onChange={(e) => {
+                                  const file = e.target.files?.[0];
+                                  if (file) {
+                                    void uploadUsdQrImage(file);
+                                  }
+                                }}
+                              />
+                              {vUsdQr !== USD_QR_NONE ? (
+                                <div className="mt-2 flex items-center gap-3">
+                                  <img
+                                    src={vUsdQr}
+                                    alt="USD QR preview"
+                                    className="w-20 h-20 rounded-lg border object-cover bg-white"
+                                  />
+                                  <div className="text-xs text-gray-500 break-all">{vUsdQr}</div>
+                                </div>
+                              ) : (
+                                <p className="text-[11px] text-gray-500 mt-2">
+                                  No USD QR selected for this variant.
+                                </p>
+                              )}
+                            </div>
+                          </div>
+                        </div>
                       </div>
 
                       <div className="mt-4 flex justify-end gap-2">
@@ -1332,6 +1550,8 @@ export default function AdminProductsPage() {
                             setVUnlimitedDevice(0);
                             setVOriginalPrice("");
                             setVPrice("");
+                            setVKhQr(DEFAULT_KH_QR);
+                            setVUsdQr(USD_QR_NONE);
                           }}
                         >
                           Clear
@@ -1353,6 +1573,8 @@ export default function AdminProductsPage() {
                             is_unlimited_device: vUnlimitedDevice ? 1 : 0,
                             original_price: Number(vOriginalPrice),
                             price: Number(vPrice),
+                            khqr: vKhQr && vKhQr.trim() ? vKhQr : DEFAULT_KH_QR,
+                            usdqr: vUsdQr && vUsdQr !== USD_QR_NONE ? vUsdQr : USD_QR_NONE,
                           };
 
                           try {
@@ -1381,6 +1603,8 @@ export default function AdminProductsPage() {
                             setVUnlimitedDevice(0);
                             setVOriginalPrice("");
                             setVPrice("");
+                            setVKhQr(DEFAULT_KH_QR);
+                            setVUsdQr(USD_QR_NONE);
 
                             await loadVariants(editing.id);
                             await loadProducts({ silent: true });
@@ -1437,6 +1661,13 @@ export default function AdminProductsPage() {
                                   <div className="text-xs text-gray-500">
                                     {formatMoney(v.original_price)}
                                   </div>
+                                  <div className="text-[11px] text-gray-500 mt-1">
+                                    KHQR: {v.khqr || DEFAULT_KH_QR}
+                                  </div>
+                                  <div className="text-[11px] text-gray-500">
+                                    USD QR:{" "}
+                                    {v.usdqr && v.usdqr !== USD_QR_NONE ? v.usdqr : "none"}
+                                  </div>
                                 </td>
 
                                 <td className="p-2">
@@ -1468,6 +1699,8 @@ export default function AdminProductsPage() {
           v.original_price != null ? String(v.original_price) : ""
         );
         setVPrice(v.price != null ? String(v.price) : "");
+        setVKhQr(v.khqr ?? DEFAULT_KH_QR);
+        setVUsdQr(v.usdqr ?? USD_QR_NONE);
       }}
     >
       Edit

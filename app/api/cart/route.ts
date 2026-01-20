@@ -19,6 +19,8 @@ type CartItemRow = RowDataPacket & {
 
   duration_label: string | null;
   device_label: string | null;
+  khqr: string | null;
+  usdqr: string | null;
 };
 
 export async function GET(req: Request) {
@@ -41,7 +43,9 @@ export async function GET(req: Request) {
         ci.unit_price,
         (ci.qty * ci.unit_price) AS line_total,
         v.duration_label,
-        v.device_label
+        v.device_label,
+        v.khqr,
+        v.usdqr
       FROM carts c
       JOIN cart_items ci ON ci.cart_id = c.id
       JOIN products p ON p.id = ci.product_id
@@ -61,6 +65,8 @@ export async function GET(req: Request) {
       qty: Number(r.qty),
       unit_price: Number(r.unit_price),
       line_total: Number(r.line_total),
+      khqr: typeof r.khqr === "string" ? r.khqr : null,
+      usdqr: typeof r.usdqr === "string" ? r.usdqr : null,
     }));
 
     const subtotal = items.reduce((sum, r) => sum + r.line_total, 0);

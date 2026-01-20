@@ -1,117 +1,158 @@
-import { useState } from 'react';
-import { Search, Play, Eye, ThumbsUp, Clock, Calendar } from 'lucide-react';
-import { useLanguage } from '../../contexts/LanguageContext';
-
-interface Video {
-  id: string;
-  title: string;
-  description: string;
-  thumbnail: string;
-  videoId: string; // YouTube video ID
-  views: number;
-  likes: number;
-  duration: string;
-  uploadDate: string;
-  category: string;
-}
+import { useMemo, useState } from "react";
+import { Search, Play, Eye, Calendar, Star, Filter } from "lucide-react";
+import { useLanguage } from "../../contexts/LanguageContext";
+import { videoCourses } from "./videoData";
 
 interface BlogPageProps {
   onNavigate: (page: string) => void;
+  onOpenVideoDetail?: (slug: string) => void;
 }
 
-export function BlogPage({ onNavigate }: BlogPageProps) {
+export function BlogPage({ onNavigate, onOpenVideoDetail }: BlogPageProps) {
   const { language } = useLanguage();
-  const [selectedCategory, setSelectedCategory] = useState<string>('all');
-  const [selectedVideo, setSelectedVideo] = useState<Video | null>(null);
-
-  // Mock video data (replace videoId with real YouTube video IDs)
-  const videos: Video[] = [
-    {
-      id: '1',
-      title: 'Complete Web Development Tutorial 2024',
-      description: 'Learn web development from scratch with HTML, CSS, and JavaScript',
-      thumbnail: 'https://images.unsplash.com/photo-1498050108023-c5249f4df085?w=800&h=450&fit=crop',
-      videoId: 'dQw4w9WgXcQ', // Replace with actual YouTube video ID
-      views: 125000,
-      likes: 8900,
-      duration: '2:45:30',
-      uploadDate: '2024-01-15',
-      category: 'programming'
-    },
-    {
-      id: '2',
-      title: 'Advanced React Hooks Tutorial',
-      description: 'Master React Hooks with practical examples and best practices',
-      thumbnail: 'https://images.unsplash.com/photo-1633356122544-f134324a6cee?w=800&h=450&fit=crop',
-      videoId: 'dQw4w9WgXcQ',
-      views: 98000,
-      likes: 7200,
-      duration: '1:35:20',
-      uploadDate: '2024-01-20',
-      category: 'programming'
-    },
-    {
-      id: '3',
-      title: 'UI/UX Design Principles',
-      description: 'Learn essential design principles for creating beautiful interfaces',
-      thumbnail: 'https://images.unsplash.com/photo-1561070791-2526d30994b5?w=800&h=450&fit=crop',
-      videoId: 'dQw4w9WgXcQ',
-      views: 156000,
-      likes: 12500,
-      duration: '58:45',
-      uploadDate: '2024-01-18',
-      category: 'design'
-    },
-    {
-      id: '4',
-      title: 'Machine Learning for Beginners',
-      description: 'Introduction to machine learning concepts and practical applications',
-      thumbnail: 'https://images.unsplash.com/photo-1555949963-aa79dcee981c?w=800&h=450&fit=crop',
-      videoId: 'dQw4w9WgXcQ',
-      views: 87000,
-      likes: 6800,
-      duration: '3:12:15',
-      uploadDate: '2024-01-12',
-      category: 'ai'
-    },
-    {
-      id: '5',
-      title: 'Digital Marketing Strategies 2024',
-      description: 'Latest digital marketing trends and strategies for success',
-      thumbnail: 'https://images.unsplash.com/photo-1460925895917-afdab827c52f?w=800&h=450&fit=crop',
-      videoId: 'dQw4w9WgXcQ',
-      views: 203000,
-      likes: 15600,
-      duration: '1:42:30',
-      uploadDate: '2024-01-10',
-      category: 'business'
-    },
-    {
-      id: '6',
-      title: 'Photography Masterclass',
-      description: 'Professional photography techniques and composition tips',
-      thumbnail: 'https://images.unsplash.com/photo-1606857521015-7f9fcf423740?w=800&h=450&fit=crop',
-      videoId: 'dQw4w9WgXcQ',
-      views: 142000,
-      likes: 11200,
-      duration: '2:18:45',
-      uploadDate: '2024-01-08',
-      category: 'creative'
-    }
-  ];
+  const [searchTerm, setSearchTerm] = useState("");
+  const [selectedCategories, setSelectedCategories] = useState<string[]>([]);
+  const [selectedTags, setSelectedTags] = useState<string[]>([]);
+  const [selectedLevels, setSelectedLevels] = useState<string[]>([]);
+  const [selectedPrice, setSelectedPrice] = useState<"all" | "free" | "paid">(
+    "all"
+  );
+  const [sortBy, setSortBy] = useState<
+    "newest" | "popular" | "rating" | "price-low" | "price-high"
+  >("popular");
 
   const categories = [
-    { id: 'all', name: language === 'km' ? 'ទាំងអស់' : 'All Videos' },
-    { id: 'programming', name: language === 'km' ? 'កម្មវិធី' : 'Programming' },
-    { id: 'design', name: language === 'km' ? 'ការរចនា' : 'Design' },
-    { id: 'ai', name: language === 'km' ? 'AI' : 'AI & ML' },
-    { id: 'business', name: language === 'km' ? 'អាជីវកម្ម' : 'Business' },
-    { id: 'creative', name: language === 'km' ? 'គំនិតច្នៃប្រឌិត' : 'Creative' }
+    { id: "3d animation", name: "3D Animation" },
+    { id: "art & design", name: "Art & Design" },
+    { id: "data science", name: "Data Science" },
+    { id: "finance account", name: "Finance Account" },
+    { id: "health and fitness", name: "Health and Fitness" },
+    { id: "marketing", name: "Marketing" },
+    { id: "mobile application", name: "Mobile Application" },
+    { id: "seo", name: "SEO" },
+    { id: "web development", name: "Web Development" },
   ];
 
-  const filteredVideos = selectedCategory === 'all' 
-    ? videos 
-    : videos.filter(v => v.category === selectedCategory);
+  const tags = [
+    "accounting",
+    "adobe photoshop",
+    "adobe xd",
+    "app development",
+    "graphic design",
+    "health & fitness",
+    "illustrations",
+    "javascript",
+    "php",
+    "ui design",
+    "ux design",
+  ];
+
+  const levels = ["all levels", "beginner", "intermediate", "expert"];
+
+  const priceFilters: Array<{ id: "all" | "free" | "paid"; label: string }> = [
+    { id: "all", label: "All" },
+    { id: "free", label: "Free" },
+    { id: "paid", label: "Paid" },
+  ];
+
+  const sortOptions: Array<{
+    id: "popular" | "rating" | "price-low" | "price-high";
+    label: string;
+  }> = [
+    { id: "popular", label: language === "km" ? "ពេញនិយម" : "Most Popular" },
+    {
+      id: "rating",
+      label: language === "km" ? "ពេញចិត្តខ្ពស់" : "Highest Rated",
+    },
+    {
+      id: "price-low",
+      label: language === "km" ? "តម្លៃទាបទៅខ្ពស់" : "Price: Low to High",
+    },
+    {
+      id: "price-high",
+      label: language === "km" ? "តម្លៃខ្ពស់ទៅទាប" : "Price: High to Low",
+    },
+  ];
+
+  const filteredCourses = useMemo(() => {
+    const term = searchTerm.trim().toLowerCase();
+    let result = videoCourses.filter((course) => {
+      if (
+        selectedCategories.length &&
+        !selectedCategories.includes(course.category)
+      ) {
+        return false;
+      }
+      if (
+        selectedTags.length &&
+        !selectedTags.some((tag) => course.tags.includes(tag))
+      ) {
+        return false;
+      }
+      if (
+        selectedLevels.length &&
+        !selectedLevels.includes(course.level) &&
+        !selectedLevels.includes("all levels")
+      ) {
+        return false;
+      }
+      if (selectedPrice === "free" && course.price !== 0) return false;
+      if (selectedPrice === "paid" && course.price === 0) return false;
+      if (term) {
+        const hay = `${course.title} ${course.description}`.toLowerCase();
+        if (!hay.includes(term)) return false;
+      }
+      return true;
+    });
+
+    result = [...result].sort((a, b) => {
+      if (sortBy === "popular") return b.views - a.views;
+      if (sortBy === "rating") return b.rating - a.rating;
+      if (sortBy === "price-low") return a.price - b.price;
+      if (sortBy === "price-high") return b.price - a.price;
+      return (
+        new Date(b.uploadDate).getTime() - new Date(a.uploadDate).getTime()
+      );
+    });
+
+    return result;
+  }, [
+    searchTerm,
+    selectedCategories,
+    selectedTags,
+    selectedLevels,
+    selectedPrice,
+    sortBy,
+  ]);
+
+  const newestVideos = useMemo(
+    () =>
+      [...videoCourses]
+        .sort(
+          (a, b) =>
+            new Date(b.uploadDate).getTime() -
+            new Date(a.uploadDate).getTime()
+        )
+        .slice(0, 3),
+    []
+  );
+
+  const popularVideos = useMemo(
+    () => [...videoCourses].sort((a, b) => b.views - a.views).slice(0, 3),
+    []
+  );
+
+  const toggleSelection = (
+    value: string,
+    selected: string[],
+    setSelected: (next: string[]) => void
+  ) => {
+    if (selected.includes(value)) {
+      setSelected(selected.filter((item) => item !== value));
+    } else {
+      setSelected([...selected, value]);
+    }
+  };
 
   const formatViews = (views: number) => {
     if (views >= 1000000) return `${(views / 1000000).toFixed(1)}M`;
@@ -119,186 +160,314 @@ export function BlogPage({ onNavigate }: BlogPageProps) {
     return views.toString();
   };
 
-  const openVideo = (video: Video) => {
-    setSelectedVideo(video);
+  const openVideo = (video: { slug?: string; id: string }) => {
+    const targetSlug = video.slug ?? video.id;
+    onOpenVideoDetail?.(targetSlug);
   };
 
-  const closeVideo = () => {
-    setSelectedVideo(null);
-  };
+  const renderVideoCard = (video: (typeof videoCourses)[number]) => (
+    <div
+      key={video.id}
+      onClick={() => openVideo(video)}
+      className="bg-white rounded-2xl border border-blue-100 shadow-sm hover:shadow-xl transition-all hover:-translate-y-1 cursor-pointer overflow-hidden"
+    >
+      <div className="relative">
+        <img
+          src={video.thumbnail}
+          alt={video.title}
+          className="w-full h-44 object-cover"
+        />
+        <div className="absolute top-3 left-3 inline-flex items-center gap-1 rounded-full bg-white/90 px-3 py-1 text-xs font-semibold text-gray-900 shadow">
+          {video.category}
+        </div>
+      </div>
+
+      <div className="p-4 space-y-3">
+        <div>
+          <h3 className="text-lg font-bold text-gray-900 mb-1 line-clamp-2">
+            {video.title}
+          </h3>
+          <div className="flex items-center gap-2 text-xs text-blue-600">
+            <Star className="w-3 h-3 fill-blue-600" />
+            <span>
+              {video.rating.toFixed(1)} ({video.ratingCount})
+            </span>
+          </div>
+        </div>
+
+        <div className="flex items-center gap-4 text-xs text-gray-500">
+          <div className="flex items-center gap-1">
+            <Eye className="w-4 h-4" />
+            <span>{formatViews(video.students)} Students</span>
+          </div>
+          <div className="flex items-center gap-1">
+            <Calendar className="w-4 h-4" />
+            <span>{video.lessons} Lessons</span>
+          </div>
+        </div>
+
+        <div className="flex items-center justify-between text-sm">
+          <span className="text-blue-600 font-semibold">
+            {video.price === 0 ? "Free" : `$${video.price.toFixed(2)}`}
+          </span>
+          <div className="flex items-center gap-2">
+            <img
+              src={video.authorAvatar}
+              alt={video.author}
+              className="w-7 h-7 rounded-full object-cover"
+            />
+            <span className="text-xs text-gray-500">{video.author}</span>
+          </div>
+        </div>
+
+        <button className="w-full rounded-xl bg-gradient-to-r from-blue-600 to-purple-600 text-white text-sm font-semibold py-2.5 flex items-center justify-center gap-2">
+          <Play className="w-4 h-4" />
+          {language === "km" ? "មើលវីដេអូ" : "View Video"}
+        </button>
+      </div>
+    </div>
+  );
 
   return (
-    <div className="min-h-screen bg-gray-50 dark:bg-gray-900">
-      {/* Hero Section */}
-      <div className="bg-gradient-to-r from-red-600 to-pink-600 text-white py-16">
-        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
-          <div className="text-center">
-            <div className="flex items-center justify-center gap-3 mb-4">
-              <Play className="w-12 h-12" />
-              <h1 className="text-4xl md:text-5xl font-bold">
-                {language === 'km' ? 'វីដេអូបង្រៀន' : 'Video Tutorials'}
-              </h1>
-            </div>
-            <p className="text-xl text-red-100 mb-8">
-              {language === 'km' 
-                ? 'រៀនជាមួយវីដេអូបង្រៀនពីគ្រូបង្រៀនជំនាញ' 
-                : 'Learn with video tutorials from expert instructors'}
-            </p>
-            
-            {/* Search Bar */}
-            <div className="max-w-2xl mx-auto relative">
-              <Search className="absolute left-4 top-1/2 transform -translate-y-1/2 w-5 h-5 text-gray-400" />
+    <div className="video-blog-page min-h-screen bg-gray-50 dark:bg-gray-900">
+      <div className="w-full px-4 lg:px-8 py-8">
+        <div className="grid grid-cols-1 md:grid-cols-12 gap-8">
+          <aside className="md:col-span-4 lg:col-span-3 bg-white rounded-2xl border border-gray-100 p-5 space-y-6 h-fit">
+            <div className="relative">
+              <Search className="absolute left-4 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400" />
               <input
                 type="text"
-                placeholder={language === 'km' ? 'ស្វែងរកវីដេអូ...' : 'Search videos...'}
-                className="w-full pl-12 pr-4 py-4 rounded-xl text-gray-900 dark:text-white dark:bg-gray-800 focus:outline-none focus:ring-2 focus:ring-white"
+                value={searchTerm}
+                onChange={(event) => setSearchTerm(event.target.value)}
+                placeholder={language === "km" ? "ស្វែងរក" : "Search"}
+                className="w-full pl-11 pr-4 py-2.5 rounded-xl border border-gray-200 bg-gray-50 text-sm text-gray-900 focus:outline-none focus:ring-2 focus:ring-blue-500"
               />
             </div>
-          </div>
-        </div>
-      </div>
 
-      <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-12">
-        {/* Category Filters */}
-        <div className="mb-8">
-          <div className="flex items-center gap-4 overflow-x-auto pb-2 scrollbar-hide">
-            {categories.map((category) => (
-              <button
-                key={category.id}
-                onClick={() => setSelectedCategory(category.id)}
-                className={`px-6 py-2 rounded-full font-medium whitespace-nowrap transition-colors ${
-                  selectedCategory === category.id
-                    ? 'bg-red-600 text-white'
-                    : 'bg-white dark:bg-gray-800 text-gray-700 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-700'
-                }`}
-              >
-                {category.name}
-              </button>
-            ))}
-          </div>
-        </div>
+            <div className="w-3/2">
+              <div>
+                <div className="flex items-center gap-2 text-sm font-semibold text-gray-700">
+                  <Filter className="w-4 h-4" />
+                  {language === "km" ? "តម្រង" : "Filters"}
+                </div>
 
-        {/* Videos Grid */}
-        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-          {filteredVideos.map((video) => (
-            <div
-              key={video.id}
-              onClick={() => openVideo(video)}
-              className="bg-white dark:bg-gray-800 rounded-xl overflow-hidden shadow-lg hover:shadow-2xl transition-all hover:-translate-y-1 cursor-pointer"
+                <div className="space-y-3">
+                  <p className="text-xs font-semibold text-gray-500 uppercase tracking-wide">
+                    {language === "km" ? "ប្រភេទ" : "Categories"}
+                  </p>
+                  <button
+                    onClick={() => setSelectedCategories([])}
+                    className={`w-full text-left px-3 py-2 rounded-xl text-sm transition ${
+                      selectedCategories.length === 0
+                        ? "bg-blue-50 text-blue-600"
+                        : "hover:bg-gray-50 text-gray-700"
+                    }`}
+                  >
+                    {language === "km" ? "វីដេអូទាំងអស់" : "All Videos"}
+                  </button>
+
+                  {categories.map((category) => {
+                    const isActive = selectedCategories.includes(category.id);
+                    return (
+                      <button
+                        key={category.id}
+                        onClick={() =>
+                          toggleSelection(
+                            category.id,
+                            selectedCategories,
+                            setSelectedCategories
+                          )
+                        }
+                        className={`w-full text-left px-3 py-2 rounded-xl text-sm transition ${
+                          isActive
+                            ? "bg-blue-50 text-blue-600"
+                            : "hover:bg-gray-50 text-gray-700"
+                        }`}
+                      >
+                        {category.name}
+                      </button>
+                    );
+                  })}
+                </div>
+
+                <div className="space-y-3">
+                  <p className="text-xs font-semibold text-gray-500 uppercase tracking-wide">
+                    {language === "km" ? "តម្រៀបតាម" : "Sort By"}
+                  </p>
+                  <div className="space-y-2">
+                    {sortOptions.map((option) => (
+                      <button
+                        key={option.id}
+                        onClick={() => setSortBy(option.id)}
+                        className={`w-full text-left px-3 py-2 rounded-xl text-sm transition ${
+                          sortBy === option.id
+                            ? "bg-blue-50 text-blue-600"
+                            : "hover:bg-gray-50 text-gray-700"
+                        }`}
+                      >
+                        {option.label}
+                      </button>
+                    ))}
+                  </div>
+                </div>
+
+                <div className="space-y-3">
+                  <p className="text-xs font-semibold text-gray-500 uppercase tracking-wide">
+                    {language === "km" ? "ស្លាក" : "Tag"}
+                  </p>
+                  <div className="space-y-2">
+                    {tags.map((tag) => (
+                      <label
+                        key={tag}
+                        className="flex items-center gap-2 text-sm text-gray-600"
+                      >
+                        <input
+                          type="checkbox"
+                          checked={selectedTags.includes(tag)}
+                          onChange={() =>
+                            toggleSelection(tag, selectedTags, setSelectedTags)
+                          }
+                          className="h-4 w-4 rounded border-gray-300 text-blue-600"
+                        />
+                        {tag}
+                      </label>
+                    ))}
+                  </div>
+                </div>
+
+                <div className="space-y-3">
+                  <p className="text-xs font-semibold text-gray-500 uppercase tracking-wide">
+                    {language === "km" ? "កម្រិត" : "Level"}
+                  </p>
+                  <div className="space-y-2">
+                    {levels.map((level) => (
+                      <label
+                        key={level}
+                        className="flex items-center gap-2 text-sm text-gray-600"
+                      >
+                        <input
+                          type="checkbox"
+                          checked={selectedLevels.includes(level)}
+                          onChange={() =>
+                            toggleSelection(
+                              level,
+                              selectedLevels,
+                              setSelectedLevels
+                            )
+                          }
+                          className="h-4 w-4 rounded border-gray-300 text-blue-600"
+                        />
+                        {level}
+                      </label>
+                    ))}
+                  </div>
+                </div>
+
+                <div className="space-y-3">
+                  <p className="text-xs font-semibold text-gray-500 uppercase tracking-wide">
+                    {language === "km" ? "តម្លៃ" : "Price"}
+                  </p>
+                  <div className="space-y-2">
+                    {priceFilters.map((option) => (
+                      <label
+                        key={option.id}
+                        className="flex items-center gap-2 text-sm text-gray-600"
+                      >
+                        <input
+                          type="radio"
+                          name="price"
+                          checked={selectedPrice === option.id}
+                          onChange={() => setSelectedPrice(option.id)}
+                          className="h-4 w-4 border-gray-300 text-blue-600"
+                        />
+                        {option.label}
+                      </label>
+                    ))}
+                  </div>
+                </div>
+              </div>
+            </div>
+
+            <button
+              onClick={() => {
+                setSelectedCategories([]);
+                setSelectedTags([]);
+                setSelectedLevels([]);
+                setSelectedPrice("all");
+                setSortBy("popular");
+                setSearchTerm("");
+              }}
+              className="w-full rounded-xl border border-blue-200 px-4 py-2 text-sm text-blue-600 hover:bg-blue-50"
             >
-              {/* Video Thumbnail */}
-              <div className="relative group">
-                <img
-                  src={video.thumbnail}
-                  alt={video.title}
-                  className="w-full h-48 object-cover"
-                />
-                <div className="absolute inset-0 bg-black/40 group-hover:bg-black/60 transition-colors flex items-center justify-center">
-                  <div className="w-16 h-16 rounded-full bg-red-600 flex items-center justify-center group-hover:scale-110 transition-transform">
-                    <Play className="w-8 h-8 text-white ml-1" fill="white" />
-                  </div>
+              {language === "km" ? "សម្អាតតម្រងទាំងអស់" : "Clear all filters"}
+            </button>
+          </aside>
+
+          {/* ✅ RIGHT SIDE WRAPPED + STICKY */}
+          <section className="md:col-span-8 lg:col-span-9 min-w-0">
+            <div className="rounded-2xl border border-gray-200 bg-white p-5 shadow-sm space-y-10 lg:sticky lg:top-24">
+              <div className="space-y-4">
+                <div>
+                  <h2 className="text-2xl font-semibold text-gray-900">
+                    {language === "km" ? "វីដេអូថ្មីៗ" : "New Releases"}
+                  </h2>
+                  <p className="text-sm text-gray-500">
+                    {language === "km" ? "អាប់ដេតថ្មីៗ" : "Latest uploads"}
+                  </p>
                 </div>
-                <div className="absolute bottom-2 right-2 bg-black/80 text-white px-2 py-1 rounded text-xs font-semibold">
-                  {video.duration}
+                <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-6">
+                  {newestVideos.map(renderVideoCard)}
                 </div>
               </div>
 
-              {/* Video Info */}
-              <div className="p-4">
-                <h3 className="text-lg font-bold text-gray-900 dark:text-white mb-2 line-clamp-2">
-                  {video.title}
-                </h3>
-                <p className="text-gray-600 dark:text-gray-400 text-sm mb-3 line-clamp-2">
-                  {video.description}
-                </p>
+              <div className="space-y-4">
+                <div>
+                  <h2 className="text-2xl font-semibold text-gray-900">
+                    {language === "km" ? "វីដេអូពេញនិយម" : "Popular Videos"}
+                  </h2>
+                  <p className="text-sm text-gray-500">
+                    {language === "km" ? "មើលច្រើនបំផុត" : "Most watched"}
+                  </p>
+                </div>
+                <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-6">
+                  {popularVideos.map(renderVideoCard)}
+                </div>
+              </div>
 
-                {/* Video Stats */}
-                <div className="flex items-center justify-between text-sm text-gray-600 dark:text-gray-400">
-                  <div className="flex items-center gap-3">
-                    <div className="flex items-center gap-1">
-                      <Eye className="w-4 h-4" />
-                      <span>{formatViews(video.views)}</span>
-                    </div>
-                    <div className="flex items-center gap-1">
-                      <ThumbsUp className="w-4 h-4" />
-                      <span>{formatViews(video.likes)}</span>
-                    </div>
-                  </div>
-                  <div className="flex items-center gap-1">
-                    <Calendar className="w-4 h-4" />
-                    <span>{new Date(video.uploadDate).toLocaleDateString()}</span>
-                  </div>
+              <div className="space-y-4">
+                <div>
+                  <h2 className="text-2xl font-semibold text-gray-900">
+                    {language === "km" ? "វីដេអូទាំងអស់" : "All Videos"}
+                  </h2>
+                  <p className="text-sm text-gray-500">
+                    {filteredCourses.length}{" "}
+                    {language === "km" ? "វីដេអូ" : "videos available"}
+                  </p>
                 </div>
 
-                {/* Category Badge */}
-                <div className="mt-3">
-                  <span className="inline-block px-3 py-1 bg-red-50 dark:bg-red-900/20 text-red-600 dark:text-red-400 text-xs rounded-full capitalize">
-                    {video.category}
-                  </span>
+                <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-6">
+                  {filteredCourses.map(renderVideoCard)}
+                </div>
+
+                <div className="flex items-center justify-between border border-gray-100 rounded-xl px-4 py-3 text-sm text-gray-500">
+                  <span>Page 1 of 3</span>
+                  <div className="flex items-center gap-2">
+                    <button className="w-7 h-7 rounded-full border border-gray-200 text-blue-600">
+                      1
+                    </button>
+                    <button className="w-7 h-7 rounded-full border border-gray-200">
+                      2
+                    </button>
+                    <button className="w-7 h-7 rounded-full border border-gray-200">
+                      3
+                    </button>
+                  </div>
                 </div>
               </div>
             </div>
-          ))}
+          </section>
         </div>
       </div>
-
-      {/* Video Player Modal */}
-      {selectedVideo && (
-        <div className="fixed inset-0 bg-black/90 z-50 flex items-center justify-center p-4">
-          <div className="bg-white dark:bg-gray-800 rounded-2xl overflow-hidden max-w-5xl w-full max-h-[90vh] overflow-y-auto">
-            {/* Close Button */}
-            <div className="flex justify-end p-4">
-              <button
-                onClick={closeVideo}
-                className="text-gray-600 dark:text-gray-400 hover:text-gray-900 dark:hover:text-white"
-              >
-                <svg className="w-6 h-6" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
-                </svg>
-              </button>
-            </div>
-
-            {/* YouTube Embed */}
-            <div className="aspect-video w-full">
-              <iframe
-                width="100%"
-                height="100%"
-                src={`https://www.youtube.com/embed/${selectedVideo.videoId}`}
-                title={selectedVideo.title}
-                frameBorder="0"
-                allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture"
-                allowFullScreen
-                className="w-full h-full"
-              ></iframe>
-            </div>
-
-            {/* Video Details */}
-            <div className="p-6">
-              <h2 className="text-2xl font-bold text-gray-900 dark:text-white mb-3">
-                {selectedVideo.title}
-              </h2>
-              <p className="text-gray-600 dark:text-gray-400 mb-4">
-                {selectedVideo.description}
-              </p>
-              
-              <div className="flex items-center gap-6 text-sm text-gray-600 dark:text-gray-400">
-                <div className="flex items-center gap-2">
-                  <Eye className="w-5 h-5" />
-                  <span>{formatViews(selectedVideo.views)} {language === 'km' ? 'ចំនួនមើល' : 'views'}</span>
-                </div>
-                <div className="flex items-center gap-2">
-                  <ThumbsUp className="w-5 h-5" />
-                  <span>{formatViews(selectedVideo.likes)} {language === 'km' ? 'ចូលចិត្ត' : 'likes'}</span>
-                </div>
-                <div className="flex items-center gap-2">
-                  <Clock className="w-5 h-5" />
-                  <span>{selectedVideo.duration}</span>
-                </div>
-              </div>
-            </div>
-          </div>
-        </div>
-      )}
     </div>
   );
 }

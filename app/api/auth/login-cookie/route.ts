@@ -17,9 +17,27 @@ interface LoginBody {
   password: string;
 }
 
+function normalizeString(value: unknown): string | null {
+  if (typeof value !== "string") return null;
+  const trimmed = value.trim();
+  return trimmed.length ? trimmed : null;
+}
+
 export async function POST(req: Request): Promise<Response> {
   try {
-    const { email, password }: LoginBody = await req.json();
+    const raw = await req.json().catch(() => null);
+    const body: Partial<LoginBody> =
+      raw && typeof raw === "object" ? (raw as LoginBody) : {};
+
+    const email = normalizeString(body.email);
+    const password = normalizeString(body.password);
+
+    if (!email || !password) {
+      return Response.json(
+        { error: "Email and password are required" },
+        { status: 400 }
+      );
+    }
 
     const [rows] = await db.query<UserRow[]>(
       "SELECT id, email, password_hash, role, is_active, deleted_at FROM users WHERE email = ? LIMIT 1",

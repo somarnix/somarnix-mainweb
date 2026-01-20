@@ -1,5 +1,5 @@
 import { useEffect, useState } from "react";
-import { Trash2, ShoppingBag, ArrowLeft, Minus, Plus } from "lucide-react";
+import { Trash2, ShoppingBag, ArrowLeft, CheckCircle } from "lucide-react";
 import { Button } from "../../components/ui/button";
 import { useLanguage } from "../../contexts/LanguageContext";
 import { useAuth } from "../../contexts/AuthContext";
@@ -20,13 +20,21 @@ type DbCartItem = {
 
   duration_label: string | null;
   device_label: string | null;
+  khqr?: string | null;
+  usdqr?: string | null;
 };
 
 interface CartPageProps {
   onNavigate: (page: string) => void;
+  selectedCartItemId: number | null;
+  onSelectCartItem: (id: number | null) => void;
 }
 
-export function CartPage({ onNavigate }: CartPageProps) {
+export function CartPage({
+  onNavigate,
+  selectedCartItemId,
+  onSelectCartItem,
+}: CartPageProps) {
   const { t, language } = useLanguage();
   const { isAuthenticated } = useAuth();
   const { formatPrice } = useCurrency();
@@ -57,24 +65,21 @@ export function CartPage({ onNavigate }: CartPageProps) {
     }
   }, [isAuthenticated]);
 
-  // -----------------------
-  // Quantity change
-  // -----------------------
-  const changeQty = async (item: DbCartItem, delta: number) => {
-    if (item.qty + delta <= 0) return;
+  useEffect(() => {
+    if (loading) return;
+    if (items.length === 0) {
+      onSelectCartItem(null);
+      return;
+    }
 
-    await fetch("/api/cart/add-cart", {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({
-        productId: item.product_id,
-        variantId: item.variant_id,
-        qty: delta,
-      }),
-    });
+    const exists = items.some(
+      (it) => it.cart_item_id === selectedCartItemId
+    );
 
-    loadCart();
-  };
+    if (!exists) {
+      onSelectCartItem(items[0].cart_item_id);
+    }
+  }, [items, loading, onSelectCartItem, selectedCartItemId]);
 
   // -----------------------
   // Remove item
@@ -95,9 +100,13 @@ export function CartPage({ onNavigate }: CartPageProps) {
   // -----------------------
   // Totals
   // -----------------------
-  const subtotal = items.reduce((sum, i) => sum + i.line_total, 0);
-  const tax = Math.round(subtotal * 0.1 * 100) / 100;
+  const selectedItem = selectedCartItemId
+    ? items.find((it) => it.cart_item_id === selectedCartItemId) ?? null
+    : null;
+  const subtotal = selectedItem?.line_total ?? 0;
+  const tax = 0;
   const total = subtotal + tax;
+  const taxDisplay = tax === 0 ? (language === "km" ? "ឥតគិតថ្លៃ" : "Free") : formatPrice(tax);
 
   // -----------------------
   // Checkout
@@ -105,6 +114,15 @@ export function CartPage({ onNavigate }: CartPageProps) {
   const handleCheckout = () => {
     if (items.length === 0) {
       toast.error(language === "km" ? "កន្ត្រកទទេ" : "Your cart is empty!");
+      return;
+    }
+
+    if (!selectedItem) {
+      toast.error(
+        language === "km"
+          ? "សូមជ្រើសរើសមួយមុខទំនិញដើម្បីទូទាត់"
+          : "Select an item to checkout."
+      );
       return;
     }
 
@@ -191,22 +209,9 @@ export function CartPage({ onNavigate }: CartPageProps) {
                       </div>
 
                       <div className="flex justify-between items-center mt-4">
-                        <div className="flex items-center border rounded-lg">
-                          <button
-                            onClick={() => changeQty(item, -1)}
-                            className="p-2"
-                          >
-                            <Minus className="w-4 h-4" />
-                          </button>
-                          <span className="px-4">{item.qty}</span>
-                          <button
-                            onClick={() => changeQty(item, 1)}
-                            className="p-2"
-                          >
-                            <Plus className="w-4 h-4" />
-                          </button>
+                        <div className="text-sm text-gray-500">
+                          {language === "km" ? "បរិមាណ" : "Quantity"}: {item.qty}
                         </div>
-
                         <div className="text-xl font-bold text-blue-600">
                           {formatPrice(item.line_total)}
                         </div>
@@ -220,13 +225,58 @@ export function CartPage({ onNavigate }: CartPageProps) {
             {/* Summary */}
             <div>
               <div className="bg-white dark:bg-gray-800 rounded-xl p-6 sticky top-24">
-                <h2 className="text-xl font-bold mb-6">
+                <h2 className="text-xl font-bold mb-4">
                   {t("cart.orderSummary")}
                 </h2>
 
+                <p className="text-xs text-gray-500 mb-2">
+                  {language === "km"
+                    ? "ជ្រើសរើសមួយមុខទំនិញសម្រាប់ការទូទាត់"
+                    : "Select one item to purchase at a time."}
+                </p>
+
+                <div className="space-y-2 mb-6 max-h-60 overflow-y-auto pr-1">
+                  {items.map((item) => {
+                    const isSelected = item.cart_item_id === selectedCartItemId;
+                    return (
+                      <button
+                        key={item.cart_item_id}
+                        type="button"
+                        onClick={() => onSelectCartItem(item.cart_item_id)}
+                        className={`w-full flex items-center justify-between rounded-lg border px-3 py-2 text-left transition ${
+                          isSelected
+                            ? "border-blue-500 bg-blue-50 dark:border-blue-400 dark:bg-blue-950/40"
+                            : "border-gray-200 dark:border-gray-700"
+                        }`}
+                      >
+                        <div>
+                          <div className="text-sm font-semibold text-gray-900 dark:text-gray-100">
+                            {item.title}
+                          </div>
+                          <div className="text-xs text-gray-500 dark:text-gray-400">
+                            {item.duration_label}
+                            {item.device_label ? ` • ${item.device_label}` : ""}
+                          </div>
+                        </div>
+                        <div className="text-right">
+                          <div className="text-sm font-bold text-blue-600 dark:text-blue-400">
+                            {formatPrice(item.line_total)}
+                          </div>
+                          {isSelected && (
+                            <div className="flex items-center justify-end text-green-600 dark:text-green-400 text-[11px] mt-1">
+                              <CheckCircle className="w-3.5 h-3.5 mr-1" />
+                              {language === "km" ? "បានជ្រើស" : "Selected"}
+                            </div>
+                          )}
+                        </div>
+                      </button>
+                    );
+                  })}
+                </div>
+
                 <div className="space-y-3 mb-6">
                   <Row label={t("cart.subtotal")} value={formatPrice(subtotal)} />
-                  <Row label={t("cart.tax")} value={formatPrice(tax)} />
+                  <Row label={t("cart.tax")} value={taxDisplay} />
                   <Row
                     label={t("cart.total")}
                     value={formatPrice(total)}
@@ -236,7 +286,8 @@ export function CartPage({ onNavigate }: CartPageProps) {
 
                 <Button
                   onClick={handleCheckout}
-                  className="w-full bg-gradient-to-r from-blue-600 to-purple-600"
+                  className="w-full bg-gradient-to-r from-blue-600 to-purple-600 disabled:opacity-50"
+                  disabled={!selectedItem}
                 >
                   {t("cart.checkout")}
                 </Button>

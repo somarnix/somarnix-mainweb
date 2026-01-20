@@ -56,7 +56,7 @@ export async function GET(req: Request) {
           SELECT COALESCE(SUM(oi.qty),0)
           FROM order_items oi
           JOIN orders o ON o.id = oi.order_id
-          WHERE oi.product_id = p.id AND o.state IN ('approved','delivered','done')
+          WHERE oi.product_id = p.id AND o.state = 'completed'
         ) AS buyers_count,
 
         -- price from variants

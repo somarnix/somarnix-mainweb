@@ -1,16 +1,10 @@
-import { useEffect, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { Package, RefreshCw } from "lucide-react";
 import { useLanguage } from "../../contexts/LanguageContext";
 import { useCurrency } from "../../contexts/CurrencyContext";
 import { Button } from "../../components/ui/button";
-
-type OrderStatus =
-  | "pending"
-  | "waiting_admin"
-  | "approved"
-  | "delivered"
-  | "done"
-  | "cancelled";
+import type { OrderStatus } from "@/lib/order-status";
+import { ORDER_STATUS_TABS, getStatusLabel } from "./orderStatusConfig";
 
 type Order = {
   id: number;
@@ -18,33 +12,28 @@ type Order = {
   status: OrderStatus;
   total: number;
   created_at: string;
+  delivery_title?: string | null;
+  delivery_message?: string | null;
+  delivered_at?: string | null;
+  reviewed_at?: string | null;
 };
 
-function statusText(status: OrderStatus, language: "km" | "en") {
-  const km: Record<OrderStatus, string> = {
-    pending: "កំពុងរង់ចាំការទូទាត់",
-    waiting_admin: "កំពុងរង់ចាំ Admin អនុម័ត",
-    approved: "បានអនុម័ត",
-    delivered: "បានផ្ញើរួច",
-    done: "បានបញ្ចប់",
-    cancelled: "បានបោះបង់",
-  };
-  const en: Record<OrderStatus, string> = {
-    pending: "Pending payment",
-    waiting_admin: "Waiting admin approval",
-    approved: "Approved",
-    delivered: "Delivered",
-    done: "Done",
-    cancelled: "Cancelled",
-  };
-  return language === "km" ? km[status] : en[status];
+function formatDate(value?: string | null, lang: "km" | "en" = "en"): string {
+  if (!value) return lang === "km" ? "មិនមាន" : "No record";
+  const parsed = new Date(value);
+  if (Number.isNaN(parsed.getTime())) return value;
+  return parsed.toLocaleString(lang === "km" ? "km-KH" : undefined, {
+    year: "numeric",
+    month: "short",
+    day: "numeric",
+    hour: "2-digit",
+    minute: "2-digit",
+  });
 }
 
 interface OrdersPageProps {
   onNavigate: (page: string) => void;
-
-  // ✅ add this (so you can open detail)
-  onOpenOrderDetail: (orderId: number) => void;
+  onOpenOrderDetail: (orderId: number | string) => void;
 }
 
 export function OrdersPage({ onNavigate, onOpenOrderDetail }: OrdersPageProps) {
@@ -53,11 +42,15 @@ export function OrdersPage({ onNavigate, onOpenOrderDetail }: OrdersPageProps) {
 
   const [orders, setOrders] = useState<Order[]>([]);
   const [loading, setLoading] = useState(true);
+  const [activeTab, setActiveTab] = useState<OrderStatus>("pending");
 
   const loadOrders = async () => {
     setLoading(true);
     try {
-      const res = await fetch("/api/orders");
+      const res = await fetch("/api/orders", {
+        credentials: "include",
+        cache: "no-store",
+      });
       const data = await res.json();
 
       if (!res.ok) {
@@ -74,6 +67,27 @@ export function OrdersPage({ onNavigate, onOpenOrderDetail }: OrdersPageProps) {
   useEffect(() => {
     loadOrders();
   }, []);
+
+  const statusCounts = useMemo(() => {
+    const base: Record<OrderStatus, number> = {
+      pending: 0,
+      approved: 0,
+      delivering: 0,
+      completed: 0,
+      cancelled: 0,
+      resolution: 0,
+    };
+
+    orders.forEach((order) => {
+      base[order.status] = (base[order.status] ?? 0) + 1;
+    });
+
+    return base;
+  }, [orders]);
+
+  const filteredOrders = useMemo(() => {
+    return orders.filter((order) => order.status === activeTab);
+  }, [orders, activeTab]);
 
   return (
     <div className="min-h-screen bg-gray-50 dark:bg-gray-900 py-12">
@@ -102,49 +116,129 @@ export function OrdersPage({ onNavigate, onOpenOrderDetail }: OrdersPageProps) {
           </Button>
         </div>
 
+        <div className="bg-white dark:bg-gray-800 rounded-xl shadow-sm p-4 mb-8">
+          <div className="flex flex-wrap gap-2">
+            {ORDER_STATUS_TABS.map((tab) => {
+              const isActive = activeTab === tab.key;
+              const label = language === "km" ? tab.labelKm : tab.labelEn;
+              const count = statusCounts[tab.key] ?? 0;
+
+              return (
+                <button
+                  key={tab.key}
+                  onClick={() => setActiveTab(tab.key)}
+                  className={`flex items-center gap-2 rounded-full border px-4 py-2 text-sm transition ${
+                    isActive
+                      ? "bg-gradient-to-r from-blue-600 to-purple-600 text-white border-blue-600 shadow"
+                      : "bg-white text-gray-600 dark:bg-gray-900 dark:text-gray-300 border-gray-200 hover:border-blue-400"
+                  }`}
+                >
+                  <span>{label}</span>
+                  <span
+                    className={`text-xs font-semibold px-2 py-0.5 rounded-full ${
+                      isActive
+                        ? "bg-white/20 text-white border border-white/30"
+                        : "bg-gray-100 text-gray-700 dark:bg-gray-800 dark:text-gray-200"
+                    }`}
+                  >
+                    {count}
+                  </span>
+                </button>
+              );
+            })}
+          </div>
+        </div>
+
         {loading ? (
           <div className="bg-white dark:bg-gray-800 rounded-xl shadow-sm p-8 text-gray-600 dark:text-gray-400">
             {language === "km" ? "កំពុងផ្ទុក..." : "Loading..."}
           </div>
-        ) : orders.length === 0 ? (
-          <div className="bg-white dark:bg-gray-800 rounded-xl shadow-sm p-8 text-gray-600 dark:text-gray-400">
-            {language === "km" ? "មិនមានការបញ្ជាទិញ" : "No orders yet"}
-          </div>
         ) : (
-          <div className="space-y-4">
-            {orders.map((o) => (
-              <div
-                key={o.id}
-                className="bg-white dark:bg-gray-800 rounded-xl shadow-sm p-6 flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4"
-              >
-                <div>
-                  <div className="text-sm text-gray-500 dark:text-gray-400">
-                    {language === "km" ? "លេខបញ្ជាទិញ" : "Order #"}:{" "}
-                    <span className="font-medium text-gray-900 dark:text-white">{o.order_number}</span>
-                  </div>
-
-                  <div className="mt-2 text-gray-600 dark:text-gray-400">
-                    {language === "km" ? "ស្ថានភាព" : "Status"}:{" "}
-                    <span className="font-semibold text-gray-900 dark:text-white">
-                      {statusText(o.status, language === "km" ? "km" : "en")}
-                    </span>
-                  </div>
-
-                  <div className="mt-2 text-gray-600 dark:text-gray-400">
-                    {language === "km" ? "សរុប" : "Total"}:{" "}
-                    <span className="font-bold text-blue-600 dark:text-blue-400">{formatPrice(o.total)}</span>
-                  </div>
-                </div>
-
-                <Button
-                  onClick={() => onOpenOrderDetail(o.id)}
-                  className="bg-gradient-to-r from-blue-600 to-purple-600 hover:from-blue-700 hover:to-purple-700"
-                >
-                  {language === "km" ? "មើលលម្អិត" : "View Detail"}
-                </Button>
+          <>
+            {orders.length === 0 ? (
+              <div className="bg-white dark:bg-gray-800 rounded-xl shadow-sm p-8 text-gray-600 dark:text-gray-400">
+                {language === "km" ? "មិនទាន់មានការបញ្ជាទិញ" : "No orders yet"}
               </div>
-            ))}
-          </div>
+            ) : filteredOrders.length === 0 ? (
+              <div className="bg-white dark:bg-gray-800 rounded-xl shadow-sm p-8 text-gray-600 dark:text-gray-400">
+                {language === "km"
+                  ? "មិនមានការបញ្ជាទិញនៅក្នុងស្ថានភាពនេះ"
+                  : "No orders in this status yet"}
+              </div>
+            ) : (
+              <div className="space-y-4">
+                {filteredOrders.map((o) => (
+                  <div
+                    key={o.id}
+                    className="bg-white dark:bg-gray-800 rounded-xl shadow-sm p-6 space-y-4"
+                  >
+                    <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-4">
+                      <div>
+                        <div className="text-sm text-gray-500 dark:text-gray-400">
+                          {language === "km" ? "លេខបញ្ជាទិញ" : "Order #"}{" "}
+                          <span className="font-semibold text-gray-900 dark:text-white">
+                            {o.order_number}
+                          </span>
+                        </div>
+                        <div className="text-sm text-gray-500 dark:text-gray-400">
+                          {formatDate(o.created_at, language === "km" ? "km" : "en")}
+                        </div>
+                      </div>
+
+                      <span className="inline-flex items-center px-3 py-1 rounded-full text-sm font-semibold bg-blue-50 text-blue-700 dark:bg-blue-900/40 dark:text-blue-200">
+                        {getStatusLabel(o.status, language === "km" ? "km" : "en")}
+                      </span>
+                    </div>
+
+                    <div className="grid gap-4 md:grid-cols-3">
+                      <div className="text-gray-600 dark:text-gray-400">
+                        <p className="text-sm">{language === "km" ? "សរុប" : "Total"}</p>
+                        <p className="text-2xl font-bold text-blue-600 dark:text-blue-400">
+                          {formatPrice(o.total)}
+                        </p>
+                      </div>
+
+                      <div className="text-gray-600 dark:text-gray-400">
+                        <p className="text-sm">
+                          {language === "km" ? "ការដឹកជញ្ជូន / ផ្ដល់" : "Delivery info"}
+                        </p>
+                        {o.delivery_message ? (
+                          <div className="mt-1 text-gray-800 dark:text-gray-200">
+                            <div className="font-semibold">
+                              {o.delivery_title ||
+                                (language === "km" ? "ព័ត៌មាន" : "Information")}
+                            </div>
+                            <p className="text-sm whitespace-pre-line">{o.delivery_message}</p>
+                            {o.delivered_at && (
+                              <p className="text-xs text-gray-500 mt-1">
+                                {language === "km" ? "បានផ្ញើ" : "Delivered"}:{" "}
+                                {formatDate(o.delivered_at, language === "km" ? "km" : "en")}
+                              </p>
+                            )}
+                          </div>
+                        ) : (
+                          <p className="text-sm text-gray-400">
+                            {language === "km"
+                              ? "មិនទាន់មានព័ត៌មានដឹកជញ្ជូន"
+                              : "No delivery notice yet"}
+                          </p>
+                        )}
+                      </div>
+
+                      <div className="flex items-end md:justify-end">
+                        <Button
+                          onClick={() => onOpenOrderDetail(o.id)}
+                          className="w-full md:w-auto bg-gradient-to-r from-blue-600 to-purple-600 hover:from-blue-700 hover:to-purple-700"
+                        >
+                          {language === "km" ? "មើលលម្អិត" : "View detail"}
+                        </Button>
+                      </div>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            )}
+          </>
         )}
 
         <div className="mt-8">

@@ -186,13 +186,15 @@ export function AllPage({ onOpenProductDetail }: { onOpenProductDetail: (slug: s
                   {sortedItems.map((item) => (
                     <CourseCard
                       key={item.id}
+                      id={item.id}
                       title={item.title}
                       slug={item.slug}
                       image={item.image_url}
                       price={item.min_price}
                       originalPrice={item.min_original_price}
                       category={item.category}
-                      onViewDetails={handleViewDetails} id={0}                    />
+                      onViewDetails={handleViewDetails}
+                    />
                   ))}
                 </div>
               </>

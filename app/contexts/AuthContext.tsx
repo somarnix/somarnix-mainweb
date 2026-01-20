@@ -305,6 +305,14 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   /* 🚪 LOGOUT */
   const logout = async () => {
     try {
+      if (user?.id) {
+        fetch("/api/presence", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ status: "offline" }),
+          keepalive: true,
+        }).catch(() => {});
+      }
       await fetch("/api/auth/logout", {
         method: "POST",
         credentials: "include",

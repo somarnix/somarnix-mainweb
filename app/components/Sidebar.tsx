@@ -16,6 +16,7 @@ import {
   Gamepad2,
   Wrench,
   Play,
+  MessageCircle,
 } from "lucide-react";
 import Image from "next/image";
 import { Button } from "./ui/button";
@@ -73,6 +74,15 @@ export function Sidebar({
       },
     },
     {
+      id: "chat",
+      icon: MessageCircle,
+      label: language === "km" ? "ជជែក" : "Chat",
+      onClick: () => {
+        onNavigate("chat");
+        if (isMobile && onClose) onClose();
+      },
+    },
+    {
       id: "services",
       icon: Layers,
       label: language === "km" ? "សេវាកម្ម" : "Services",
@@ -101,12 +111,12 @@ export function Sidebar({
     { id: "admin-test", label: "AminTest", page: "admin-test" },
   ];
 
-  if (!isOpen) return null;
+  if (!isMobile && !isOpen) return null;
 
   return (
     <>
       {/* Mobile Backdrop */}
-      {isMobile && (
+      {isMobile && isOpen && (
         <div
           className="fixed inset-0 bg-black/50 z-40 md:hidden"
           onClick={onClose}
@@ -114,12 +124,14 @@ export function Sidebar({
       )}
 
       {/* Sidebar */}
-      <aside
+      <div
         className={`${
           isMobile
-            ? "fixed top-0 left-0 h-full z-50 md:hidden"
+            ? `fixed top-0 left-0 h-full z-50 md:hidden transform transition-transform duration-300 ${
+                isOpen ? "translate-x-0" : "-translate-x-full"
+              }`
             : "hidden md:block md:relative"
-        } w-64 bg-gradient-to-b from-gray-900 to-gray-800 text-white shadow-2xl overflow-y-auto`}
+        } flex-shrink-0 w-64 lg:w-72 xl:w-80 bg-gradient-to-b from-gray-900 to-gray-800 text-white shadow-2xl overflow-y-auto md:sticky md:top-0 md:h-full md:self-stretch`}
       >
         {/* Close button */}
         {isMobile && onClose && (
@@ -244,7 +256,7 @@ export function Sidebar({
             ))}
           </div>
         )}
-      </aside>
+      </div>
     </>
   );
 }

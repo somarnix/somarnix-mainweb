@@ -17,6 +17,9 @@ import { Badge } from "@/app/components/ui/badge";
 import { useLanguage } from "@/app/contexts/LanguageContext";
 import { useCurrency } from "@/app/contexts/CurrencyContext";
 import { AddToCartModal } from "@/app/components/AddToCartModal";
+import { useAuth } from "@/app/contexts/AuthContext";
+import { Textarea } from "@/app/components/ui/textarea";
+import { toast } from "sonner";
 
 import {
   Tabs,
@@ -28,6 +31,8 @@ import {
 /* ================= TYPES ================= */
 
 type ProductLevel = "beginner" | "advanced" | "pro";
+
+type LocaleCode = "en" | "km";
 
 type Variant = {
   id: number;
@@ -41,6 +46,8 @@ type Variant = {
 
   original_price?: number | null;
   price?: number | null;
+  khqr?: string | null;
+  usdqr?: string | null;
 };
 
 type ProductDetail = {
@@ -64,11 +71,17 @@ type ProductDetail = {
 
   min_price?: number | null;
   min_original_price?: number | null;
+
+  posted_by_email?: string | null;
+  posted_by_name?: string | null;
+  posted_by_username?: string | null;
+  posted_by_avatar?: string | null;
 };
 
 type ApiResponse = {
   product: ProductDetail;
   variants: Variant[];
+  reviews?: Review[];
 };
 
 type RelatedProduct = {
@@ -84,6 +97,17 @@ type RelatedProduct = {
   min_original_price?: number | null;
 };
 
+type Review = {
+  id: number;
+  product_id: number;
+  user_id: number;
+  user_name: string;
+  user_avatar?: string | null;
+  rating: number;
+  comment?: string | null;
+  created_at: string;
+};
+
 function toArrayProducts(data: unknown): RelatedProduct[] {
   if (Array.isArray(data)) return data as RelatedProduct[];
   if (typeof data === "object" && data !== null) {
@@ -91,6 +115,19 @@ function toArrayProducts(data: unknown): RelatedProduct[] {
     if (Array.isArray(d.products)) return d.products as RelatedProduct[];
   }
   return [];
+}
+
+function normalizeDateForDisplay(value?: string | null, lang: LocaleCode = "en") {
+  if (!value) return lang === "km" ? "មិនមាន" : "No record";
+  const parsed = new Date(value);
+  if (Number.isNaN(parsed.getTime())) return value;
+  return parsed.toLocaleString(lang === "km" ? "km-KH" : undefined, {
+    year: "numeric",
+    month: "short",
+    day: "numeric",
+    hour: "2-digit",
+    minute: "2-digit",
+  });
 }
 
 /* ================= PAGE ================= */
@@ -106,8 +143,9 @@ export default function ProductDetailPage({
   onOpenProduct?: (slug: string) => void;
   onCartChanged?: () => void;
 }) {
-  const { t } = useLanguage();
+  const { t, language } = useLanguage();
   const { formatPrice } = useCurrency();
+  const { user } = useAuth();
 
   /* ================= STATE ================= */
   const [product, setProduct] = useState<ProductDetail | null>(null);
@@ -123,6 +161,13 @@ export default function ProductDetailPage({
   // related
   const [related, setRelated] = useState<RelatedProduct[]>([]);
   const [relatedLoading, setRelatedLoading] = useState<boolean>(false);
+  const [reviews, setReviews] = useState<Review[]>([]);
+  const [reviewRating, setReviewRating] = useState(5);
+  const [reviewComment, setReviewComment] = useState("");
+  const [reviewSubmitting, setReviewSubmitting] = useState(false);
+  const [showAllReviews, setShowAllReviews] = useState(false);
+
+  const MAX_VISIBLE_REVIEWS = 5;
 
   /* ================= SELECTED VARIANT ================= */
   const selectedVariant = useMemo(() => {
@@ -152,6 +197,27 @@ export default function ProductDetailPage({
       .filter((v) => Number.isFinite(v.price));
   }, [variants]);
 
+  const userReview = useMemo(() => {
+    if (!user) return null;
+    return reviews.find((r) => r.user_id === user.id) ?? null;
+  }, [reviews, user?.id]);
+
+  const visibleReviews = useMemo(
+    () => (showAllReviews ? reviews : reviews.slice(0, MAX_VISIBLE_REVIEWS)),
+    [reviews, showAllReviews]
+  );
+  const hasMoreReviews = reviews.length > MAX_VISIBLE_REVIEWS;
+
+  useEffect(() => {
+    if (userReview) {
+      setReviewRating(userReview.rating);
+      setReviewComment(userReview.comment ?? "");
+    } else {
+      setReviewRating(5);
+      setReviewComment("");
+    }
+  }, [userReview?.id]);
+
   // Load product detail
   useEffect(() => {
     let alive = true;
@@ -160,6 +226,7 @@ export default function ProductDetailPage({
     setNotFound(false);
     setProduct(null);
     setVariants([]);
+    setReviews([]);
     setSelectedVariantId(null);
 
     const load = async () => {
@@ -183,6 +250,9 @@ export default function ProductDetailPage({
 
         const v = Array.isArray(data.variants) ? data.variants : [];
         setVariants(v);
+
+        setReviews(Array.isArray(data.reviews) ? data.reviews : []);
+        setShowAllReviews(false);
 
         const first = v[0];
         setSelectedVariantId(first?.id ?? null);
@@ -211,7 +281,7 @@ export default function ProductDetailPage({
 
   // Load related products
   useEffect(() => {
-    if (!product?.category) {
+    if (!product?.slug) {
       setRelated([]);
       return;
     }
@@ -222,9 +292,7 @@ export default function ProductDetailPage({
 
     const loadRelated = async () => {
       try {
-        const res = await fetch(
-          `/api/products?category=${encodeURIComponent(product.category as string)}`
-        );
+        const res = await fetch(`/api/products/${product.slug}/related`);
         if (!res.ok) throw new Error("FAILED_RELATED");
 
         const data = (await res.json()) as unknown;
@@ -232,11 +300,7 @@ export default function ProductDetailPage({
 
         if (!alive) return;
 
-        const filtered = list
-          .filter((p) => p?.slug && p.slug !== product.slug)
-          .slice(0, 8);
-
-        setRelated(filtered);
+        setRelated(list.slice(0, 8));
       } catch {
         if (!alive) return;
         setRelated([]);
@@ -251,7 +315,7 @@ export default function ProductDetailPage({
     return () => {
       alive = false;
     };
-  }, [product?.category, product?.slug]);
+  }, [product?.slug]);
 
   if (loading) {
     return (
@@ -287,10 +351,17 @@ export default function ProductDetailPage({
     product.image_url ||
     "https://images.unsplash.com/photo-1522202176988-66273c2fd55f?w=1200&auto=format&fit=crop&q=60";
 
+  const isOutOfStock =
+    !product.is_unlimited_stock && typeof product.stock_qty === "number"
+      ? product.stock_qty <= 0
+      : false;
+
   const stockText = product.is_unlimited_stock
     ? "Unlimited stock"
     : typeof product.stock_qty === "number"
-    ? `${product.stock_qty} in stock`
+    ? product.stock_qty > 0
+      ? `${product.stock_qty} in stock`
+      : "Out of stock"
     : "In stock";
 
   const featureList: string[] = [
@@ -300,13 +371,81 @@ export default function ProductDetailPage({
     "Support included",
   ];
 
+  const postedByName =
+    (product.posted_by_name && product.posted_by_name.trim().length > 0
+      ? product.posted_by_name
+      : null) ||
+    product.posted_by_username ||
+    product.posted_by_email ||
+    null;
+
   const openProduct = (s: string) => {
     if (onOpenProduct) {
       onOpenProduct(s);
       window.scrollTo({ top: 0, behavior: "smooth" });
       return;
     }
-    window.location.href = `/products/${s}`;
+    window.location.href = `/product/${encodeURIComponent(s)}`;
+  };
+
+  const handleSubmitReview = async (event: React.FormEvent<HTMLFormElement>) => {
+    event.preventDefault();
+    if (!user) {
+      toast.error("Please login to review");
+      return;
+    }
+
+    setReviewSubmitting(true);
+    try {
+      const res = await fetch(`/api/products/${slug}/reviews`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        credentials: "include",
+        body: JSON.stringify({ rating: reviewRating, comment: reviewComment }),
+      });
+
+      const data = await res.json().catch(() => ({}));
+      if (!res.ok || data?.success !== true) {
+        const message =
+          (data && typeof data.error === "string" && data.error) ||
+          "Failed to submit review";
+        throw new Error(message);
+      }
+
+      if (data?.review) {
+        setReviews((prev) => {
+          const filtered = prev.filter(
+            (r) => r.id !== data.review.id && r.user_id !== user.id
+          );
+          return [data.review, ...filtered];
+        });
+      }
+
+      if (data?.summary) {
+        setProduct((prev) =>
+          prev
+            ? {
+                ...prev,
+                avg_rating:
+                  data.summary.avg_rating === null
+                    ? null
+                    : Number(data.summary.avg_rating),
+                rating_count:
+                  "rating_count" in data.summary
+                    ? Number(data.summary.rating_count)
+                    : prev.rating_count,
+              }
+            : prev
+        );
+      }
+
+      toast.success("Review saved");
+    } catch (err) {
+      const message = err instanceof Error ? err.message : "Failed to submit review";
+      toast.error(message);
+    } finally {
+      setReviewSubmitting(false);
+    }
   };
 
   return (
@@ -394,6 +533,31 @@ export default function ProductDetailPage({
                 )}
               </div>
 
+              {postedByName && (
+                <div className="mt-4 flex items-center gap-3 rounded-xl border bg-white dark:bg-gray-900 p-3">
+                  {product.posted_by_avatar ? (
+                    <img
+                      src={product.posted_by_avatar}
+                      alt={postedByName}
+                      className="w-12 h-12 rounded-full object-cover border"
+                    />
+                  ) : (
+                    <div className="w-12 h-12 rounded-full bg-gray-100 dark:bg-gray-800 flex items-center justify-center text-gray-500">
+                      {postedByName.slice(0, 1).toUpperCase()}
+                    </div>
+                  )}
+                  <div>
+                    <div className="text-xs uppercase text-gray-400">Posted by</div>
+                    <div className="font-semibold text-gray-900 dark:text-white">{postedByName}</div>
+                    {product.posted_by_email && (
+                      <div className="text-xs text-gray-500 dark:text-gray-300">
+                        {product.posted_by_email}
+                      </div>
+                    )}
+                  </div>
+                </div>
+              )}
+
               <div className="flex flex-wrap items-center gap-4 mt-3 text-sm">
                 <div className="flex items-center gap-2 text-gray-600 dark:text-gray-300">
                   <Star className="w-4 h-4 fill-yellow-400 text-yellow-400" />
@@ -430,10 +594,10 @@ export default function ProductDetailPage({
                 variant="outline"
                 className="w-full rounded-xl"
                 onClick={() => setShowAddModal(true)}
-                disabled={modalVariants.length === 0}
+                disabled={modalVariants.length === 0 || isOutOfStock}
               >
                 <ShoppingCart className="w-4 h-4 mr-2" />
-                {t("course.buyNow") || "Add to Cart"}
+                {isOutOfStock ? "Out of stock" : t("course.buyNow") || "Add to Cart"}
               </Button>
 
               {/* variants */}
@@ -604,22 +768,147 @@ export default function ProductDetailPage({
               value="reviews"
               className="mt-4 w-full rounded-xl border bg-white dark:bg-gray-900 p-6"
             >
-              <div className="space-y-4">
-                {[1, 2].map((i) => (
-                  <div
-                    key={i}
-                    className="w-full border rounded-xl p-4 bg-gray-50 dark:bg-gray-950"
-                  >
-                    <div className="flex justify-between">
-                      <div className="font-semibold">User {i}</div>
-                      <div className="flex items-center gap-1">
-                        <Star className="w-4 h-4 fill-yellow-400 text-yellow-400" />
-                        5.0
-                      </div>
+              <div className="space-y-6">
+                {user ? (
+                  <form onSubmit={handleSubmitReview} className="space-y-3">
+                    <div className="flex flex-wrap items-center gap-3">
+                      <label className="text-sm font-semibold">
+                        {t("course.rating") || "Your rating"}
+                      </label>
+                      <select
+                        value={reviewRating}
+                        onChange={(e) => setReviewRating(Number(e.target.value))}
+                        className="border rounded-lg px-3 py-2"
+                      >
+                        {[5, 4, 3, 2, 1].map((val) => (
+                          <option key={val} value={val}>
+                            {val} ⭐
+                          </option>
+                        ))}
+                      </select>
+                      {userReview && (
+                        <span className="text-xs text-gray-500">
+                          {t("course.updateReview") || "Updating existing review"}
+                        </span>
+                      )}
                     </div>
-                    <p className="mt-2 text-sm">This is a sample review.</p>
+                    <Textarea
+                      value={reviewComment}
+                      onChange={(e) => setReviewComment(e.target.value)}
+                      placeholder={
+                        t("course.reviewPlaceholder") ||
+                        "Share what you liked or disliked about this product"
+                      }
+                      rows={4}
+                      className="w-full"
+                    />
+                    <div className="flex items-center justify-between gap-4">
+                      <Button type="submit" disabled={reviewSubmitting}>
+                        {reviewSubmitting
+                          ? t("course.saving") || "Saving..."
+                          : userReview
+                          ? t("course.updateReview") || "Update review"
+                          : t("course.addReview") || "Submit review"}
+                      </Button>
+                      <span className="text-sm text-gray-500 dark:text-gray-400">
+                        {reviews.length} {reviews.length === 1 ? "review" : "reviews"}
+                      </span>
+                    </div>
+                  </form>
+                ) : (
+                  <div className="rounded-xl border border-dashed p-4 text-sm text-gray-500 dark:text-gray-300">
+                    {t("course.loginToReview") || "Login to leave a review."}
                   </div>
-                ))}
+                )}
+
+                <div className="space-y-4">
+                  {reviews.length === 0 ? (
+                    <div className="text-sm text-gray-500 dark:text-gray-300">
+                      {t("course.noReviews") || "No reviews yet."}
+                    </div>
+                  ) : (
+                    <>
+                      {visibleReviews.map((rev) => {
+                        const safeName = (rev.user_name || "User").trim();
+                        const initials =
+                          safeName
+                            .split(" ")
+                            .map((part) => part.charAt(0))
+                            .join("")
+                            .slice(0, 2)
+                            .toUpperCase() || "U";
+                        return (
+                          <div
+                            key={`${rev.id}-${rev.user_id}`}
+                            className="w-full border rounded-xl p-4 bg-gray-50 dark:bg-gray-950"
+                          >
+                            <div className="flex items-start gap-3">
+                              {rev.user_avatar ? (
+                                <img
+                                  src={rev.user_avatar}
+                                  alt={rev.user_name}
+                                  className="w-12 h-12 rounded-full object-cover border"
+                                />
+                              ) : (
+                                <div className="w-12 h-12 rounded-full bg-gradient-to-r from-blue-500 to-purple-500 text-white flex items-center justify-center font-semibold">
+                                  {initials}
+                                </div>
+                              )}
+
+                              <div className="flex-1">
+                                <div className="flex items-start justify-between gap-3">
+                                  <div>
+                                    <div className="font-semibold text-gray-900 dark:text-white">
+                                      {rev.user_name}
+                                    </div>
+                                    <div className="text-xs text-gray-500">
+                                      {normalizeDateForDisplay(
+                                        rev.created_at,
+                                        language === "km" ? "km" : "en"
+                                      )}
+                                    </div>
+                                  </div>
+                                  <div className="flex items-center gap-1">
+                                    {Array.from({ length: 5 }).map((_, idx) => (
+                                      <Star
+                                        key={idx}
+                                        className={`w-4 h-4 ${
+                                          idx < Math.round(rev.rating)
+                                            ? "fill-yellow-400 text-yellow-400"
+                                            : "text-gray-300"
+                                        }`}
+                                      />
+                                    ))}
+                                    <span className="ml-1 text-sm font-semibold text-gray-700 dark:text-gray-200">
+                                      {rev.rating.toFixed(1)}
+                                    </span>
+                                  </div>
+                                </div>
+                                {rev.comment && (
+                                  <p className="mt-2 text-sm text-gray-700 dark:text-gray-200">
+                                    {rev.comment}
+                                  </p>
+                                )}
+                              </div>
+                            </div>
+                          </div>
+                        );
+                      })}
+                      {hasMoreReviews && (
+                        <button
+                          type="button"
+                          onClick={() => setShowAllReviews((prev) => !prev)}
+                          className="text-sm font-semibold text-blue-600 hover:text-blue-700"
+                        >
+                          {showAllReviews
+                            ? t("course.hideReviews") || "Show less"
+                            : (t("course.showMoreReviews") || "See all reviews") +
+                              ` (${reviews.length})`}
+                        </button>
+                      )}
+                    </>
+                  )}
+                </div>
               </div>
             </TabsContent>
           </Tabs>

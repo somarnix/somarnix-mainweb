@@ -1,4 +1,5 @@
 import jwt, { JwtPayload } from "jsonwebtoken";
+import { touchUserPresence } from "./presence";
 
 export type AuthUser = {
   id: any;
@@ -36,10 +37,12 @@ export async function getAuthUser(req: Request): Promise<AuthUser | null> {
       return null;
     }
 
-    return {
+    const authUser = {
       userId: Number(payload.userId),
       role: payload.role,
     };
+    touchUserPresence(authUser.userId).catch(() => {});
+    return authUser;
   } catch {
     return null;
   }

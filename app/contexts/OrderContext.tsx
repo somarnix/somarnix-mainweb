@@ -1,7 +1,7 @@
 import { createContext, useContext, useState, useEffect, ReactNode } from 'react';
 // import type { Course } from '../utils/courseData';
 
-export type OrderStatus = 'pending' | 'complete' | 'cancelled';
+export type OrderStatus = 'pending' | 'approved' | 'delivering' | 'completed' | 'cancelled' | 'resolution';
 
 export interface OrderItem {
   course: Course;
@@ -17,8 +17,10 @@ export interface Order {
   totalAmount: number;
   status: OrderStatus;
   paymentInfo: {
-    idPay: string;
-    purchaseId: string;
+    accountName: string;
+    accountNumber: string;
+    paymentApv: string;
+    method: string;
     dateTimePay: string;
   };
   createdAt: string;

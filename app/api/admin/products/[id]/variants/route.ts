@@ -6,6 +6,9 @@ import type { ResultSetHeader, RowDataPacket } from "mysql2";
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
 
+const DEFAULT_KH_QR = "/paymentQR/khmer_qr.jpg";
+const USD_QR_NONE = "none";
+
 /** Next 15 uses Promise params, Next 14 uses object params */
 type RouteCtx = { params: { id: string } | Promise<{ id: string }> };
 
@@ -56,6 +59,8 @@ export async function GET(req: Request, ctx: RouteCtx) {
         v.is_unlimited_device,
         v.original_price,
         v.price,
+        v.khqr,
+        v.usdqr,
         v.is_active,
         v.created_at
       FROM product_variants v
@@ -116,6 +121,10 @@ export async function POST(req: Request, ctx: RouteCtx) {
 
     const original_price = toNumOrNull(b.original_price);
     const price = toNumOrNull(b.price);
+    const khqr =
+      typeof b.khqr === "string" && b.khqr.trim() ? b.khqr.trim() : DEFAULT_KH_QR;
+    const usdqr =
+      typeof b.usdqr === "string" && b.usdqr.trim() ? b.usdqr.trim() : USD_QR_NONE;
 
     // must have duration_label OR device_label
     if (!duration_label && !device_label) {
@@ -151,9 +160,10 @@ export async function POST(req: Request, ctx: RouteCtx) {
           duration_label, duration_note, duration_days,
           device_label, device_limit, is_unlimited_device,
           original_price, price,
+          khqr, usdqr,
           is_active
         )
-      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, 1)
+      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 1)
       `,
       [
         productId,
@@ -165,6 +175,8 @@ export async function POST(req: Request, ctx: RouteCtx) {
         is_unlimited_device,
         original_price,
         price,
+        khqr,
+        usdqr,
       ]
     );
 

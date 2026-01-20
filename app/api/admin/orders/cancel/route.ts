@@ -26,21 +26,46 @@ export async function POST(req: Request) {
         ? b.note.trim()
         : null;
 
-    const [result] = await db.query<ResultSetHeader>(
-      `
-      UPDATE orders
-      SET 
-        status='cancelled',
-        reviewed_by=?,
-        reviewed_at=NOW(),
-        review_note=?
-      WHERE id=?
-      `,
-      [auth.userId, note, orderId]
-    );
+    try {
+      const [result] = await db.query<ResultSetHeader>(
+        `
+        UPDATE orders
+        SET 
+          state='cancelled',
+          result='failed',
+          reviewed_by=?,
+          reviewed_at=NOW(),
+          review_note=?
+        WHERE id=?
+        `,
+        [auth.userId, note, orderId]
+      );
 
-    if (result.affectedRows === 0) {
-      return Response.json({ error: "Order not found" }, { status: 404 });
+      if (result.affectedRows === 0) {
+        return Response.json({ error: "Order not found" }, { status: 404 });
+      }
+    } catch (error) {
+      const message = error instanceof Error ? error.message : String(error);
+      if (!message.includes("Unknown column 'state'")) {
+        throw error;
+      }
+
+      const [legacy] = await db.query<ResultSetHeader>(
+        `
+        UPDATE orders
+        SET 
+          status='cancelled',
+          reviewed_by=?,
+          reviewed_at=NOW(),
+          review_note=?
+        WHERE id=?
+        `,
+        [auth.userId, note, orderId]
+      );
+
+      if (legacy.affectedRows === 0) {
+        return Response.json({ error: "Order not found" }, { status: 404 });
+      }
     }
 
     return Response.json({ success: true });
