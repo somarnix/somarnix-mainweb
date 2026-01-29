@@ -37,7 +37,7 @@ interface ProfilePageProps {
   onOpenProductDetail?: (slug: string) => void;
 }
 
-type TabId = "overview" | "courses" | "settings";
+type TabId = "overview" | "courses" | "my-courses" | "settings";
 type OrderStateKey =
   | "pending"
   | "approved"
@@ -61,9 +61,16 @@ type PurchaseItem = {
   imageUrl: string | null;
   orderNumber: string;
   orderedAt: string | null;
+  completedAt?: string | null;
   quantity: number;
   unitPrice: number;
   variantLabel: string | null;
+  durationDays?: number | null;
+  accessEnd?: string | null;
+  isActive?: boolean;
+  deviceType?: string | null;
+  deviceLimit?: number | null;
+  unlimitedDevice?: boolean;
 };
 
 type StatsResponse = {
@@ -78,6 +85,36 @@ type StatsResponse = {
 
 type PurchasesResponse = {
   products?: PurchaseItem[];
+};
+
+type VideoCourseItem = {
+  courseId: number;
+  title: string;
+  slug: string;
+  thumbnailUrl: string | null;
+  planName: string | null;
+  accessStart: string | null;
+  accessEnd: string | null;
+  status: string | null;
+  isActive?: boolean;
+};
+
+type VideoCoursesResponse = {
+  courses?: VideoCourseItem[];
+};
+
+type SubscriptionCoursesResponse = {
+  subscribed?: boolean;
+  planName?: string | null;
+  courses?: VideoCourseItem[];
+};
+
+type FavoriteCoursesResponse = {
+  courses?: Array<VideoCourseItem & { favoritedAt?: string | null }>;
+};
+
+type FreeCoursesResponse = {
+  courses?: VideoCourseItem[];
 };
 
 const AVATARS: string[] = ["/Job Jik.jpg", "/Mrrecaps.png", "/Nut Roth Logo.png", "/Nut Roth.jpg"];
@@ -174,6 +211,23 @@ export function ProfilePage({ onNavigate, onOpenProductDetail }: ProfilePageProp
   const [purchases, setPurchases] = useState<PurchaseItem[]>([]);
   const [purchasesLoading, setPurchasesLoading] = useState(false);
   const [purchasesError, setPurchasesError] = useState<string | null>(null);
+  const [videoCourses, setVideoCourses] = useState<VideoCourseItem[]>([]);
+  const [videoCoursesLoading, setVideoCoursesLoading] = useState(false);
+  const [videoCoursesError, setVideoCoursesError] = useState<string | null>(null);
+  const [subscribedCourses, setSubscribedCourses] = useState<VideoCourseItem[]>([]);
+  const [subscribedActive, setSubscribedActive] = useState(false);
+  const [subscribedPlanName, setSubscribedPlanName] = useState<string | null>(null);
+  const [subscribedLoading, setSubscribedLoading] = useState(false);
+  const [subscribedError, setSubscribedError] = useState<string | null>(null);
+  const [favoriteCourses, setFavoriteCourses] = useState<VideoCourseItem[]>([]);
+  const [favoriteLoading, setFavoriteLoading] = useState(false);
+  const [favoriteError, setFavoriteError] = useState<string | null>(null);
+  const [freeCourses, setFreeCourses] = useState<VideoCourseItem[]>([]);
+  const [freeLoading, setFreeLoading] = useState(false);
+  const [freeError, setFreeError] = useState<string | null>(null);
+  const [myCourseTab, setMyCourseTab] = useState<"subscribe" | "lifetime" | "favorite" | "free">(
+    "subscribe"
+  );
 
   const translate = useCallback(
     (key: string, fallback: string) => {
@@ -317,19 +371,105 @@ export function ProfilePage({ onNavigate, onOpenProductDetail }: ProfilePageProp
     }
   }, [user]);
 
+  const fetchVideoCourses = useCallback(async () => {
+    if (!user) return;
+    setVideoCoursesLoading(true);
+    setVideoCoursesError(null);
+    try {
+      const res = await fetch("/api/me/video-courses", { cache: "no-store" });
+      if (!res.ok) {
+        throw new Error("Failed to load courses");
+      }
+      const data = (await res.json()) as VideoCoursesResponse;
+      setVideoCourses(Array.isArray(data?.courses) ? data.courses : []);
+    } catch (error) {
+      const message = error instanceof Error ? error.message : String(error);
+      setVideoCoursesError(message || "Failed to load courses.");
+    } finally {
+      setVideoCoursesLoading(false);
+    }
+  }, [user]);
+
+  const fetchSubscribedCourses = useCallback(async () => {
+    if (!user) return;
+    setSubscribedLoading(true);
+    setSubscribedError(null);
+    try {
+      const res = await fetch("/api/me/video-courses/subscribed", { cache: "no-store" });
+      if (!res.ok) throw new Error("Failed to load subscriptions");
+      const data = (await res.json()) as SubscriptionCoursesResponse;
+      setSubscribedActive(!!data?.subscribed);
+      setSubscribedPlanName(typeof data?.planName === "string" ? data.planName : null);
+      setSubscribedCourses(Array.isArray(data?.courses) ? data.courses : []);
+    } catch (error) {
+      const message = error instanceof Error ? error.message : String(error);
+      setSubscribedError(message || "Failed to load subscriptions.");
+    } finally {
+      setSubscribedLoading(false);
+    }
+  }, [user]);
+
+  const fetchFreeCourses = useCallback(async () => {
+    if (!user) return;
+    setFreeLoading(true);
+    setFreeError(null);
+    try {
+      const res = await fetch("/api/me/video-courses/free", { cache: "no-store" });
+      if (!res.ok) throw new Error("Failed to load free courses");
+      const data = (await res.json()) as FreeCoursesResponse;
+      setFreeCourses(Array.isArray(data?.courses) ? data.courses : []);
+    } catch (error) {
+      const message = error instanceof Error ? error.message : String(error);
+      setFreeError(message || "Failed to load free courses.");
+    } finally {
+      setFreeLoading(false);
+    }
+  }, [user]);
+
+  const fetchFavoriteCourses = useCallback(async () => {
+    if (!user) return;
+    setFavoriteLoading(true);
+    setFavoriteError(null);
+    try {
+      const res = await fetch("/api/me/video-courses/favorites", { cache: "no-store" });
+      if (!res.ok) throw new Error("Failed to load favorites");
+      const data = (await res.json()) as FavoriteCoursesResponse;
+      setFavoriteCourses(Array.isArray(data?.courses) ? data.courses : []);
+    } catch (error) {
+      const message = error instanceof Error ? error.message : String(error);
+      setFavoriteError(message || "Failed to load favorites.");
+    } finally {
+      setFavoriteLoading(false);
+    }
+  }, [user]);
+
   useEffect(() => {
     if (!user) {
       setOverviewStats(null);
       setPurchases([]);
+      setVideoCourses([]);
       return;
     }
     fetchStats();
     fetchPurchases();
-  }, [user, fetchStats, fetchPurchases]);
+    fetchVideoCourses();
+    fetchSubscribedCourses();
+    fetchFavoriteCourses();
+    fetchFreeCourses();
+  }, [
+    user,
+    fetchStats,
+    fetchPurchases,
+    fetchVideoCourses,
+    fetchSubscribedCourses,
+    fetchFavoriteCourses,
+    fetchFreeCourses,
+  ]);
 
   const tabs: Array<{ id: TabId; name: string; icon: typeof User }> = [
     { id: "overview", name: translate("profile.overview", "Overview"), icon: User },
     { id: "courses", name: translate("profile.myProducts", "My Products"), icon: ShoppingBag },
+    { id: "my-courses", name: translate("profile.myCourses", "My Courses"), icon: ShoppingBag },
     { id: "settings", name: translate("profile.settings", "Settings"), icon: Settings },
   ];
 
@@ -381,6 +521,31 @@ export function ProfilePage({ onNavigate, onOpenProductDetail }: ProfilePageProp
 
   const stateCounts = overviewStats?.stateCounts ?? DEFAULT_STATE_COUNTS;
   const recentPurchases = useMemo(() => purchases.slice(0, 3), [purchases]);
+  const recentCourses = useMemo(() => videoCourses.slice(0, 3), [videoCourses]);
+
+  const goToCourse = useCallback((slug: string) => {
+    if (!slug) return;
+    if (typeof window !== "undefined") {
+      window.location.href = `/blog/${slug}`;
+    }
+  }, []);
+
+  const toggleFavorite = useCallback(
+    async (courseId: number, isFav: boolean) => {
+      try {
+        const res = await fetch("/api/me/video-courses/favorites", {
+          method: isFav ? "DELETE" : "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ courseId }),
+        });
+        if (!res.ok) throw new Error("Failed to update favorite");
+        fetchFavoriteCourses();
+      } catch (err) {
+        console.error(err);
+      }
+    },
+    [fetchFavoriteCourses]
+  );
 
   // ===== Change Password =====
   const [pwForm, setPwForm] = useState({
@@ -702,9 +867,26 @@ export function ProfilePage({ onNavigate, onOpenProductDetail }: ProfilePageProp
                           <div className="font-semibold text-gray-900 dark:text-gray-100 line-clamp-1">
                             {purchase.title}
                           </div>
+                          {!purchase.isActive ? (
+                            <div className="text-xs text-red-500">
+                              {translate("profile.expired", "Expired")}
+                            </div>
+                          ) : null}
                           <p className="text-xs text-gray-500">
                             {formatDateTime(purchase.orderedAt)}
                           </p>
+                          {purchase.accessEnd ? (
+                            <p className="text-xs text-gray-400">
+                              {translate("profile.accessEnd", "Access ends")}:{" "}
+                              {formatDateTime(purchase.accessEnd)}
+                            </p>
+                          ) : null}
+                          {purchase.completedAt ? (
+                            <p className="text-xs text-gray-400">
+                              {translate("profile.accessStart", "Access start")}:{" "}
+                              {formatDateTime(purchase.completedAt)}
+                            </p>
+                          ) : null}
                         </div>
                         <div className="text-right text-sm text-gray-700 dark:text-gray-300">
                           <div className="font-semibold text-blue-600 dark:text-blue-300">
@@ -716,6 +898,20 @@ export function ProfilePage({ onNavigate, onOpenProductDetail }: ProfilePageProp
                         </div>
                       </button>
                     ))}
+                  </div>
+                )}
+
+                {videoCoursesError && (
+                  <div className="mt-4 flex items-center gap-2 rounded-xl bg-red-50 px-3 py-2 text-sm text-red-600 dark:bg-red-500/10 dark:text-red-200">
+                    <AlertCircle className="h-4 w-4" />
+                    <span className="flex-1">{videoCoursesError}</span>
+                    <button
+                      type="button"
+                      onClick={fetchVideoCourses}
+                      className="text-xs font-semibold underline"
+                    >
+                      {translate("profile.retry", "Retry")}
+                    </button>
                   </div>
                 )}
               </div>
@@ -782,10 +978,27 @@ export function ProfilePage({ onNavigate, onOpenProductDetail }: ProfilePageProp
                         <div className="text-base font-semibold text-gray-900 dark:text-white">
                           {item.title}
                         </div>
+                        {!item.isActive ? (
+                          <p className="text-xs text-red-500">
+                            {translate("profile.expired", "Expired")}
+                          </p>
+                        ) : null}
                         <p className="text-sm text-gray-500">
                           {translate("profile.orderNumber", "Order no.")}: {item.orderNumber}
                         </p>
                         <p className="text-xs text-gray-400">{formatDateTime(item.orderedAt)}</p>
+                        {item.accessEnd ? (
+                          <p className="text-xs text-gray-400">
+                            {translate("profile.accessEnd", "Access ends")}:{" "}
+                            {formatDateTime(item.accessEnd)}
+                          </p>
+                        ) : null}
+                        {item.completedAt ? (
+                          <p className="text-xs text-gray-400">
+                            {translate("profile.accessStart", "Access start")}:{" "}
+                            {formatDateTime(item.completedAt)}
+                          </p>
+                        ) : null}
                       </div>
                     </div>
 
@@ -798,6 +1011,18 @@ export function ProfilePage({ onNavigate, onOpenProductDetail }: ProfilePageProp
                           {translate("profile.variant", "Option")}: {item.variantLabel}
                         </span>
                       )}
+                      {item.unlimitedDevice ? (
+                        <span>{translate("profile.deviceLimit", "Devices")}: Unlimited</span>
+                      ) : item.deviceLimit ? (
+                        <span>
+                          {translate("profile.deviceLimit", "Devices")}: {item.deviceLimit}
+                        </span>
+                      ) : null}
+                      {item.deviceType ? (
+                        <span>
+                          {translate("profile.deviceType", "Device")}: {item.deviceType}
+                        </span>
+                      ) : null}
                     </div>
 
                     <div className="text-right">
@@ -823,6 +1048,358 @@ export function ProfilePage({ onNavigate, onOpenProductDetail }: ProfilePageProp
                 ))}
               </div>
             )}
+
+          </div>
+        )}
+
+        {activeTab === "my-courses" && (
+          <div className="space-y-6">
+            <div className="flex flex-col gap-2 md:flex-row md:items-center md:justify-between">
+              <div>
+                <h2 className="text-2xl font-semibold text-gray-900 dark:text-white">
+                  {translate("profile.myCourses", "My Courses")}
+                </h2>
+                <p className="text-sm text-gray-500">
+                  {translate("profile.myCoursesSubtitle", "Courses you've purchased")}
+                </p>
+                <p className="text-sm text-gray-500">
+                  {subscribedActive
+                    ? `${translate("profile.currentPlan", "Current plan")}: ${subscribedPlanName || "Active"}`
+                    : subscribedError
+                      ? translate("profile.subscriptionError", "Failed to load subscriptions")
+                      : translate("profile.noSubscription", "Not subscribed yet")}
+                </p>
+              </div>
+              <div className="text-sm text-gray-500">
+              {translate("profile.totalItems", "Items purchased")}: {formatNumber(videoCourses.length)}
+            </div>
+            </div>
+
+            <div className="flex flex-wrap gap-2">
+              {[
+                { id: "free", label: translate("profile.free", "Free") },
+                { id: "subscribe", label: translate("profile.subscribed", "Subscribed") },
+                { id: "lifetime", label: translate("profile.lifetime", "Lifetime") },
+                { id: "favorite", label: translate("profile.favorite", "Favorite") },
+              ].map((tab) => (
+                <button
+                  key={tab.id}
+                  type="button"
+                  onClick={() => setMyCourseTab(tab.id as "subscribe" | "lifetime" | "favorite")}
+                  className={`px-4 py-2 rounded-full text-sm border ${
+                    myCourseTab === tab.id
+                      ? "border-blue-600 text-blue-600 bg-blue-50"
+                      : "border-gray-200 text-gray-600"
+                  }`}
+                >
+                  {tab.label}
+                </button>
+              ))}
+            </div>
+
+            {myCourseTab === "subscribe" && subscribedError && (
+              <div className="flex items-center gap-2 rounded-2xl border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700 dark:border-red-400/40 dark:bg-red-500/10 dark:text-red-100">
+                <AlertCircle className="h-4 h-4" />
+                <span className="flex-1">{subscribedError}</span>
+                <Button size="sm" variant="outline" onClick={fetchSubscribedCourses}>
+                  {translate("profile.retry", "Retry")}
+                </Button>
+              </div>
+            )}
+
+            {myCourseTab === "subscribe" && (subscribedLoading ? (
+              <div className="space-y-4">
+                {[0, 1, 2].map((idx) => (
+                  <div
+                    key={idx}
+                    className="h-32 animate-pulse rounded-2xl bg-gray-100 dark:bg-gray-800/60"
+                  />
+                ))}
+              </div>
+            ) : !subscribedActive ? (
+              <div className="rounded-2xl border border-dashed border-gray-300 bg-white p-8 text-center text-gray-500 dark:border-gray-700 dark:bg-gray-900 dark:text-gray-400">
+                {translate("profile.noSubscription", "No active subscription plan.")}
+              </div>
+            ) : subscribedCourses.length === 0 ? (
+              <div className="rounded-2xl border border-dashed border-gray-300 bg-white p-8 text-center text-gray-500 dark:border-gray-700 dark:bg-gray-900 dark:text-gray-400">
+                {translate("profile.coursesEmpty", "No video courses available yet.")}
+              </div>
+            ) : (
+              <div className="space-y-4">
+                {subscribedCourses.map((course) => {
+                  const isFav = favoriteCourses.some((f) => f.courseId === course.courseId);
+                  return (
+                    <div
+                      key={`${course.courseId}-${course.slug}`}
+                      className="flex flex-col gap-4 rounded-2xl border border-gray-100 bg-white p-5 shadow-sm transition hover:border-blue-300 dark:border-gray-800 dark:bg-gray-900 md:flex-row md:items-center"
+                    >
+                      <div className="flex flex-1 items-center gap-4">
+                        <img
+                          src={course.thumbnailUrl || "/Nut Roth Logo.png"}
+                          alt={course.title}
+                          className="h-16 w-16 rounded-xl object-cover"
+                        />
+                        <div>
+                          <div className="text-base font-semibold text-gray-900 dark:text-white">
+                            {course.title}
+                          </div>
+                          {!course.isActive ? (
+                            <p className="text-xs text-red-500">
+                              {translate("profile.expired", "Expired")}
+                            </p>
+                          ) : null}
+                          <p className="text-xs text-gray-400">
+                            {translate("profile.subscribed", "Subscribed")}
+                          </p>
+                        </div>
+                      </div>
+                      <div className="flex w-full justify-end gap-2 md:w-auto">
+                        <Button
+                          variant="outline"
+                          size="sm"
+                          onClick={() => goToCourse(course.slug)}
+                        >
+                          {translate("profile.watch", "Watch")}
+                        </Button>
+                        <Button
+                          variant="ghost"
+                          size="sm"
+                          onClick={() => toggleFavorite(course.courseId, isFav)}
+                        >
+                          {isFav ? "♥" : "♡"}
+                        </Button>
+                      </div>
+                    </div>
+                  );
+                })}
+              </div>
+            ))}
+
+            {myCourseTab === "free" && freeError && (
+              <div className="flex items-center gap-2 rounded-2xl border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700 dark:border-red-400/40 dark:bg-red-500/10 dark:text-red-100">
+                <AlertCircle className="h-4 h-4" />
+                <span className="flex-1">{freeError}</span>
+                <Button size="sm" variant="outline" onClick={fetchFreeCourses}>
+                  {translate("profile.retry", "Retry")}
+                </Button>
+              </div>
+            )}
+
+            {myCourseTab === "free" && (freeLoading ? (
+              <div className="space-y-4">
+                {[0, 1].map((idx) => (
+                  <div
+                    key={idx}
+                    className="h-32 animate-pulse rounded-2xl bg-gray-100 dark:bg-gray-800/60"
+                  />
+                ))}
+              </div>
+            ) : freeCourses.length === 0 ? (
+              <div className="rounded-2xl border border-dashed border-gray-300 bg-white p-8 text-center text-gray-500 dark:border-gray-700 dark:bg-gray-900 dark:text-gray-400">
+                {translate("profile.noFreeCourses", "No free courses yet.")}
+              </div>
+            ) : (
+              <div className="space-y-4">
+                {freeCourses.map((course) => {
+                  const isFav = favoriteCourses.some((f) => f.courseId === course.courseId);
+                  return (
+                    <div
+                      key={`${course.courseId}-${course.slug}`}
+                      className="flex flex-col gap-4 rounded-2xl border border-gray-100 bg-white p-5 shadow-sm transition hover:border-blue-300 dark:border-gray-800 dark:bg-gray-900 md:flex-row md:items-center"
+                    >
+                      <div className="flex flex-1 items-center gap-4">
+                        <img
+                          src={course.thumbnailUrl || "/Nut Roth Logo.png"}
+                          alt={course.title}
+                          className="h-16 w-16 rounded-xl object-cover"
+                        />
+                        <div>
+                          <div className="text-base font-semibold text-gray-900 dark:text-white">
+                            {course.title}
+                          </div>
+                          {!course.isActive ? (
+                            <p className="text-xs text-red-500">
+                              {translate("profile.expired", "Expired")}
+                            </p>
+                          ) : null}
+                          <p className="text-xs text-gray-400">
+                            {translate("profile.free", "Free")}
+                          </p>
+                        </div>
+                      </div>
+                      <div className="flex w-full justify-end gap-2 md:w-auto">
+                        <Button
+                          variant="outline"
+                          size="sm"
+                          onClick={() => goToCourse(course.slug)}
+                        >
+                          {translate("profile.watch", "Watch")}
+                        </Button>
+                        <Button
+                          variant="ghost"
+                          size="sm"
+                          onClick={() => toggleFavorite(course.courseId, isFav)}
+                        >
+                          {isFav ? "♥" : "♡"}
+                        </Button>
+                      </div>
+                    </div>
+                  );
+                })}
+              </div>
+            ))}
+            {myCourseTab === "lifetime" && videoCoursesError && (
+              <div className="flex items-center gap-2 rounded-2xl border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700 dark:border-red-400/40 dark:bg-red-500/10 dark:text-red-100">
+                <AlertCircle className="h-4 h-4" />
+                <span className="flex-1">{videoCoursesError}</span>
+                <Button size="sm" variant="outline" onClick={fetchVideoCourses}>
+                  {translate("profile.retry", "Retry")}
+                </Button>
+              </div>
+            )}
+
+            {myCourseTab === "lifetime" && (videoCoursesLoading ? (
+              <div className="space-y-4">
+                {[0, 1, 2].map((idx) => (
+                  <div
+                    key={idx}
+                    className="h-32 animate-pulse rounded-2xl bg-gray-100 dark:bg-gray-800/60"
+                  />
+                ))}
+              </div>
+            ) : videoCourses.length === 0 ? (
+              <div className="rounded-2xl border border-dashed border-gray-300 bg-white p-8 text-center text-gray-500 dark:border-gray-700 dark:bg-gray-900 dark:text-gray-400">
+                {translate("profile.coursesEmpty", "No video courses purchased yet.")}
+              </div>
+            ) : (
+              <div className="space-y-4">
+                {videoCourses.map((course) => (
+                  <div
+                    key={`${course.courseId}-${course.slug}`}
+                    className="flex flex-col gap-4 rounded-2xl border border-gray-100 bg-white p-5 shadow-sm transition hover:border-blue-300 dark:border-gray-800 dark:bg-gray-900 md:flex-row md:items-center"
+                  >
+                    <div className="flex flex-1 items-center gap-4">
+                      <img
+                        src={course.thumbnailUrl || "/Nut Roth Logo.png"}
+                        alt={course.title}
+                        className="h-16 w-16 rounded-xl object-cover"
+                      />
+                      <div>
+                        <div className="text-base font-semibold text-gray-900 dark:text-white">
+                          {course.title}
+                        </div>
+                        {!course.isActive ? (
+                          <p className="text-xs text-red-500">
+                            {translate("profile.expired", "Expired")}
+                          </p>
+                        ) : null}
+                        <p className="text-sm text-gray-500">
+                          {translate("profile.plan", "Plan")}: {course.planName || "Plan"}
+                        </p>
+                        <p className="text-xs text-gray-400">
+                          {translate("profile.accessEnd", "Access end")}:{" "}
+                          {course.accessEnd
+                            ? formatDateTime(course.accessEnd)
+                            : translate("profile.lifetime", "Lifetime")}
+                        </p>
+                      </div>
+                    </div>
+                    <div className="flex w-full justify-end gap-2 md:w-auto">
+                      <Button
+                        variant="outline"
+                        size="sm"
+                        onClick={() => goToCourse(course.slug)}
+                      >
+                        {translate("profile.watch", "Watch")}
+                      </Button>
+                      <Button
+                        variant="ghost"
+                        size="sm"
+                        onClick={() =>
+                          toggleFavorite(
+                            course.courseId,
+                            favoriteCourses.some((f) => f.courseId === course.courseId)
+                          )
+                        }
+                      >
+                        {favoriteCourses.some((f) => f.courseId === course.courseId) ? "♥" : "♡"}
+                      </Button>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            ))}
+
+            {myCourseTab === "favorite" && favoriteError && (
+              <div className="flex items-center gap-2 rounded-2xl border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700 dark:border-red-400/40 dark:bg-red-500/10 dark:text-red-100">
+                <AlertCircle className="h-4 h-4" />
+                <span className="flex-1">{favoriteError}</span>
+                <Button size="sm" variant="outline" onClick={fetchFavoriteCourses}>
+                  {translate("profile.retry", "Retry")}
+                </Button>
+              </div>
+            )}
+
+            {myCourseTab === "favorite" && (favoriteLoading ? (
+              <div className="space-y-4">
+                {[0, 1].map((idx) => (
+                  <div
+                    key={idx}
+                    className="h-32 animate-pulse rounded-2xl bg-gray-100 dark:bg-gray-800/60"
+                  />
+                ))}
+              </div>
+            ) : favoriteCourses.length === 0 ? (
+              <div className="rounded-2xl border border-dashed border-gray-300 bg-white p-8 text-center text-gray-500 dark:border-gray-700 dark:bg-gray-900 dark:text-gray-400">
+                {translate("profile.noFavorites", "No favorites yet.")}
+              </div>
+            ) : (
+              <div className="space-y-4">
+                {favoriteCourses.map((course) => (
+                  <div
+                    key={`${course.courseId}-${course.slug}`}
+                    className="flex flex-col gap-4 rounded-2xl border border-gray-100 bg-white p-5 shadow-sm transition hover:border-blue-300 dark:border-gray-800 dark:bg-gray-900 md:flex-row md:items-center"
+                  >
+                    <div className="flex flex-1 items-center gap-4">
+                      <img
+                        src={course.thumbnailUrl || "/Nut Roth Logo.png"}
+                        alt={course.title}
+                        className="h-16 w-16 rounded-xl object-cover"
+                      />
+                      <div>
+                        <div className="text-base font-semibold text-gray-900 dark:text-white">
+                          {course.title}
+                        </div>
+                        {!course.isActive ? (
+                          <p className="text-xs text-red-500">
+                            {translate("profile.expired", "Expired")}
+                          </p>
+                        ) : null}
+                        <p className="text-xs text-gray-400">
+                          {translate("profile.favorite", "Favorite")}
+                        </p>
+                      </div>
+                    </div>
+                    <div className="flex w-full justify-end gap-2 md:w-auto">
+                      <Button
+                        variant="outline"
+                        size="sm"
+                        onClick={() => goToCourse(course.slug)}
+                      >
+                        {translate("profile.watch", "Watch")}
+                      </Button>
+                      <Button
+                        variant="ghost"
+                        size="sm"
+                        onClick={() => toggleFavorite(course.courseId, true)}
+                      >
+                        {"♥"}
+                      </Button>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            ))}
           </div>
         )}
 

@@ -39,10 +39,25 @@ type Item = {
   id: number;
   title: string;
   image_url: string | null;
+  is_active?: boolean;
   qty: number;
   unit_price: number;
   duration_label: string | null;
   device_label: string | null;
+  duration_days?: number | null;
+  access_end?: string | null;
+};
+
+type VideoItem = {
+  id: number;
+  type: "course" | "subscription";
+  title: string;
+  plan: string;
+  access_type: string;
+  duration_days: number | null;
+  access_start: string | null;
+  access_end: string | null;
+  status: string;
 };
 
 type Payment = {
@@ -315,6 +330,17 @@ function buildActivity(order: Order, payment: Payment, lang: LanguageCode): Acti
   }
 
   if (order.delivery_message && order.status !== "cancelled") {
+    const toolSlug = parseToolSlugFromTitle(order.delivery_title);
+    if (toolSlug) {
+      items.push({
+        key: "tool-access",
+        title: order.delivery_title || "Tool access",
+        description:
+          lang === "km" ? "ចូលប្រើឧបករណ៍បានបើកស្រាប់" : "Tool access granted",
+        date: order.delivered_at ?? order.reviewed_at ?? order.created_at,
+      });
+      return items;
+    }
     items.push({
       key: "delivery-message",
       title: order.delivery_title || (lang === "km" ? "ព័ត៌មានបន្ថែម" : "Delivery message"),
@@ -331,8 +357,9 @@ function parseDeliveryEntries(
   message: string | null | undefined,
   lang: LanguageCode
 ): DeliveryEntry[] {
-  if (!message) return [];
-  const segments = message
+  if (!message && !title) return [];
+  const safeMessage = message ?? "";
+  const segments = safeMessage
     .split(/\n-{3,}\n|\n\s*\n/g)
     .map((part) => part.trim())
     .filter(Boolean);
@@ -345,7 +372,7 @@ function parseDeliveryEntries(
       {
         id: "0",
         title: title || fallbackTitle,
-        content: message.trim(),
+        content: safeMessage.trim(),
       },
     ];
   }
@@ -358,6 +385,12 @@ function parseDeliveryEntries(
         : title || fallbackTitle,
     content,
   }));
+}
+
+function parseToolSlugFromTitle(title?: string | null): string | null {
+  if (!title) return null;
+  const match = title.match(/tool access:\s*([^\s]+)/i);
+  return match ? match[1] : null;
 }
 
 function formatChatDate(value: string | null | undefined, lang: LanguageCode) {
@@ -466,6 +499,7 @@ export function OrderDetailPage({
   const [loading, setLoading] = useState(true);
   const [order, setOrder] = useState<Order | null>(null);
   const [items, setItems] = useState<Item[]>([]);
+  const [videoItems, setVideoItems] = useState<VideoItem[]>([]);
   const [payment, setPayment] = useState<Payment>(null);
   const [error, setError] = useState<string | null>(null);
   const [chatLoading, setChatLoading] = useState(false);
@@ -647,6 +681,7 @@ export function OrderDetailPage({
 
         setOrder(data.order);
         setItems(data.items ?? []);
+        setVideoItems(data.video_items ?? []);
         setPayment(data.payment ?? null);
         setError(null);
       } finally {
@@ -804,32 +839,109 @@ export function OrderDetailPage({
             </div>
 
             <div className="space-y-3">
-              {deliveryEntries.map((entry) => (
-                <div
-                  key={entry.id}
-                  className="border border-gray-100 dark:border-gray-800 rounded-xl p-4"
-                >
-                  <div className="flex items-center justify-between gap-3">
-                    <div>
-                      <p className="font-semibold text-gray-900 dark:text-gray-100">
-                        {entry.title}
-                      </p>
-                      <p className="text-xs text-gray-500 dark:text-gray-400">
-                        {lang === "km" ? "ចុចដើម្បីចម្លង" : "Copy to share safely"}
-                      </p>
-                    </div>
-                    <Button
-                      variant="ghost"
-                      size="sm"
-                      onClick={() => handleCopyDelivery(entry.content)}
+              {deliveryEntries.map((entry) => {
+                const toolSlug = parseToolSlugFromTitle(entry.title);
+                if (toolSlug) {
+                  return (
+                    <div
+                      key={entry.id}
+                      className="border border-gray-100 dark:border-gray-800 rounded-xl p-4"
                     >
-                      <Copy className="w-4 h-4 mr-1" />
-                      {lang === "km" ? "ចម្លង" : "Copy"}
-                    </Button>
+                      <div className="flex items-center justify-between gap-3">
+                        <div>
+                          <p className="font-semibold text-gray-900 dark:text-gray-100">
+                            {entry.title}
+                          </p>
+                          <p className="text-xs text-gray-500 dark:text-gray-400">
+                            {lang === "km"
+                              ? "ចូលប្រើឧបករណ៍បានបើកស្រាប់"
+                              : "Tool access granted"}
+                          </p>
+                        </div>
+                        <Button
+                          variant="outline"
+                          size="sm"
+                          onClick={() => {
+                            window.location.href = `/tools-ai/${toolSlug}`;
+                          }}
+                        >
+                          {lang === "km" ? "បើកឧបករណ៍" : "Open tool"}
+                        </Button>
+                      </div>
+                    </div>
+                  );
+                }
+                return (
+                  <div
+                    key={entry.id}
+                    className="border border-gray-100 dark:border-gray-800 rounded-xl p-4"
+                  >
+                    <div className="flex items-center justify-between gap-3">
+                      <div>
+                        <p className="font-semibold text-gray-900 dark:text-gray-100">
+                          {entry.title}
+                        </p>
+                        <p className="text-xs text-gray-500 dark:text-gray-400">
+                          {lang === "km" ? "ចុចដើម្បីចម្លង" : "Copy to share safely"}
+                        </p>
+                      </div>
+                      <Button
+                        variant="ghost"
+                        size="sm"
+                        onClick={() => handleCopyDelivery(entry.content)}
+                      >
+                        <Copy className="w-4 h-4 mr-1" />
+                        {lang === "km" ? "ចម្លង" : "Copy"}
+                      </Button>
+                    </div>
+                    <pre className="mt-3 whitespace-pre-wrap text-sm text-gray-700 dark:text-gray-200 bg-gray-50 dark:bg-gray-800/50 rounded-lg p-3 overflow-x-auto">
+                      {entry.content}
+                    </pre>
                   </div>
-                  <pre className="mt-3 whitespace-pre-wrap text-sm text-gray-700 dark:text-gray-200 bg-gray-50 dark:bg-gray-800/50 rounded-lg p-3 overflow-x-auto">
-                    {entry.content}
-                  </pre>
+                );
+              })}
+            </div>
+          </section>
+        )}
+
+        {videoItems.length > 0 && (
+          <section className="bg-white dark:bg-gray-900 rounded-2xl shadow-sm p-6">
+            <div className="flex items-center justify-between mb-4">
+              <h3 className="text-lg font-semibold text-gray-900 dark:text-gray-100">
+                {language === "km" ? "វគ្គវីដេអូ" : "Video courses"}
+              </h3>
+              <span className="text-sm text-gray-500 dark:text-gray-400">
+                {videoItems.length} {language === "km" ? "មុខ" : "item(s)"}
+              </span>
+            </div>
+            <div className="divide-y divide-gray-100 dark:divide-gray-800">
+              {videoItems.map((it) => (
+                <div key={it.id} className="py-4 flex flex-col md:flex-row md:items-center gap-4">
+                  <div className="flex-1">
+                    <div className="font-semibold text-gray-900 dark:text-gray-100">
+                      {it.title}
+                    </div>
+                    <div className="text-sm text-gray-500 dark:text-gray-400">
+                      {language === "km" ? "ផែនការ" : "Plan"}: {it.plan}
+                    </div>
+                    <div className="text-xs text-gray-400 dark:text-gray-500">
+                      {language === "km" ? "ស្ថានភាព" : "Status"}: {it.status}
+                    </div>
+                  </div>
+                  <div className="text-right text-sm text-gray-500 dark:text-gray-400">
+                    <div>
+                      {language === "km" ? "ចាប់ផ្តើម" : "Start"}:{" "}
+                      {normalizeDateForDisplay(it.access_start, lang)}
+                    </div>
+                    <div>
+                      {language === "km" ? "បញ្ចប់" : "End"}:{" "}
+                      {it.access_end
+                        ? normalizeDateForDisplay(it.access_end, lang)
+                        : language === "km"
+                        ? "ជារៀងរហូត"
+                        : "Lifetime"}
+                    </div>
+                  </div>
                 </div>
               ))}
             </div>
@@ -992,11 +1104,22 @@ export function OrderDetailPage({
                   />
                   <div>
                     <div className="font-semibold text-gray-900 dark:text-gray-100">{it.title}</div>
+                    {!it.is_active ? (
+                      <div className="text-xs text-red-500">
+                        {language === "km" ? "បានផុតសុពលភាព" : "Expired"}
+                      </div>
+                    ) : null}
                     <div className="text-sm text-gray-500 dark:text-gray-400">
                       {language === "km" ? "បរិមាណ" : "Qty"}: {it.qty}
                       {it.duration_label ? ` • ${it.duration_label}` : ""}
                       {it.device_label ? ` • ${it.device_label}` : ""}
                     </div>
+                    {it.access_end ? (
+                      <div className="text-xs text-gray-400 dark:text-gray-500">
+                        {language === "km" ? "ផុតកំណត់" : "Expires"}:{" "}
+                        {normalizeDateForDisplay(it.access_end, lang)}
+                      </div>
+                    ) : null}
                     <div className="text-xs text-gray-400 dark:text-gray-500">
                       ID #{it.id}
                     </div>

@@ -8,6 +8,12 @@ export const dynamic = "force-dynamic";
 
 const DEFAULT_KH_QR = "/paymentQR/khmer_qr.jpg";
 const USD_QR_NONE = "none";
+const DEVICE_TYPE_COLUMN = "device_type";
+
+function isUnknownColumnError(err: unknown, column: string): boolean {
+  const msg = err instanceof Error ? err.message : String(err);
+  return msg.includes(`Unknown column '${column}'`);
+}
 
 type RouteCtx = { params: { variantId: string } | Promise<{ variantId: string }> };
 
@@ -87,6 +93,16 @@ export async function PUT(req: Request, ctx: RouteCtx) {
       }
       const v = b.device_label === null ? null : b.device_label.trim() || null;
       sets.push("device_label = ?");
+      values.push(v);
+    }
+
+    if ("device_type" in b) {
+      if (!(typeof b.device_type === "string" || b.device_type === null)) {
+        return Response.json({ error: "Invalid device_type" }, { status: 400 });
+      }
+      const raw = typeof b.device_type === "string" ? b.device_type : "";
+      const v = ["any", "pc", "phone", "both"].includes(raw) ? raw : "any";
+      sets.push("device_type = ?");
       values.push(v);
     }
 
@@ -174,10 +190,34 @@ export async function PUT(req: Request, ctx: RouteCtx) {
 
     values.push(variantId);
 
-    const [result] = await db.query<ResultSetHeader>(
-      `UPDATE product_variants SET ${sets.join(", ")} WHERE id = ?`,
-      values
-    );
+    let result: ResultSetHeader;
+    try {
+      const [full] = await db.query<ResultSetHeader>(
+        `UPDATE product_variants SET ${sets.join(", ")} WHERE id = ?`,
+        values
+      );
+      result = full;
+    } catch (err) {
+      if (!isUnknownColumnError(err, DEVICE_TYPE_COLUMN)) {
+        throw err;
+      }
+      const filteredSets: string[] = [];
+      const filteredValues: Array<string | number | null> = [];
+      sets.forEach((set, idx) => {
+        if (set.startsWith("device_type")) return;
+        filteredSets.push(set);
+        filteredValues.push(values[idx]);
+      });
+      if (filteredSets.length === 0) {
+        return Response.json({ error: "No fields to update" }, { status: 400 });
+      }
+      filteredValues.push(variantId);
+      const [fallback] = await db.query<ResultSetHeader>(
+        `UPDATE product_variants SET ${filteredSets.join(", ")} WHERE id = ?`,
+        filteredValues
+      );
+      result = fallback;
+    }
 
     if (result.affectedRows === 0) {
       return Response.json({ error: "Variant not found" }, { status: 404 });

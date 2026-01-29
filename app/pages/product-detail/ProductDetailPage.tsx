@@ -166,6 +166,10 @@ export default function ProductDetailPage({
   const [reviewComment, setReviewComment] = useState("");
   const [reviewSubmitting, setReviewSubmitting] = useState(false);
   const [showAllReviews, setShowAllReviews] = useState(false);
+  const [toolAccess, setToolAccess] = useState<{
+    hasAccess: boolean;
+    reason?: string;
+  } | null>(null);
 
   const MAX_VISIBLE_REVIEWS = 5;
 
@@ -278,6 +282,51 @@ export default function ProductDetailPage({
       alive = false;
     };
   }, [slug]);
+
+  useEffect(() => {
+    if (!product || product.category !== "tools") {
+      setToolAccess(null);
+      return;
+    }
+
+    const deviceKey = "gstech_tool_device_id";
+    const existing =
+      typeof window !== "undefined" ? window.localStorage.getItem(deviceKey) : null;
+    const deviceId =
+      existing ||
+      (typeof crypto !== "undefined" && "randomUUID" in crypto
+        ? crypto.randomUUID()
+        : `${Date.now()}-${Math.random().toString(16).slice(2)}`);
+
+    if (typeof window !== "undefined" && !existing) {
+      window.localStorage.setItem(deviceKey, deviceId);
+    }
+
+    let mounted = true;
+    const loadAccess = async () => {
+      try {
+        const res = await fetch(
+          `/api/tools/access?slug=${encodeURIComponent(product.slug)}&deviceId=${encodeURIComponent(
+            deviceId
+          )}`,
+          { credentials: "include" }
+        );
+        const data = (await res.json().catch(() => ({}))) as {
+          hasAccess?: boolean;
+          reason?: string;
+        };
+        if (!mounted) return;
+        setToolAccess({ hasAccess: !!data.hasAccess, reason: data.reason });
+      } catch {
+        if (!mounted) return;
+        setToolAccess({ hasAccess: false, reason: "network_error" });
+      }
+    };
+    void loadAccess();
+    return () => {
+      mounted = false;
+    };
+  }, [product?.slug, product?.category]);
 
   // Load related products
   useEffect(() => {
@@ -590,18 +639,29 @@ export default function ProductDetailPage({
                 )}
               </div>
 
-              <Button
-                variant="outline"
-                className="w-full rounded-xl"
-                onClick={() => setShowAddModal(true)}
-                disabled={modalVariants.length === 0 || isOutOfStock}
-              >
-                <ShoppingCart className="w-4 h-4 mr-2" />
-                {isOutOfStock ? "Out of stock" : t("course.buyNow") || "Add to Cart"}
-              </Button>
+              {product.category === "tools" && toolAccess?.hasAccess ? (
+                <Button
+                  className="w-full rounded-xl bg-black text-white hover:bg-black/90"
+                  onClick={() => {
+                    window.location.href = `/tools-ai/${product.slug}`;
+                  }}
+                >
+                  Open Tool
+                </Button>
+              ) : (
+                <Button
+                  variant="outline"
+                  className="w-full rounded-xl"
+                  onClick={() => setShowAddModal(true)}
+                  disabled={modalVariants.length === 0 || isOutOfStock}
+                >
+                  <ShoppingCart className="w-4 h-4 mr-2" />
+                  {isOutOfStock ? "Out of stock" : t("course.buyNow") || "Add to Cart"}
+                </Button>
+              )}
 
               {/* variants */}
-              {variants.length > 0 && (
+              {variants.length > 0 && !(product.category === "tools" && toolAccess?.hasAccess) && (
                 <div className="mt-6">
                   <div className="font-semibold text-gray-900 dark:text-white mb-2">
                     Choose an option

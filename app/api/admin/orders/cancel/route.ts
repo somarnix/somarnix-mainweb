@@ -68,6 +68,24 @@ export async function POST(req: Request) {
       }
     }
 
+    await db.query<ResultSetHeader>(
+      `
+      UPDATE video_course_purchases
+      SET status = 'cancelled'
+      WHERE order_id = ?
+      `,
+      [orderId]
+    );
+
+    await db.query<ResultSetHeader>(
+      `
+      UPDATE video_subscriptions
+      SET status = 'cancelled'
+      WHERE order_id = ?
+      `,
+      [orderId]
+    );
+
     return Response.json({ success: true });
   } catch (err: unknown) {
     return Response.json(

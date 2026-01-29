@@ -1,9 +1,9 @@
 // app\pages\all-category
 import { useEffect, useState } from "react";
-import { Filter } from "lucide-react";
 import { CourseCard } from "../../components/CourseCard";
 import { useLanguage } from "../../contexts/LanguageContext";
-import { useRouter } from "next/navigation";
+import { AllFilter } from "../../components/filters/AllFilter";
+import { Pagination } from "../../components/Pagination";
 
 /* ================= DB TYPE ================= */
 type DbProduct = {
@@ -20,12 +20,17 @@ type DbProduct = {
 };
 
 export function AllPage({ onOpenProductDetail }: { onOpenProductDetail: (slug: string) => void }) {
-  const { language, t } = useLanguage();
+  const { language } = useLanguage();
 
   const [products, setProducts] = useState<DbProduct[]>([]);
   const [loading, setLoading] = useState(true);
 
-  const [selectedType, setSelectedType] = useState("All");
+  const [selectedType, setSelectedType] = useState<
+    "all" | "ai" | "program" | "game" | "tools"
+  >("all");
+  const [searchTerm, setSearchTerm] = useState("");
+  const [currentPage, setCurrentPage] = useState(1);
+  const [itemsPerPage, setItemsPerPage] = useState(6);
   const [sortBy, setSortBy] = useState<
     "popular" | "price-low" | "price-high" | "rating"
   >("popular");
@@ -38,19 +43,37 @@ export function AllPage({ onOpenProductDetail }: { onOpenProductDetail: (slug: s
       .finally(() => setLoading(false));
   }, []);
 
-  const router = useRouter();
+  useEffect(() => {
+    const updateItemsPerPage = () => {
+      setItemsPerPage(window.innerWidth < 768 ? 3 : 6);
+    };
+    updateItemsPerPage();
+    window.addEventListener("resize", updateItemsPerPage);
+    return () => window.removeEventListener("resize", updateItemsPerPage);
+  }, []);
 
   /* ================= FILTER BY TYPE ================= */
-  const filteredItems =
-    selectedType === "All"
-      ? products
-      : products.filter((p) => {
-          if (selectedType === "Courses") return p.type === "course";
-          if (selectedType === "Programs") return p.type === "program";
-          if (selectedType === "Games") return p.type === "game";
-          if (selectedType === "Tools") return p.type === "tool";
-          return true;
-        });
+  const filteredItems = products.filter((p) => {
+    const category = String(p.category ?? "").toLowerCase();
+    const type = String(p.type ?? "").toLowerCase();
+    const title = String(p.title ?? "").toLowerCase();
+    const slug = String(p.slug ?? "").toLowerCase();
+    const query = searchTerm.trim().toLowerCase();
+
+    const matchesType = (() => {
+      if (selectedType === "all") return true;
+      if (selectedType === "ai") return category === "ai";
+      if (selectedType === "program") return category === "program" || type === "program";
+      if (selectedType === "game") return category === "game" || type === "game";
+      if (selectedType === "tools") return category === "tools" || category === "tool" || type === "tool";
+      return true;
+    })();
+
+    const matchesSearch =
+      query.length === 0 ? true : title.includes(query) || slug.includes(query);
+
+    return matchesType && matchesSearch;
+  });
 
   /* ================= SORT ================= */
   const sortedItems = [...filteredItems].sort((a, b) => {
@@ -67,13 +90,23 @@ export function AllPage({ onOpenProductDetail }: { onOpenProductDetail: (slug: s
     }
   });
 
+  useEffect(() => {
+    setCurrentPage(1);
+  }, [selectedType, sortBy, searchTerm]);
+
+  const totalPages = Math.max(1, Math.ceil(sortedItems.length / itemsPerPage));
+  const pagedItems = sortedItems.slice(
+    (currentPage - 1) * itemsPerPage,
+    currentPage * itemsPerPage
+  );
+
   /* ================= CONTENT TYPES ================= */
   const contentTypes = [
-    "All",
-    language === "km" ? "វគ្គសិក្សា" : "Courses",
-    language === "km" ? "កម្មវិធី" : "Programs",
-    language === "km" ? "ហ្គេម" : "Games",
-    language === "km" ? "ឧបករណ៍" : "Tools",
+    { id: "all", label: language === "km" ? "????" : "All" },
+    { id: "ai", label: "AI" },
+    { id: "program", label: language === "km" ? "????????" : "Programs" },
+    { id: "game", label: language === "km" ? "?????" : "Games" },
+    { id: "tools", label: language === "km" ? "??????" : "Tools" },
   ];
 
   /* ================= NAVIGATION ================= */
@@ -104,61 +137,16 @@ export function AllPage({ onOpenProductDetail }: { onOpenProductDetail: (slug: s
         <div className="grid lg:grid-cols-4 gap-8">
           {/* ================= FILTER SIDEBAR ================= */}
           <aside className="lg:col-span-1">
-            <div className="bg-white dark:bg-gray-800 rounded-xl shadow-sm p-6 sticky top-24">
-              <div className="flex items-center gap-2 mb-6">
-                <Filter className="w-5 h-5" />
-                <h2 className="text-lg font-bold">
-                  {t("courses.filters")}
-                </h2>
-              </div>
-
-              {/* Content Type */}
-              <div className="mb-6">
-                <h3 className="font-semibold mb-3">
-                  {language === "km" ? "ប្រភេទ" : "Content Type"}
-                </h3>
-                <div className="space-y-2">
-                  {contentTypes.map((type) => (
-                    <button
-                      key={type}
-                      onClick={() => setSelectedType(type)}
-                      className={`w-full text-left px-4 py-2 rounded-lg ${
-                        selectedType === type
-                          ? "bg-blue-50 text-blue-600 font-medium"
-                          : "hover:bg-gray-100"
-                      }`}
-                    >
-                      {type}
-                    </button>
-                  ))}
-                </div>
-              </div>
-
-              {/* Sort */}
-              <div>
-                <h3 className="font-semibold mb-3">
-                  {t("courses.sortBy")}
-                </h3>
-                {[
-                  ["popular", t("courses.popular")],
-                  ["rating", t("courses.rating")],
-                  ["price-low", t("courses.priceLow")],
-                  ["price-high", t("courses.priceHigh")],
-                ].map(([key, label]) => (
-                  <button
-                    key={key}
-                    onClick={() => setSortBy(key as typeof sortBy)}
-                    className={`w-full text-left px-4 py-2 rounded-lg ${
-                      sortBy === key
-                        ? "bg-blue-50 text-blue-600 font-medium"
-                        : "hover:bg-gray-100"
-                    }`}
-                  >
-                    {label}
-                  </button>
-                ))}
-              </div>
-            </div>
+            <AllFilter
+              language={language}
+              searchTerm={searchTerm}
+              onSearchChange={setSearchTerm}
+              contentTypes={contentTypes}
+              selectedType={selectedType}
+              onSelectType={setSelectedType}
+              sortBy={sortBy}
+              onSortChange={setSortBy}
+            />
           </aside>
 
           {/* ================= MAIN GRID ================= */}
@@ -169,21 +157,22 @@ export function AllPage({ onOpenProductDetail }: { onOpenProductDetail: (slug: s
               <>
                 <div className="mb-6">
                   <h2 className="text-2xl font-bold">
-                    {selectedType === "All"
+                    {selectedType === "all"
                       ? language === "km"
                         ? "ទាំងអស់"
                         : "All Products"
-                      : selectedType}
+                      : contentTypes.find((type) => type.id === selectedType)?.label ??
+                        selectedType}
                   </h2>
                   <p className="text-gray-600 mt-1">
                     {sortedItems.length}{" "}
                     {language === "km" ? "ផលិតផល" : "products"}{" "}
-                    {t("courses.available")}
+                    {language === "km" ? "???" : "available"}
                   </p>
                 </div>
 
                 <div className="grid sm:grid-cols-2 lg:grid-cols-3 gap-6">
-                  {sortedItems.map((item) => (
+                  {pagedItems.map((item) => (
                     <CourseCard
                       key={item.id}
                       id={item.id}
@@ -197,6 +186,12 @@ export function AllPage({ onOpenProductDetail }: { onOpenProductDetail: (slug: s
                     />
                   ))}
                 </div>
+                <Pagination
+                  currentPage={currentPage}
+                  totalPages={totalPages}
+                  onPageChange={setCurrentPage}
+                  className="mt-6"
+                />
               </>
             ) : (
               <div className="text-center py-12">
@@ -204,10 +199,10 @@ export function AllPage({ onOpenProductDetail }: { onOpenProductDetail: (slug: s
                   <Filter className="w-8 h-8 text-gray-400" />
                 </div>
                 <h3 className="text-xl font-semibold mb-2">
-                  {t("courses.noResults")}
+                  {language === "km" ? "????????????" : "No results"}
                 </h3>
                 <p className="text-gray-600">
-                  {t("courses.noResultsDesc")}
+                  {language === "km" ? "?????????????????" : "Try adjusting your filters."}
                 </p>
               </div>
             )}

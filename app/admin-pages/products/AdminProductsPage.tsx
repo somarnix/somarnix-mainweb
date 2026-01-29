@@ -43,6 +43,7 @@ type Variant = {
   duration_days?: number | null;
 
   device_label?: string | null;
+  device_type?: "any" | "pc" | "phone" | "both" | null;
   device_limit?: number | null;
   is_unlimited_device?: number | null;
 
@@ -154,6 +155,7 @@ export default function AdminProductsPage() {
   const [vDurationDays, setVDurationDays] = useState<string>("");
 
   const [vDeviceLabel, setVDeviceLabel] = useState("");
+  const [vDeviceType, setVDeviceType] = useState<"any" | "pc" | "phone" | "both">("any");
   const [vDeviceLimit, setVDeviceLimit] = useState<string>("");
   const [vUnlimitedDevice, setVUnlimitedDevice] = useState<number>(0);
 
@@ -545,6 +547,11 @@ export default function AdminProductsPage() {
         const duration_days = toNumberOrNull(r.duration_days);
 
         const device_label = typeof r.device_label === "string" ? r.device_label : null;
+        const device_type =
+          typeof r.device_type === "string" &&
+          ["any", "pc", "phone", "both"].includes(r.device_type)
+            ? (r.device_type as Variant["device_type"])
+            : null;
         const device_limit = toNumberOrNull(r.device_limit);
         const is_unlimited_device = toNumberOrNull(r.is_unlimited_device);
 
@@ -563,6 +570,7 @@ export default function AdminProductsPage() {
           duration_note,
           duration_days,
           device_label,
+          device_type,
           device_limit,
           is_unlimited_device,
           original_price,
@@ -641,6 +649,7 @@ export default function AdminProductsPage() {
         duration_note: vDurationNote.trim() ? vDurationNote.trim() : null,
         duration_days: dDays,
         device_label: hasDevice ? vDeviceLabel.trim() : null,
+        device_type: vDeviceType,
         device_limit: dLimit,
         is_unlimited_device: vUnlimitedDevice ? 1 : 0,
         original_price: origNum,
@@ -664,6 +673,7 @@ export default function AdminProductsPage() {
       setVDurationNote("");
       setVDurationDays("");
       setVDeviceLabel("");
+      setVDeviceType("any");
       setVDeviceLimit("");
       setVUnlimitedDevice(0);
       setVOriginalPrice("");
@@ -784,6 +794,7 @@ export default function AdminProductsPage() {
     setVDurationNote("");
     setVDurationDays("");
     setVDeviceLabel("");
+    setVDeviceType("any");
     setVDeviceLimit("");
     setVUnlimitedDevice(0);
     setVOriginalPrice("");
@@ -792,6 +803,43 @@ export default function AdminProductsPage() {
     setVUsdQr(USD_QR_NONE);
     setEditingVariant(null);
     setShowVariants(false);
+  };
+
+  const copyProduct = async (p: Product) => {
+    const ok = confirm(`Copy product "${p.title}"?`);
+    if (!ok) return;
+    try {
+      const res = await fetch(`/api/admin/products/${p.id}/copy`, {
+        method: "POST",
+        credentials: "include",
+      });
+      const data: unknown = await res.json().catch(() => ({}));
+      if (!res.ok) {
+        throw new Error(parseErrorMessage(data, "Failed to copy product"));
+      }
+      await loadProducts({ silent: true });
+      setSort("newest");
+    } catch (err) {
+      alert(getErrorMessage(err));
+    }
+  };
+
+  const deleteProduct = async (p: Product) => {
+    const ok = confirm(`Delete product "${p.title}"? This will expire access for users.`);
+    if (!ok) return;
+    try {
+      const res = await fetch(`/api/admin/products/${p.id}`, {
+        method: "DELETE",
+        credentials: "include",
+      });
+      const data: unknown = await res.json().catch(() => ({}));
+      if (!res.ok) {
+        throw new Error(parseErrorMessage(data, "Failed to delete product"));
+      }
+      await loadProducts({ silent: true });
+    } catch (err) {
+      alert(getErrorMessage(err));
+    }
   };
 
   const saveEdit = async () => {
@@ -1074,6 +1122,20 @@ export default function AdminProductsPage() {
                         className="text-sm px-3 py-1.5 rounded-lg border hover:bg-white"
                       >
                         {p.is_active ? "Disable" : "Enable"}
+                      </button>
+
+                      <button
+                        onClick={() => copyProduct(p)}
+                        className="text-sm px-3 py-1.5 rounded-lg border hover:bg-white"
+                      >
+                        Copy
+                      </button>
+
+                      <button
+                        onClick={() => deleteProduct(p)}
+                        className="text-sm px-3 py-1.5 rounded-lg border text-red-600 hover:bg-red-50"
+                      >
+                        Delete
                       </button>
                     </div>
                   </td>
@@ -1409,6 +1471,24 @@ export default function AdminProductsPage() {
                         </div>
 
                         <div>
+                          <label className="text-xs text-gray-600">Device Type</label>
+                          <select
+                            value={vDeviceType}
+                            onChange={(e) =>
+                              setVDeviceType(
+                                e.target.value as "any" | "pc" | "phone" | "both"
+                              )
+                            }
+                            className="mt-1 w-full border rounded-lg px-3 py-2 text-sm"
+                          >
+                            <option value="any">Any device</option>
+                            <option value="pc">PC only</option>
+                            <option value="phone">Phone only</option>
+                            <option value="both">PC + Phone</option>
+                          </select>
+                        </div>
+
+                        <div>
                           <label className="text-xs text-gray-600">Device Limit</label>
                           <input
                             type="number"
@@ -1542,11 +1622,12 @@ export default function AdminProductsPage() {
                           type="button"
                           className="text-xs px-3 py-1.5 rounded border"
                           onClick={() => {
-                            setVDurationLabel("");
-                            setVDurationNote("");
-                            setVDurationDays("");
-                            setVDeviceLabel("");
-                            setVDeviceLimit("");
+    setVDurationLabel("");
+    setVDurationNote("");
+    setVDurationDays("");
+    setVDeviceLabel("");
+    setVDeviceType("any");
+    setVDeviceLimit("");
                             setVUnlimitedDevice(0);
                             setVOriginalPrice("");
                             setVPrice("");
@@ -1569,6 +1650,7 @@ export default function AdminProductsPage() {
                             duration_note: vDurationNote.trim() || null,
                             duration_days: vDurationDays ? Number(vDurationDays) : null,
                             device_label: vDeviceLabel.trim() || null,
+                            device_type: vDeviceType,
                             device_limit: vDeviceLimit ? Number(vDeviceLimit) : null,
                             is_unlimited_device: vUnlimitedDevice ? 1 : 0,
                             original_price: Number(vOriginalPrice),
@@ -1599,6 +1681,7 @@ export default function AdminProductsPage() {
                             setVDurationNote("");
                             setVDurationDays("");
                             setVDeviceLabel("");
+                            setVDeviceType("any");
                             setVDeviceLimit("");
                             setVUnlimitedDevice(0);
                             setVOriginalPrice("");
@@ -1690,6 +1773,11 @@ export default function AdminProductsPage() {
         );
 
         setVDeviceLabel(v.device_label ?? "");
+        setVDeviceType(
+          v.device_type && ["any", "pc", "phone", "both"].includes(v.device_type)
+            ? (v.device_type as "any" | "pc" | "phone" | "both")
+            : "any"
+        );
         setVDeviceLimit(
           typeof v.device_limit === "number" ? String(v.device_limit) : ""
         );

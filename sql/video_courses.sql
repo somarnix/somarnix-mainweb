@@ -2,8 +2,16 @@ CREATE TABLE video_courses (
   id BIGINT UNSIGNED AUTO_INCREMENT PRIMARY KEY,
   title VARCHAR(200) NOT NULL,
   slug VARCHAR(220) NOT NULL UNIQUE,
+  category VARCHAR(80) NULL,
+  tags VARCHAR(500) NULL,
   description LONGTEXT NULL,
   level ENUM('beginner','advanced','pro') NOT NULL DEFAULT 'beginner',
+  author_name VARCHAR(120) NULL,
+  author_avatar_url VARCHAR(500) NULL,
+  rating DECIMAL(3,2) NOT NULL DEFAULT 0.00,
+  rating_count INT NOT NULL DEFAULT 0,
+  students_count INT NOT NULL DEFAULT 0,
+  upload_date DATETIME NULL,
   thumbnail_url VARCHAR(500) NULL,
   hero_url VARCHAR(500) NULL,
   preview_mode ENUM('count','manual') NOT NULL DEFAULT 'count',
@@ -53,6 +61,8 @@ CREATE TABLE video_course_plans (
   access_type ENUM('lifetime','months') NOT NULL DEFAULT 'lifetime',
   duration_days INT NULL,
   price DECIMAL(10,2) NOT NULL DEFAULT 0.00,
+  khqr VARCHAR(255) NOT NULL DEFAULT '/paymentQR/khmer_qr.jpg',
+  usdqr VARCHAR(255) NOT NULL DEFAULT 'none',
   is_active TINYINT(1) NOT NULL DEFAULT 1,
   created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
   updated_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
@@ -111,4 +121,43 @@ CREATE TABLE video_subscriptions (
     REFERENCES users(id) ON DELETE CASCADE,
   CONSTRAINT fk_video_sub_plan FOREIGN KEY (plan_id)
     REFERENCES video_subscription_plans(id) ON DELETE RESTRICT
+) ENGINE=InnoDB;
+
+ALTER TABLE video_course_plans
+  ADD COLUMN khqr VARCHAR(255) NOT NULL DEFAULT '/paymentQR/khmer_qr.jpg',
+  ADD COLUMN usdqr VARCHAR(255) NOT NULL DEFAULT 'none';
+
+ALTER TABLE video_subscription_plans
+  ADD COLUMN description TEXT NULL,
+  ADD COLUMN features TEXT NULL,
+  ADD COLUMN access_courses TINYINT(1) NOT NULL DEFAULT 1,
+  ADD COLUMN access_ai_tools TINYINT(1) NOT NULL DEFAULT 0,
+  ADD COLUMN access_downloads TINYINT(1) NOT NULL DEFAULT 0,
+  ADD COLUMN khqr VARCHAR(255) NOT NULL DEFAULT '/paymentQR/khmer_qr.jpg',
+  ADD COLUMN usdqr VARCHAR(255) NOT NULL DEFAULT 'none';
+
+ALTER TABLE product_variants
+  ADD COLUMN device_type ENUM('any','pc','phone','both') NOT NULL DEFAULT 'any' AFTER device_label;
+
+CREATE TABLE IF NOT EXISTS tool_device_access (
+  id BIGINT UNSIGNED AUTO_INCREMENT PRIMARY KEY,
+  user_id BIGINT UNSIGNED NOT NULL,
+  product_id BIGINT UNSIGNED NOT NULL,
+  device_id VARCHAR(128) NOT NULL,
+  device_type ENUM('pc','phone') NOT NULL,
+  created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  last_used_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+  UNIQUE KEY uniq_tool_device (user_id, product_id, device_id),
+  INDEX idx_tool_device_user (user_id),
+  CONSTRAINT fk_tool_device_user FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE,
+  CONSTRAINT fk_tool_device_product FOREIGN KEY (product_id) REFERENCES products(id) ON DELETE CASCADE
+) ENGINE=InnoDB;
+
+CREATE TABLE IF NOT EXISTS video_course_favorites (
+  user_id BIGINT UNSIGNED NOT NULL,
+  course_id BIGINT UNSIGNED NOT NULL,
+  created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  PRIMARY KEY (user_id, course_id),
+  CONSTRAINT fk_video_fav_user FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE,
+  CONSTRAINT fk_video_fav_course FOREIGN KEY (course_id) REFERENCES video_courses(id) ON DELETE CASCADE
 ) ENGINE=InnoDB;

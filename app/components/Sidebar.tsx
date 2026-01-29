@@ -45,12 +45,12 @@ export function Sidebar({
   const navigationLinks = [
     { id: "home", icon: Home, label: language === "km" ? "ទំព័រដើម" : "Home", page: "home" },
     { id: "all", icon: Grid, label: language === "km" ? "ទាំងអស់" : "All", page: "all" },
-    { id: "courses", icon: GraduationCap, label: language === "km" ? "វគ្គសិក្សា" : "Courses", page: "courses" },
+    { id: "courses", icon: GraduationCap, label: "AI", page: "courses" },
     { id: "programs", icon: Code, label: language === "km" ? "កម្មវិធី" : "Programs", page: "programs" },
     { id: "games", icon: Gamepad2, label: language === "km" ? "ហ្គេម" : "Games", page: "games" },
     { id: "tools", icon: Wrench, label: language === "km" ? "ឧបករណ៍" : "Tools", page: "tools" },
-    { id: "blog", icon: Play, label: language === "km" ? "វីដេអូ" : "Blog", page: "blog" },
-    { id: "about", icon: Info, label: language === "km" ? "អំពីយើង" : "About", page: "about" },
+    { id: "blog", icon: Play, label: language === "km" ? "វគ្គសិក្សា" : "Courses", page: "blog" },
+    { id: "about", icon: Info, label: language === "km" ? "អំពីយើង" : "About", page: "services" },
   ];
 
   /* ================= MAIN MENU (SPA) ================= */
@@ -85,7 +85,7 @@ export function Sidebar({
     {
       id: "services",
       icon: Layers,
-      label: language === "km" ? "សេវាកម្ម" : "Services",
+      label: language === "km" ? "អំពីយើង" : "About",
       onClick: () => {
         onNavigate("services");
         if (isMobile && onClose) onClose();
@@ -106,9 +106,10 @@ export function Sidebar({
   const adminMenuItems = [
     { id: "admin-dashboard", label: "Dashboard", page: "admin-dashboard" },
     { id: "admin-products", label: "Products", page: "admin-products" },
+    { id: "admin-video-courses", label: "Video Courses", page: "admin-video-courses" },
     { id: "admin-orders", label: "Orders", page: "admin-orders" },
     { id: "admin-users", label: "Users", page: "admin-users" },
-    { id: "admin-test", label: "AminTest", page: "admin-test" },
+    { id: "admin-test", label: "Payments", page: "admin-test" },
   ];
 
   if (!isMobile && !isOpen) return null;

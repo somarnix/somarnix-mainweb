@@ -1,9 +1,10 @@
 // app\pages\games\GamesPage.tsx
 import { useEffect, useState } from "react";
-import { Filter, Gamepad2 } from "lucide-react";
+import { Gamepad2 } from "lucide-react";
 import { CourseCard } from "../../components/CourseCard";
 import { useLanguage } from "../../contexts/LanguageContext";
-import { useRouter } from "next/navigation";
+import { SlugFilter } from "../../components/filters/SlugFilter";
+import { Pagination } from "../../components/Pagination";
 
 type DbGame = {
   id: number;
@@ -23,31 +24,57 @@ export function GamesPage({ onOpenProductDetail }: { onOpenProductDetail: (slug:
   const [games, setGames] = useState<DbGame[]>([]);
   const [loading, setLoading] = useState(true);
 
-  const [selectedCategory, setSelectedCategory] =
-    useState("All Games");
+  const allLabel = "All Games";
+  const [selectedSlug, setSelectedSlug] = useState(allLabel);
+  const [slugQuery, setSlugQuery] = useState("");
+  const [slugLimit, setSlugLimit] = useState(10);
 
   const [sortBy, setSortBy] = useState<
     "popular" | "price-low" | "price-high" | "rating"
   >("popular");
-
-  const router = useRouter();
+  const [currentPage, setCurrentPage] = useState(1);
+  const [itemsPerPage, setItemsPerPage] = useState(6);
 
   /* ================= FETCH FROM DB ================= */
   useEffect(() => {
-    fetch("/api/products?type=game")
+    fetch("/api/products?category=game")
       .then((res) => res.json())
       .then((data) => setGames(data ?? []))
       .finally(() => setLoading(false));
   }, []);
 
+  useEffect(() => {
+    const updateLimit = () => {
+      setSlugLimit(window.innerWidth < 640 ? 5 : 10);
+    };
+    updateLimit();
+    window.addEventListener("resize", updateLimit);
+    return () => window.removeEventListener("resize", updateLimit);
+  }, []);
+
+  useEffect(() => {
+    const updateItemsPerPage = () => {
+      setItemsPerPage(window.innerWidth < 768 ? 3 : 6);
+    };
+    updateItemsPerPage();
+    window.addEventListener("resize", updateItemsPerPage);
+    return () => window.removeEventListener("resize", updateItemsPerPage);
+  }, []);
+
   /* ================= FILTER ================= */
   const filteredGames =
-    selectedCategory === "All Games"
+    selectedSlug === allLabel
       ? games
-      : games.filter((g) => g.category === selectedCategory);
+      : games.filter((g) => g.slug === selectedSlug);
+  const normalizedSlugQuery = slugQuery.trim().toLowerCase();
+  const searchedGames = normalizedSlugQuery
+    ? filteredGames.filter((g) =>
+        g.slug.toLowerCase().includes(normalizedSlugQuery)
+      )
+    : filteredGames;
 
   /* ================= SORT ================= */
-  const sortedGames = [...filteredGames].sort((a, b) => {
+  const sortedGames = [...searchedGames].sort((a, b) => {
     switch (sortBy) {
       case "price-low":
         return (a.min_price ?? 0) - (b.min_price ?? 0);
@@ -61,11 +88,28 @@ export function GamesPage({ onOpenProductDetail }: { onOpenProductDetail: (slug:
     }
   });
 
+  useEffect(() => {
+    setCurrentPage(1);
+  }, [selectedSlug, sortBy, slugQuery]);
+
+  const totalPages = Math.max(1, Math.ceil(sortedGames.length / itemsPerPage));
+  const pagedGames = sortedGames.slice(
+    (currentPage - 1) * itemsPerPage,
+    currentPage * itemsPerPage
+  );
+
   /* ================= CATEGORIES ================= */
-  const categories = [
-    "All Games",
-    ...Array.from(new Set(games.map((g) => g.category))),
-  ];
+  const allSlugs = Array.from(new Set(games.map((g) => g.slug))).sort(
+    (a, b) => a.localeCompare(b)
+  );
+  const filteredSlugs = normalizedSlugQuery
+    ? allSlugs.filter((slug) =>
+        slug.toLowerCase().includes(normalizedSlugQuery)
+      )
+    : allSlugs;
+  const visibleSlugs = normalizedSlugQuery
+    ? filteredSlugs
+    : filteredSlugs.slice(0, slugLimit);
 
   function handleViewDetails(slug: string): void {
     onOpenProductDetail(slug);
@@ -95,63 +139,23 @@ export function GamesPage({ onOpenProductDetail }: { onOpenProductDetail: (slug:
         <div className="grid lg:grid-cols-4 gap-8">
           {/* ================= FILTER SIDEBAR ================= */}
           <aside className="lg:col-span-1">
-            <div className="bg-white dark:bg-gray-800 rounded-xl shadow-sm p-6 sticky top-24">
-              <div className="flex items-center gap-2 mb-6">
-                <Filter className="w-5 h-5" />
-                <h2 className="text-lg font-bold">
-                  {t("courses.filters")}
-                </h2>
-              </div>
-
-              {/* Categories */}
-              <div className="mb-6">
-                <h3 className="font-semibold mb-3">
-                  {language === "km" ? "ប្រភេទ" : "Categories"}
-                </h3>
-                <div className="space-y-2">
-                  {categories.map((cat) => (
-                    <button
-                      key={cat}
-                      onClick={() => setSelectedCategory(cat)}
-                      className={`w-full text-left px-4 py-2 rounded-lg ${
-                        selectedCategory === cat
-                          ? "bg-purple-50 text-purple-600 font-medium"
-                          : "hover:bg-gray-100"
-                      }`}
-                    >
-                      {cat}
-                    </button>
-                  ))}
-                </div>
-              </div>
-
-              {/* Sort */}
-              <div>
-                <h3 className="font-semibold mb-3">
-                  {t("courses.sortBy")}
-                </h3>
-                {[
-                  ["popular", t("courses.popular")],
-                  ["rating", t("courses.rating")],
-                  ["price-low", t("courses.priceLow")],
-                  ["price-high", t("courses.priceHigh")],
-                ].map(([key, label]) => (
-                  <button
-                    key={key}
-                    onClick={() =>
-                      setSortBy(key as typeof sortBy)
-                    }
-                    className={`w-full text-left px-4 py-2 rounded-lg ${
-                      sortBy === key
-                        ? "bg-purple-50 text-purple-600 font-medium"
-                        : "hover:bg-gray-100"
-                    }`}
-                  >
-                    {label}
-                  </button>
-                ))}
-              </div>
-            </div>
+            <SlugFilter
+              filterTitle={t("courses.filters")}
+              slugLabel={language === "km" ? "??????" : "Slugs"}
+              sortLabel={t("courses.sortBy")}
+              slugs={[allLabel, ...visibleSlugs]}
+              selectedSlug={selectedSlug}
+              onSelectSlug={setSelectedSlug}
+              sortBy={sortBy}
+              onSortChange={setSortBy}
+              sortOptions={[
+                { id: "popular", label: t("courses.popular") },
+                { id: "rating", label: t("courses.rating") },
+                { id: "price-low", label: t("courses.priceLow") },
+                { id: "price-high", label: t("courses.priceHigh") },
+              ]}
+              activeClassName="bg-purple-50 text-purple-600 font-medium"
+            />
           </aside>
 
           {/* ================= MAIN GRID ================= */}
@@ -162,19 +166,35 @@ export function GamesPage({ onOpenProductDetail }: { onOpenProductDetail: (slug:
               </div>
             ) : (
               <>
-                <div className="mb-6">
-                  <h2 className="text-2xl font-bold">
-                    {selectedCategory}
-                  </h2>
-                  <p className="text-gray-600 mt-1">
-                    {sortedGames.length}{" "}
-                    {language === "km" ? "ហ្គេម" : "games"}{" "}
-                    {t("courses.available")}
-                  </p>
+                <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4 mb-6">
+                  <div>
+                    <h2 className="text-2xl font-bold">
+                      {selectedSlug}
+                    </h2>
+                    <p className="text-gray-600 mt-1">
+                      {sortedGames.length} {language === "km" ? "?????" : "games"} {t("courses.available")}
+                    </p>
+                  </div>
+                  <div className="flex flex-col sm:flex-row gap-3 w-full sm:w-auto">
+                    <input
+                      value={slugQuery}
+                      onChange={(event) => setSlugQuery(event.target.value)}
+                      placeholder="Search slug..."
+                      className="w-full sm:w-64 rounded-lg border border-gray-200 bg-white px-3 py-2 text-sm text-gray-700 shadow-sm focus:outline-none focus:ring-2 focus:ring-purple-500 dark:bg-gray-900 dark:border-gray-700 dark:text-gray-100"
+                    />
+                    {selectedSlug !== allLabel && (
+                      <button
+                        className="px-3 py-2 rounded-lg border border-gray-200 text-sm hover:bg-gray-100 dark:border-gray-700"
+                        onClick={() => setSelectedSlug(allLabel)}
+                      >
+                        {t("courses.clearFilter")}
+                      </button>
+                    )}
+                  </div>
                 </div>
 
                 <div className="grid sm:grid-cols-2 lg:grid-cols-3 gap-6">
-                  {sortedGames.map((g) => (
+                  {pagedGames.map((g) => (
                     <CourseCard
                       key={g.id}
                       id={g.id}
@@ -188,6 +208,12 @@ export function GamesPage({ onOpenProductDetail }: { onOpenProductDetail: (slug:
                     />
                   ))}
                 </div>
+                <Pagination
+                  currentPage={currentPage}
+                  totalPages={totalPages}
+                  onPageChange={setCurrentPage}
+                  className="mt-6"
+                />
               </>
             )}
           </main>

@@ -6,6 +6,10 @@ type DashboardStats = {
   totalOrders: number;
   totalProducts: number;
   totalUsers: number;
+  totalPayments: number;
+  totalRevenue: number;
+  pendingOrders: number;
+  completedOrders: number;
 };
 
 export default function AdminDashboardPage() {
@@ -13,6 +17,10 @@ export default function AdminDashboardPage() {
     totalOrders: 0,
     totalProducts: 0,
     totalUsers: 0,
+    totalPayments: 0,
+    totalRevenue: 0,
+    pendingOrders: 0,
+    completedOrders: 0,
   });
 
   useEffect(() => {
@@ -30,6 +38,10 @@ export default function AdminDashboardPage() {
           totalOrders: data.totalOrders,
           totalProducts: data.totalProducts,
           totalUsers: data.totalUsers,
+          totalPayments: data.totalPayments,
+          totalRevenue: data.totalRevenue,
+          pendingOrders: data.pendingOrders,
+          completedOrders: data.completedOrders,
         });
       }
     };
@@ -48,6 +60,10 @@ export default function AdminDashboardPage() {
         <StatCard title="Orders" value={stats.totalOrders} />
         <StatCard title="Products" value={stats.totalProducts} />
         <StatCard title="Users" value={stats.totalUsers} />
+        <StatCard title="Payments" value={stats.totalPayments} />
+        <StatCard title="Revenue" value={stats.totalRevenue} />
+        <StatCard title="Pending Orders" value={stats.pendingOrders} />
+        <StatCard title="Completed Orders" value={stats.completedOrders} />
       </div>
     </div>
   );

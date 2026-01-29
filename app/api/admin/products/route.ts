@@ -15,30 +15,65 @@ export async function GET(req: Request) {
       return Response.json({ products: [], error: "Forbidden" }, { status: 403 });
     }
 
-    const [rows] = await db.query<RowDataPacket[]>(
-      `
-      SELECT
-        CAST(p.id AS UNSIGNED) AS id,
-        p.title,
-        p.slug,
-        p.category_id,
-        p.image_url,
-        p.level,
-        p.stock_qty,
-        p.is_unlimited_stock,
-        p.is_active,
-        p.created_at,
-        c.name AS category_name,
-        MIN(v.price) AS min_price,
-        COUNT(v.id) AS variant_count
-      FROM products p
-      JOIN product_categories c ON c.id = p.category_id
-      LEFT JOIN product_variants v
-        ON v.product_id = p.id AND v.is_active = 1
-      GROUP BY p.id
-      ORDER BY p.created_at DESC
-      `
-    );
+    let rows: RowDataPacket[] = [];
+    try {
+      const [data] = await db.query<RowDataPacket[]>(
+        `
+        SELECT
+          CAST(p.id AS UNSIGNED) AS id,
+          p.title,
+          p.slug,
+          p.category_id,
+          p.image_url,
+          p.level,
+          p.stock_qty,
+          p.is_unlimited_stock,
+          p.is_active,
+          p.created_at,
+          c.name AS category_name,
+          MIN(v.price) AS min_price,
+          COUNT(v.id) AS variant_count
+        FROM products p
+        JOIN product_categories c ON c.id = p.category_id
+        LEFT JOIN product_variants v
+          ON v.product_id = p.id AND v.is_active = 1
+        WHERE p.deleted_at IS NULL
+        GROUP BY p.id
+        ORDER BY p.created_at DESC
+        `
+      );
+      rows = data;
+    } catch (err) {
+      const message = err instanceof Error ? err.message : String(err);
+      if (!message.toLowerCase().includes("unknown column") || !message.includes("deleted_at")) {
+        throw err;
+      }
+      const [data] = await db.query<RowDataPacket[]>(
+        `
+        SELECT
+          CAST(p.id AS UNSIGNED) AS id,
+          p.title,
+          p.slug,
+          p.category_id,
+          p.image_url,
+          p.level,
+          p.stock_qty,
+          p.is_unlimited_stock,
+          p.is_active,
+          p.created_at,
+          c.name AS category_name,
+          MIN(v.price) AS min_price,
+          COUNT(v.id) AS variant_count
+        FROM products p
+        JOIN product_categories c ON c.id = p.category_id
+        LEFT JOIN product_variants v
+          ON v.product_id = p.id AND v.is_active = 1
+        GROUP BY p.id
+        ORDER BY p.created_at DESC
+        `
+      );
+      rows = data;
+    }
 
     return Response.json({ products: rows ?? [] });
   } catch (err) {

@@ -23,6 +23,12 @@ type Order = {
   delivered_at?: string | null;
 };
 
+type ToolProduct = {
+  id: number;
+  title: string;
+  slug: string;
+};
+
 /* ================= HELPERS ================= */
 
 function formatDate(iso?: string | null): string {
@@ -43,6 +49,8 @@ export default function AdminOrdersPage() {
   const [orders, setOrders] = useState<Order[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
+  const [tools, setTools] = useState<ToolProduct[]>([]);
+  const [selectedToolSlug, setSelectedToolSlug] = useState("");
 
   const [search, setSearch] = useState("");
   const [filterState, setFilterState] =
@@ -88,6 +96,22 @@ export default function AdminOrdersPage() {
 
   useEffect(() => {
     load();
+    fetch("/api/products?category=tools")
+      .then((res) => res.json())
+      .then((data) => {
+        if (Array.isArray(data)) {
+          setTools(
+            data
+              .map((t) => ({
+                id: Number(t.id),
+                title: String(t.title ?? ""),
+                slug: String(t.slug ?? ""),
+              }))
+              .filter((t) => t.id > 0 && t.slug)
+          );
+        }
+      })
+      .catch(() => setTools([]));
   }, []);
 
   /* ================= FILTER ================= */
@@ -139,6 +163,7 @@ export default function AdminOrdersPage() {
     }
 
     setEditOrder(null);
+    setSelectedToolSlug("");
     load();
   };
 
@@ -415,6 +440,38 @@ export default function AdminOrdersPage() {
               <div className="border-t pt-4">
                 <div className="font-semibold mb-2">
                   Delivery (optional)
+                </div>
+
+                <div className="mb-2">
+                  <label className="text-sm text-gray-500">
+                    Tool access
+                  </label>
+                  <div className="flex gap-2 mt-1">
+                    <select
+                      value={selectedToolSlug}
+                      onChange={e => setSelectedToolSlug(e.target.value)}
+                      className="flex-1 border rounded-lg px-3 py-2"
+                    >
+                      <option value="">Select tool</option>
+                      {tools.map(tool => (
+                        <option key={tool.id} value={tool.slug}>
+                          {tool.title}
+                        </option>
+                      ))}
+                    </select>
+                    <button
+                      type="button"
+                      className="px-3 py-2 border rounded-lg text-sm"
+                      onClick={() => {
+                        if (!selectedToolSlug) return;
+                        const title = `Tool access: ${selectedToolSlug}`;
+                        setEditDeliveryTitle(title);
+                        setEditDeliveryMessage("");
+                      }}
+                    >
+                      Set tool
+                    </button>
+                  </div>
                 </div>
 
                 <input

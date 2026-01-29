@@ -2,32 +2,30 @@
 
 import { useEffect, useState } from "react";
 
-type OrderStatus = "PENDING" | "PAID" | "APPROVED" | "CANCELLED";
-
-type Order = {
+type Payment = {
   id: number;
-  status: OrderStatus;
-  total_amount?: number | string;
-  total?: number | string;
-  created_at?: string;
-  createdAt?: string;
-  user?: { id: number; email?: string };
-  user_email?: string;
+  order_id: number;
+  order_number: string | null;
+  user_email: string | null;
+  account_id: string | null;
+  payment_id: string | null;
+  payment_apv: string | null;
+  paid_at: string | null;
+  method: string | null;
+  total: number | string | null;
 };
 
 export default function AdminTest() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string>("");
-  const [orders, setOrders] = useState<Order[]>([]);
+  const [payments, setPayments] = useState<Payment[]>([]);
 
   const load = async () => {
     setLoading(true);
     setError("");
 
     try {
-      // ✅ change this if your route is different:
-      // e.g. "/api/admin/orders"
-      const res = await fetch("/api/admin/orders", {
+      const res = await fetch("/api/admin/payments", {
         credentials: "include",
         cache: "no-store",
       });
@@ -35,14 +33,13 @@ export default function AdminTest() {
       const data = await res.json();
 
       if (!res.ok) {
-        setError(data?.message || "Failed to load orders");
-        setOrders([]);
+        setError(data?.error || "Failed to load payments");
+        setPayments([]);
         return;
       }
 
-      // Accept: { orders: [...] } or just [...]
-      const list: Order[] = Array.isArray(data) ? data : data.orders ?? [];
-      setOrders(list);
+      const list: Payment[] = Array.isArray(data) ? data : data.payments ?? [];
+      setPayments(list);
     } catch (e: any) {
       setError(e?.message || "Network error");
     } finally {
@@ -54,48 +51,18 @@ export default function AdminTest() {
     load();
   }, []);
 
-  const approve = async (id: number) => {
-    // ✅ change to your approve route if needed
-    const res = await fetch(`/api/admin/orders/${id}/approve`, {
-      method: "POST",
-      credentials: "include",
-    });
-    const data = await res.json().catch(() => ({}));
-
-    if (!res.ok) {
-      alert(data?.message || "Approve failed");
-      return;
-    }
-    load();
-  };
-
-  const cancel = async (id: number) => {
-    // ✅ change to your cancel route if needed
-    const res = await fetch(`/api/admin/orders/${id}/cancel`, {
-      method: "POST",
-      credentials: "include",
-    });
-    const data = await res.json().catch(() => ({}));
-
-    if (!res.ok) {
-      alert(data?.message || "Cancel failed");
-      return;
-    }
-    load();
-  };
-
-  const getTotal = (o: Order) => {
-    const v = o.total_amount ?? o.total ?? 0;
+  const getTotal = (p: Payment) => {
+    const v = p.total ?? 0;
     const n = typeof v === "string" ? Number(v) : v;
     return Number.isFinite(n) ? n : 0;
   };
 
-  const getDate = (o: Order) => o.created_at ?? o.createdAt ?? "";
+  const getDate = (p: Payment) => p.paid_at ?? "";
 
   return (
     <div className="p-6">
       <div className="flex items-center justify-between mb-6">
-        <h1 className="text-2xl font-bold">Admin Orders</h1>
+        <h1 className="text-2xl font-bold">Payments</h1>
         <button
           onClick={load}
           className="px-4 py-2 rounded-lg border bg-white hover:bg-gray-50"
@@ -116,60 +83,40 @@ export default function AdminTest() {
           <table className="min-w-full text-sm">
             <thead className="bg-gray-50">
               <tr className="text-left">
-                <th className="p-3">Order ID</th>
+                <th className="p-3">Payment ID</th>
+                <th className="p-3">Order</th>
                 <th className="p-3">User</th>
-                <th className="p-3">Status</th>
-                <th className="p-3">Total</th>
-                <th className="p-3">Created</th>
-                <th className="p-3">Actions</th>
+                <th className="p-3">Method</th>
+                <th className="p-3">Amount</th>
+                <th className="p-3">Paid at</th>
+                <th className="p-3">Account</th>
               </tr>
             </thead>
 
             <tbody>
-              {orders.map((o) => {
-                const status = o.status;
-                const canApprove = status === "PAID"; // your rule
-                const canCancel = status === "PENDING" || status === "PAID";
+              {payments.map((p) => (
+                <tr key={p.id} className="border-t">
+                  <td className="p-3 font-medium">#{p.id}</td>
+                  <td className="p-3">{p.order_number ? `#${p.order_number}` : "-"}</td>
+                  <td className="p-3">{p.user_email || "-"}</td>
+                  <td className="p-3">{p.method || "-"}</td>
+                  <td className="p-3">${getTotal(p).toFixed(2)}</td>
+                  <td className="p-3">{getDate(p) || "-"}</td>
+                  <td className="p-3">
+                    <div className="text-xs text-gray-600">
+                      {p.account_id || "-"}
+                    </div>
+                    <div className="text-xs text-gray-500">
+                      {p.payment_id || "-"} {p.payment_apv ? `• ${p.payment_apv}` : ""}
+                    </div>
+                  </td>
+                </tr>
+              ))}
 
-                return (
-                  <tr key={o.id} className="border-t">
-                    <td className="p-3 font-medium">#{o.id}</td>
-                    <td className="p-3">
-                      {o.user?.email || o.user_email || o.user?.id || "-"}
-                    </td>
-                    <td className="p-3">
-                      <span className="px-2 py-1 rounded-full border">
-                        {status}
-                      </span>
-                    </td>
-                    <td className="p-3">${getTotal(o).toFixed(2)}</td>
-                    <td className="p-3">{getDate(o) || "-"}</td>
-                    <td className="p-3">
-                      <div className="flex gap-2">
-                        <button
-                          onClick={() => approve(o.id)}
-                          disabled={!canApprove}
-                          className="px-3 py-1 rounded-lg bg-green-600 text-white disabled:opacity-40"
-                        >
-                          Approve
-                        </button>
-                        <button
-                          onClick={() => cancel(o.id)}
-                          disabled={!canCancel}
-                          className="px-3 py-1 rounded-lg bg-red-600 text-white disabled:opacity-40"
-                        >
-                          Cancel
-                        </button>
-                      </div>
-                    </td>
-                  </tr>
-                );
-              })}
-
-              {orders.length === 0 && (
+              {payments.length === 0 && (
                 <tr>
-                  <td className="p-6 text-center text-gray-500" colSpan={6}>
-                    No orders found.
+                  <td className="p-6 text-center text-gray-500" colSpan={7}>
+                    No payments found.
                   </td>
                 </tr>
               )}

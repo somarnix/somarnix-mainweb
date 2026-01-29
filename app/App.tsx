@@ -8,12 +8,12 @@ import { Footer } from "./components/Footer";
 
 import HomePage from "./pages/homepage/HomePage";
 import { AllPage } from "./pages/all-category/AllPage";
-import { CoursesPage } from "./pages/courses/CoursesPage";
+import { AiPage } from "./pages/ai/AiPage";
 import { ProgramsPage } from "./pages/programs/ProgramsPage";
 import { GamesPage } from "./pages/games/GamesPage";
 import { ToolsPage } from "./pages/tools-ai/ToolsPage";
-import { BlogPage } from "./pages/video-blog/BlogPage";
-import { VideoDetailPage } from "./pages/video-blog/VideoDetailPage";
+import { CoursesPage } from "./pages/courses/CoursesPage";
+import { VideoDetailPage } from "./pages/courses/VideoDetailPage";
 import { ServicesPage } from "./pages/services/ServicesPage";
 
 import LoginPage from "./auth/login/LoginPage";
@@ -37,10 +37,13 @@ import AdminProductsPage from "./admin-pages/products/AdminProductsPage";
 import AdminOrdersPage from "./admin-pages/orders/AdminOrdersPage";
 import AdminUsersPage from "./admin-pages/users/AdminUsersPage";
 import AdminTest from "./admin-pages/admin-test/AdminTest";
+import AdminVideoCoursesPage from "./admin-pages/video-courses/AdminVideoCoursesPage";
 
 import ProductDetailPage from "./pages/product-detail/ProductDetailPage";
 import { ChatPage } from "./pages/chat/ChatPage";
 import { ChatConversationPage } from "./pages/chat/ChatConversationPage";
+import Veo3 from "./pages/tools-ai/veo3/Veo3";
+import ToolDownload from "./pages/tools-ai/tooldownloan/ToolDownload";
 
 type AppPage =
   | "home"
@@ -52,6 +55,7 @@ type AppPage =
   | "chat"
   | "chat-detail"
   | "video-detail"
+  | "tool-detail"
   | "product-detail"
   | "blog"
   | "services"
@@ -68,13 +72,17 @@ type AppPage =
   | "admin-products"
   | "admin-orders"
   | "admin-users"
-  | "admin-test";
+  | "admin-test"
+  | "admin-video-courses"
+  | "admin-video-course-detail";
 
 type RouteState = {
   page: AppPage;
   productSlug: string | null;
   orderId: string | null;
   videoId: string | null;
+  adminVideoCourseId: string | null;
+  toolSlug: string | null;
 };
 
 const ALL_PAGES: ReadonlyArray<AppPage> = [
@@ -104,17 +112,19 @@ const ALL_PAGES: ReadonlyArray<AppPage> = [
   "admin-orders",
   "admin-users",
   "admin-test",
+  "admin-video-courses",
+  "admin-video-course-detail",
 ];
 
 const STATIC_ROUTES: Record<string, AppPage> = {
   "/": "home",
-  "/courses": "courses",
+  "/ai": "courses",
   "/programs": "programs",
   "/games": "games",
   "/tools": "tools",
   "/all": "all",
   "/chat": "chat",
-  "/video-blog": "blog",
+  "/courses": "blog",
   "/blog": "blog",
   "/services": "services",
   "/profile": "profile",
@@ -130,6 +140,7 @@ const STATIC_ROUTES: Record<string, AppPage> = {
   "/admin/orders": "admin-orders",
   "/admin/users": "admin-users",
   "/admin/test": "admin-test",
+  "/admin/video-courses": "admin-video-courses",
 };
 
 function normalizePath(pathname?: string | null): string {
@@ -144,7 +155,14 @@ function resolveRoute(pathname?: string | null): RouteState {
   const normalized = normalizePath(pathname);
   const staticPage = STATIC_ROUTES[normalized];
   if (staticPage) {
-    return { page: staticPage, productSlug: null, orderId: null, videoId: null };
+    return {
+      page: staticPage,
+      productSlug: null,
+      orderId: null,
+      videoId: null,
+      adminVideoCourseId: null,
+      toolSlug: null,
+    };
   }
 
   const segments = normalized.split("/").filter(Boolean);
@@ -153,13 +171,26 @@ function resolveRoute(pathname?: string | null): RouteState {
     segments.length >= 2 &&
     (segments[0] === "blog" ||
       segments[0] === "video" ||
-      segments[0] === "video-blog")
+      segments[0] === "courses")
   ) {
     return {
       page: "video-detail",
       productSlug: null,
       orderId: null,
       videoId: decodeURIComponent(segments[1]),
+      adminVideoCourseId: null,
+      toolSlug: null,
+    };
+  }
+
+  if (segments.length >= 2 && segments[0] === "tools-ai") {
+    return {
+      page: "tool-detail",
+      productSlug: null,
+      orderId: null,
+      videoId: null,
+      adminVideoCourseId: null,
+      toolSlug: decodeURIComponent(segments[1]),
     };
   }
 
@@ -169,6 +200,8 @@ function resolveRoute(pathname?: string | null): RouteState {
       productSlug: decodeURIComponent(segments[1]),
       orderId: null,
       videoId: null,
+      adminVideoCourseId: null,
+      toolSlug: null,
     };
   }
 
@@ -178,6 +211,8 @@ function resolveRoute(pathname?: string | null): RouteState {
       productSlug: null,
       orderId: decodeURIComponent(segments[1]),
       videoId: null,
+      adminVideoCourseId: null,
+      toolSlug: null,
     };
   }
 
@@ -187,10 +222,30 @@ function resolveRoute(pathname?: string | null): RouteState {
       productSlug: null,
       orderId: decodeURIComponent(segments[1]),
       videoId: null,
+      adminVideoCourseId: null,
+      toolSlug: null,
     };
   }
 
-  return { page: "home", productSlug: null, orderId: null, videoId: null };
+  if (segments.length >= 3 && segments[0] === "admin" && segments[1] === "video-courses") {
+    return {
+      page: "admin-video-course-detail",
+      productSlug: null,
+      orderId: null,
+      videoId: null,
+      adminVideoCourseId: decodeURIComponent(segments[2]),
+      toolSlug: null,
+    };
+  }
+
+  return {
+    page: "home",
+    productSlug: null,
+    orderId: null,
+    videoId: null,
+    adminVideoCourseId: null,
+    toolSlug: null,
+  };
 }
 
 function toAppPage(value: string): AppPage {
@@ -203,13 +258,14 @@ function buildPathForPage(
     productSlug?: string | null;
     orderId?: string | number | null;
     videoId?: string | null;
+    adminVideoCourseId?: string | null;
   }
 ): string {
   switch (page) {
     case "home":
       return "/";
     case "courses":
-      return "/courses";
+      return "/ai";
     case "programs":
       return "/programs";
     case "games":
@@ -223,9 +279,9 @@ function buildPathForPage(
     case "chat-detail":
       return ctx?.orderId ? `/chat/${encodeURIComponent(String(ctx.orderId))}` : "/chat";
     case "video-detail":
-      return ctx?.videoId ? `/blog/${encodeURIComponent(String(ctx.videoId))}` : "/blog";
+      return ctx?.videoId ? `/courses/${encodeURIComponent(String(ctx.videoId))}` : "/courses";
     case "blog":
-      return "/blog";
+      return "/courses";
     case "services":
       return "/services";
     case "profile":
@@ -254,12 +310,20 @@ function buildPathForPage(
       return "/admin/users";
     case "admin-test":
       return "/admin/test";
-    case "product-detail":
-      return ctx?.productSlug ? `/product/${encodeURIComponent(ctx.productSlug)}` : "/all";
+    case "admin-video-courses":
+      return "/admin/video-courses";
+    case "admin-video-course-detail":
+      return ctx?.adminVideoCourseId
+        ? `/admin/video-courses/${encodeURIComponent(String(ctx.adminVideoCourseId))}`
+        : "/admin/video-courses";
+      case "product-detail":
+        return ctx?.productSlug ? `/product/${encodeURIComponent(ctx.productSlug)}` : "/all";
     case "order-detail":
       return ctx?.orderId
         ? `/orders/${encodeURIComponent(String(ctx.orderId))}`
         : "/orders";
+    case "tool-detail":
+      return ctx?.productSlug ? `/tools-ai/${encodeURIComponent(ctx.productSlug)}` : "/tools";
     default:
       return "/";
   }
@@ -351,6 +415,8 @@ export default function App() {
       productSlug: normalized === "product-detail" ? routeState.productSlug : null,
       orderId: normalized === "order-detail" ? routeState.orderId : null,
       videoId: normalized === "video-detail" ? routeState.videoId : null,
+      adminVideoCourseId:
+        normalized === "admin-video-course-detail" ? routeState.adminVideoCourseId : null,
     };
     navigateInternal(nextState);
 
@@ -366,6 +432,7 @@ export default function App() {
       orderId: String(orderId),
       productSlug: null,
       videoId: null,
+      adminVideoCourseId: null,
     });
   };
 
@@ -375,6 +442,7 @@ export default function App() {
       productSlug: slug,
       orderId: null,
       videoId: null,
+      adminVideoCourseId: null,
     });
   };
 
@@ -384,6 +452,7 @@ export default function App() {
       productSlug: null,
       orderId: null,
       videoId: slug,
+      adminVideoCourseId: null,
     });
   };
 
@@ -393,6 +462,7 @@ export default function App() {
       orderId: String(orderId),
       productSlug: null,
       videoId: null,
+      adminVideoCourseId: null,
     });
   };
 
@@ -407,10 +477,20 @@ export default function App() {
     return routeState.videoId ?? null;
   }, [routeState.page, routeState.videoId]);
 
+  const adminVideoCourseId = useMemo(() => {
+    if (routeState.page !== "admin-video-course-detail") return null;
+    return routeState.adminVideoCourseId ?? null;
+  }, [routeState.adminVideoCourseId, routeState.page]);
+
   const chatDetailOrderId = useMemo(() => {
     if (routeState.page !== "chat-detail") return null;
     return routeState.orderId ?? null;
   }, [routeState.orderId, routeState.page]);
+
+  const toolSlug = useMemo(() => {
+    if (routeState.page !== "tool-detail") return null;
+    return routeState.toolSlug ?? null;
+  }, [routeState.page, routeState.toolSlug]);
 
   const renderPage = () => {
     switch (activePage) {
@@ -423,7 +503,7 @@ export default function App() {
         );
 
       case "courses":
-        return <CoursesPage onOpenProductDetail={handleOpenProductDetail} />;
+        return <AiPage onOpenProductDetail={handleOpenProductDetail} />;
 
       case "programs":
         return <ProgramsPage onOpenProductDetail={handleOpenProductDetail} />;
@@ -450,9 +530,15 @@ export default function App() {
           <AllPage onOpenProductDetail={handleOpenProductDetail} />
         );
 
+      case "tool-detail":
+        if (!toolSlug) return <ToolsPage onOpenProductDetail={handleOpenProductDetail} />;
+        if (toolSlug === "toolveo3") return <Veo3 />;
+        if (toolSlug === "tooldownloan") return <ToolDownload />;
+        return <ToolsPage onOpenProductDetail={handleOpenProductDetail} />;
+
       case "blog":
         return (
-          <BlogPage
+          <CoursesPage
             onNavigate={handleNavigate}
             onOpenVideoDetail={handleOpenVideoDetail}
           />
@@ -464,9 +550,10 @@ export default function App() {
             slug={videoDetailSlug}
             onNavigate={handleNavigate}
             onBack={() => handleNavigate("blog")}
+            onOpenOrderDetail={handleOpenOrderDetail}
           />
         ) : (
-          <BlogPage
+          <CoursesPage
             onNavigate={handleNavigate}
             onOpenVideoDetail={handleOpenVideoDetail}
           />
@@ -556,6 +643,17 @@ export default function App() {
 
       case "admin-test":
         return <AdminTest />;
+      case "admin-video-courses":
+        return <AdminVideoCoursesPage />;
+      case "admin-video-course-detail":
+        return adminVideoCourseId && /^\d+$/.test(adminVideoCourseId) ? (
+          <AdminVideoCoursesPage
+            courseId={Number(adminVideoCourseId)}
+            onBack={() => handleNavigate("admin-video-courses")}
+          />
+        ) : (
+          <AdminVideoCoursesPage />
+        );
 
       case "order-detail":
         return orderDetailId ? (

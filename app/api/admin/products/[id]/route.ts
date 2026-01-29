@@ -163,10 +163,24 @@ export async function DELETE(
       return Response.json({ error: "Invalid product id" }, { status: 400 });
     }
 
-    const [result] = await db.query<ResultSetHeader>(
-      `UPDATE products SET is_active = 0, updated_at = NOW() WHERE id = ?`,
-      [productId]
-    );
+    let result: ResultSetHeader;
+    try {
+      const [res] = await db.query<ResultSetHeader>(
+        `UPDATE products SET is_active = 0, deleted_at = NOW(), updated_at = NOW() WHERE id = ?`,
+        [productId]
+      );
+      result = res;
+    } catch (err) {
+      const message = err instanceof Error ? err.message : String(err);
+      if (!message.toLowerCase().includes("unknown column") || !message.includes("deleted_at")) {
+        throw err;
+      }
+      const [res] = await db.query<ResultSetHeader>(
+        `UPDATE products SET is_active = 0, updated_at = NOW() WHERE id = ?`,
+        [productId]
+      );
+      result = res;
+    }
 
     if (result.affectedRows === 0) {
       return Response.json({ error: "Product not found" }, { status: 404 });

@@ -25,7 +25,7 @@ export async function POST(req: Request) {
     return Response.json({ error: "Unauthorized" }, { status: 401 });
   }
 
-  const taxRate = 10.0; // UI says 10%
+  const taxRate = 0.0;
 
   try {
     const body: unknown = await req.json().catch(() => ({}));

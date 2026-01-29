@@ -47,10 +47,12 @@ type ItemRow = RowDataPacket & {
   id: number;
   title: string;
   image_url: string | null;
+  is_active: number;
   qty: number | string | null;
   unit_price: number | string | null;
   duration_label: string | null;
   device_label: string | null;
+  duration_days: number | null;
 };
 
 type PaymentRow = RowDataPacket & {
@@ -59,6 +61,26 @@ type PaymentRow = RowDataPacket & {
   payment_apv: string;
   paid_at: string | Date | null;
   method: string;
+};
+
+type VideoCourseItemRow = RowDataPacket & {
+  id: number;
+  course_title: string;
+  plan_name: string;
+  access_type: string;
+  duration_days: number | null;
+  access_start: string | Date | null;
+  access_end: string | Date | null;
+  status: string;
+};
+
+type VideoSubscriptionRow = RowDataPacket & {
+  id: number;
+  plan_name: string;
+  duration_days: number;
+  access_start: string | Date | null;
+  access_end: string | Date | null;
+  status: string;
 };
 
 function isUnknownColumnError(err: unknown): boolean {
@@ -223,10 +245,12 @@ export async function GET(
         oi.id,
         p.title,
         p.image_url,
+        p.is_active,
         oi.qty,
         oi.unit_price,
         pv.duration_label,
-        pv.device_label
+        pv.device_label,
+        pv.duration_days
       FROM order_items oi
       JOIN products p ON p.id = oi.product_id
       LEFT JOIN product_variants pv ON pv.id = oi.variant_id
@@ -247,15 +271,78 @@ export async function GET(
       [orderDbId, auth.userId]
     );
 
-    const items = itemRows.map(item => ({
+    const [videoCourseRows] = await db.query<VideoCourseItemRow[]>(
+      `
+      SELECT
+        vcp.id,
+        vc.title AS course_title,
+        vplan.name AS plan_name,
+        vplan.access_type,
+        vplan.duration_days,
+        vcp.access_start,
+        vcp.access_end,
+        vcp.status
+      FROM video_course_purchases vcp
+      JOIN video_courses vc ON vc.id = vcp.course_id
+      JOIN video_course_plans vplan ON vplan.id = vcp.plan_id
+      WHERE vcp.order_id = ?
+      ORDER BY vcp.id ASC
+      `,
+      [orderDbId]
+    );
+
+    const [videoSubscriptionRows] = await db.query<VideoSubscriptionRow[]>(
+      `
+      SELECT
+        vsub.id,
+        spl.name AS plan_name,
+        spl.duration_days,
+        vsub.access_start,
+        vsub.access_end,
+        vsub.status
+      FROM video_subscriptions vsub
+      JOIN video_subscription_plans spl ON spl.id = vsub.plan_id
+      WHERE vsub.order_id = ?
+      ORDER BY vsub.id ASC
+      `,
+      [orderDbId]
+    );
+
+    const completedAt =
+      mode === "state"
+        ? toDateString(
+            (order as OrderStateRow).delivered_at ??
+              (order as OrderStateRow).reviewed_at ??
+              (order as OrderStateRow).created_at
+          )
+        : toDateString((order as OrderLegacyRow).created_at);
+
+    const items = itemRows.map(item => {
+      const durationDays = Number(item.duration_days ?? 0);
+      const accessEnd =
+        durationDays > 0 && completedAt
+          ? (() => {
+              const start = new Date(completedAt);
+              if (Number.isNaN(start.getTime())) return null;
+              return new Date(
+                start.getTime() + durationDays * 24 * 60 * 60 * 1000
+              ).toISOString();
+            })()
+          : null;
+
+      return {
       id: item.id,
       title: item.title,
       image_url: item.image_url,
+      is_active: Number(item.is_active) === 1,
       qty: Number(item.qty ?? 0),
       unit_price: toNumber(item.unit_price),
       duration_label: item.duration_label,
       device_label: item.device_label,
-    }));
+      duration_days: item.duration_days,
+      access_end: accessEnd,
+    };
+    });
 
     const payment =
       paymentRows.length === 0
@@ -267,6 +354,32 @@ export async function GET(
             paid_at: toDateString(paymentRows[0].paid_at),
             method: paymentRows[0].method,
           };
+
+    const videoItems = videoCourseRows.map((row) => ({
+      id: row.id,
+      type: "course" as const,
+      title: row.course_title,
+      plan: row.plan_name,
+      access_type: row.access_type,
+      duration_days: row.duration_days,
+      access_start: toDateString(row.access_start),
+      access_end: toDateString(row.access_end),
+      status: row.status,
+    }));
+
+    const videoSubscriptions = videoSubscriptionRows.map((row) => ({
+      id: row.id,
+      type: "subscription" as const,
+      title: row.plan_name,
+      plan: row.plan_name,
+      access_type: "subscription",
+      duration_days: row.duration_days,
+      access_start: toDateString(row.access_start),
+      access_end: toDateString(row.access_end),
+      status: row.status,
+    }));
+
+    const video_items = [...videoItems, ...videoSubscriptions];
 
     if (mode === "state") {
       return NextResponse.json({
@@ -285,6 +398,7 @@ export async function GET(
           review_note: order.review_note,
         },
         items,
+        video_items,
         payment,
       });
     }
@@ -305,6 +419,7 @@ export async function GET(
         review_note: (order as OrderLegacyRow).review_note,
       },
       items,
+      video_items,
       payment,
     });
   } catch (err) {

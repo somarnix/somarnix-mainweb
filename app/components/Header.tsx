@@ -202,7 +202,7 @@ export function Header({
     { name: t('nav.games'), value: 'games' },
     { name: t('nav.tools'), value: 'tools' },
     { name: t('nav.blog'), value: 'blog' },
-    { name: t('nav.about'), value: 'about' }
+    { name: t('nav.about'), value: 'services' }
   ];
 
   const formatWidgetTime = (value: string | null) => {

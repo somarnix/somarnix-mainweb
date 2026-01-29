@@ -117,5 +117,61 @@ export async function POST(req: Request) {
     }
   }
 
+  if (
+    (body.state === "approved" || body.state === "completed") &&
+    previousState !== "approved" &&
+    previousState !== "completed"
+  ) {
+    await db.query<ResultSetHeader>(
+      `
+      UPDATE video_course_purchases vcp
+      JOIN video_course_plans vplan ON vplan.id = vcp.plan_id
+      SET
+        vcp.status = 'active',
+        vcp.access_start = NOW(),
+        vcp.access_end = CASE
+          WHEN vplan.access_type = 'months' AND vplan.duration_days IS NOT NULL
+            THEN DATE_ADD(NOW(), INTERVAL vplan.duration_days DAY)
+          ELSE NULL
+        END
+      WHERE vcp.order_id = ?
+      `,
+      [body.orderId]
+    );
+
+    await db.query<ResultSetHeader>(
+      `
+      UPDATE video_subscriptions vsub
+      JOIN video_subscription_plans spl ON spl.id = vsub.plan_id
+      SET
+        vsub.status = 'active',
+        vsub.access_start = NOW(),
+        vsub.access_end = DATE_ADD(NOW(), INTERVAL spl.duration_days DAY)
+      WHERE vsub.order_id = ?
+      `,
+      [body.orderId]
+    );
+  }
+
+  if (body.state === "cancelled" && previousState !== "cancelled") {
+    await db.query<ResultSetHeader>(
+      `
+      UPDATE video_course_purchases
+      SET status = 'cancelled'
+      WHERE order_id = ?
+      `,
+      [body.orderId]
+    );
+
+    await db.query<ResultSetHeader>(
+      `
+      UPDATE video_subscriptions
+      SET status = 'cancelled'
+      WHERE order_id = ?
+      `,
+      [body.orderId]
+    );
+  }
+
   return Response.json({ success: true });
 }
