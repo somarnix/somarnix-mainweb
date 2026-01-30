@@ -1,8 +1,7 @@
 // app\components\Header.tsx
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
-import { ShoppingCart, Menu, X, Search, User, Globe, Moon, Sun, LogOut, Settings, BookOpen, Wallet, DollarSign, Package, FileText, Layers, ChevronRight, Facebook, Youtube, Send, MessageCircle, Loader2, Smile, SmilePlus, Sticker, Pin, ArrowLeft, MoreVertical, Edit3, Trash2, Check } from 'lucide-react';
+import { ShoppingCart, Menu, X, User, Globe, Moon, Sun, LogOut, Settings, BookOpen, Wallet, DollarSign, Package, FileText, Layers, ChevronRight, Facebook, Youtube, Send, MessageCircle, Loader2, Smile, SmilePlus, Sticker, Pin, ArrowLeft, MoreVertical, Edit3, Trash2, Check } from 'lucide-react';
 import { Button } from './ui/button';
-import { Input } from './ui/input';
 import { useLanguage } from '../contexts/LanguageContext';
 import { useTheme } from '../contexts/ThemeContext';
 import { useAuth } from '../contexts/AuthContext';
@@ -113,7 +112,6 @@ export function Header({
   onOpenChat,
 }: HeaderProps) {
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
-  const [searchOpen, setSearchOpen] = useState(false);
   const [accountPopupOpen, setAccountPopupOpen] = useState(false);
   const { language, setLanguage, t } = useLanguage();
   const { theme, toggleTheme } = useTheme();
@@ -142,6 +140,12 @@ export function Header({
   const [chatWidgetEditingId, setChatWidgetEditingId] = useState<number | null>(null);
   const [chatWidgetEditingValue, setChatWidgetEditingValue] = useState("");
   const [chatWidgetSavingEditId, setChatWidgetSavingEditId] = useState<number | null>(null);
+  const [headerCountry, setHeaderCountry] = useState<{
+    name: string;
+    code: string;
+    flag: string;
+    dial: string;
+  }>({ name: "United States", code: "US", flag: "🇺🇸", dial: "+1" });
   const chatWidgetRef = useRef<HTMLDivElement | null>(null);
   const chatWidgetMessagesRef = useRef<HTMLDivElement | null>(null);
   const chatWidgetPinnedMessages = useMemo(
@@ -165,6 +169,32 @@ export function Header({
   const activePartyAvatar = activeParty?.avatarUrl ?? null;
   const activePartyOnline = activeParty?.online ?? false;
   const emojiQuickList = ["😀", "😂", "😍", "😎", "🙏", "👍", "🔥", "🎉"];
+
+  useEffect(() => {
+    const readCountry = () => {
+      if (typeof window === "undefined") return;
+      try {
+        const raw = localStorage.getItem("edugroit-country");
+        if (!raw) return;
+        const parsed = JSON.parse(raw);
+        if (parsed?.name && parsed?.cca2 && parsed?.dial) {
+          setHeaderCountry({
+            name: String(parsed.name),
+            code: String(parsed.cca2).toUpperCase(),
+            flag: String(parsed.flag ?? "🌍"),
+            dial: String(parsed.dial),
+          });
+        }
+      } catch {
+        // ignore
+      }
+    };
+
+    readCountry();
+    const handler = () => readCountry();
+    window.addEventListener("edugroit-country-change", handler);
+    return () => window.removeEventListener("edugroit-country-change", handler);
+  }, []);
 
   const normalizeWidgetMessage = useCallback(
   (msg: any): HeaderChatMessage => ({
@@ -197,10 +227,11 @@ export function Header({
   const navLinks = [
     { name: t('nav.home'), value: 'home' },
     { name: t('nav.all'), value: 'all' },
-    { name: t('nav.courses'), value: 'courses' },
+    { name: t('nav.ai'), value: 'courses' },
     { name: t('nav.programs'), value: 'programs' },
     { name: t('nav.games'), value: 'games' },
     { name: t('nav.tools'), value: 'tools' },
+    { name: t('nav.videoCourses'), value: 'video-courses' },
     { name: t('nav.blog'), value: 'blog' },
     { name: t('nav.about'), value: 'services' }
   ];
@@ -943,13 +974,33 @@ const mapSummary = (raw: any): HeaderChatSummary => {
 
           {/* Right Side Actions */}
           <div className="flex items-center space-x-2 md:space-x-4">
-            {/* Search Icon */}
-            <button
-              onClick={() => setSearchOpen(!searchOpen)}
-              className="p-2 text-gray-700 dark:text-gray-300 hover:text-blue-600 dark:hover:text-blue-400 transition-colors"
-            >
-              <Search className="w-5 h-5" />
-            </button>
+            <div className="hidden md:flex items-center gap-2">
+              <button
+                className="flex items-center gap-2 rounded-full border border-red-200 bg-red-600 px-3 py-1.5 text-xs font-semibold text-white shadow-sm hover:bg-red-700 transition-colors"
+                type="button"
+                title={headerCountry.name}
+              >
+                <span className="flex h-6 w-6 items-center justify-center rounded-full bg-white/15 text-base overflow-hidden">
+                  {headerCountry.flag.startsWith("http") ? (
+                    <img
+                      src={headerCountry.flag}
+                      alt={headerCountry.name}
+                      className="h-5 w-5 rounded-full object-cover"
+                    />
+                  ) : (
+                    headerCountry.flag
+                  )}
+                </span>
+                <span>{headerCountry.code}</span>
+              </button>
+              <button
+                className="rounded-full border border-red-200 bg-red-600 px-4 py-1.5 text-xs font-semibold text-white shadow-sm hover:bg-red-700 transition-colors"
+                type="button"
+                onClick={() => onNavigate("becomeseller")}
+              >
+                {t("header.becomeSeller")}
+              </button>
+            </div>
 
           {/* Chat */}
           <div className="relative">
@@ -1794,19 +1845,6 @@ const mapSummary = (raw: any): HeaderChatSummary => {
           </div>
         </div>
 
-        {/* Search Bar - Expandable */}
-        {searchOpen && (
-          <div className="pb-4 animate-in slide-in-from-top duration-300">
-            <div className="relative max-w-2xl mx-auto">
-              <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 w-5 h-5 text-gray-400" />
-              <Input
-                type="text"
-                placeholder={t('nav.search')}
-                className="w-full pl-10 pr-4 py-2 border border-gray-300 dark:border-gray-600 dark:bg-gray-800 dark:text-white rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
-              />
-            </div>
-          </div>
-        )}
       </div>
     </header>
   );

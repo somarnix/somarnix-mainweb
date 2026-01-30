@@ -5,6 +5,7 @@ import { CourseCard } from "../../components/CourseCard";
 import { useLanguage } from "../../contexts/LanguageContext";
 import { SlugFilter } from "../../components/filters/SlugFilter";
 import { Pagination } from "../../components/Pagination";
+import { Search } from "../../components/Search";
 
 type DbProgram = {
   id: number;
@@ -19,7 +20,7 @@ type DbProgram = {
 };
 
 export function ProgramsPage({ onOpenProductDetail }: { onOpenProductDetail: (slug: string) => void }) {
-  const { language, t } = useLanguage();
+  const { t } = useLanguage();
 
   const [programs, setPrograms] = useState<DbProgram[]>([]);
   const [loading, setLoading] = useState(true);
@@ -123,15 +124,11 @@ export function ProgramsPage({ onOpenProductDetail }: { onOpenProductDetail: (sl
           <div className="flex items-center gap-3 mb-4">
             <Code className="w-12 h-12" />
             <h1 className="text-4xl md:text-5xl font-bold">
-              {language === "km"
-                ? "កម្មវិធីវិជ្ជាជីវៈ"
-                : "Professional Programs"}
+              {t("programs.title")}
             </h1>
           </div>
           <p className="text-xl text-blue-100">
-            {language === "km"
-              ? "រកឃើញកម្មវិធីសម្រាប់ការងារអាជីព"
-              : "Discover professional software for your career"}
+            {t("programs.subtitle")}
           </p>
         </div>
       </div>
@@ -143,7 +140,7 @@ export function ProgramsPage({ onOpenProductDetail }: { onOpenProductDetail: (sl
           <aside className="lg:col-span-1">
             <SlugFilter
               filterTitle={t("courses.filters")}
-              slugLabel={language === "km" ? "??????" : "Slugs"}
+              slugLabel={t("filters.slugs")}
               sortLabel={t("courses.sortBy")}
               slugs={[allLabel, ...visibleSlugs]}
               selectedSlug={selectedSlug}
@@ -174,15 +171,16 @@ export function ProgramsPage({ onOpenProductDetail }: { onOpenProductDetail: (sl
                       {selectedSlug}
                     </h2>
                     <p className="text-gray-600 mt-1">
-                      {sortedPrograms.length} {language === "km" ? "????????" : "programs"} {t("courses.available")}
+                      {sortedPrograms.length} {t("labels.programs")} {t("common.available")}
                     </p>
                   </div>
                   <div className="flex flex-col sm:flex-row gap-3 w-full sm:w-auto">
-                    <input
+                    <Search
                       value={slugQuery}
-                      onChange={(event) => setSlugQuery(event.target.value)}
-                      placeholder="Search slug..."
-                      className="w-full sm:w-64 rounded-lg border border-gray-200 bg-white px-3 py-2 text-sm text-gray-700 shadow-sm focus:outline-none focus:ring-2 focus:ring-blue-500 dark:bg-gray-900 dark:border-gray-700 dark:text-gray-100"
+                      onChange={setSlugQuery}
+                      placeholder={t("search.slug")}
+                      className="w-full sm:w-64"
+                      inputClassName="rounded-lg shadow-sm focus:ring-blue-500"
                     />
                     {selectedSlug !== allLabel && (
                       <button

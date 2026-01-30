@@ -22,6 +22,16 @@ function cleanStr(v: unknown, max = 255): string | null {
   return s.length > max ? s.slice(0, max) : s;
 }
 
+function normalizePhone(v: unknown, max = 40): string | null {
+  if (typeof v !== "string") return null;
+  const trimmed = v.trim();
+  if (!trimmed) return null;
+  const cleaned = trimmed.replace(/[^\d+]/g, "");
+  if (!cleaned) return null;
+  const normalized = cleaned.startsWith("+") ? cleaned : `+${cleaned}`;
+  return normalized.length > max ? normalized.slice(0, max) : normalized;
+}
+
 /* ================= REQUEST BODY TYPE ================= */
 
 type ProfileUpdateBody = {
@@ -150,7 +160,7 @@ export async function PUT(req: Request): Promise<Response> {
   const birthDate = cleanStr(body.birthDate, 30);
   const place = cleanStr(body.place, 120);
   const bio = cleanStr(body.bio, 500);
-  const phone = cleanStr(body.phone, 40);
+  const phone = normalizePhone(body.phone, 40);
   const avatarUrl = cleanStr(body.avatarUrl, 255);
 
   // optional email/password change fields
@@ -202,6 +212,19 @@ export async function PUT(req: Request): Promise<Response> {
   add("birth_date = ?", birthDate);
   add("place = ?", place);
   add("bio = ?", bio);
+  if (phone) {
+    const [dupRows] = await db.query<RowDataPacket[]>(
+      "SELECT id FROM users WHERE phone = ? AND id <> ? LIMIT 1",
+      [phone, userId]
+    );
+    if (dupRows.length > 0) {
+      return Response.json(
+        { error: "Phone number already in use" },
+        { status: 409 }
+      );
+    }
+  }
+
   add("phone = ?", phone);
   add("avatar_url = ?", avatarUrl);
 

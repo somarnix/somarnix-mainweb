@@ -1,8 +1,9 @@
 import { useEffect, useMemo, useState } from "react";
-import { Search, Play, Eye, Calendar, Star } from "lucide-react";
+import { Play, Eye, Calendar, Star } from "lucide-react";
 import { useLanguage } from "../../contexts/LanguageContext";
 import { CoursesFilter } from "../../components/filters/CoursesFilter";
 import { Pagination } from "../../components/Pagination";
+import { Search } from "../../components/Search";
 
 interface CoursesPageProps {
   onNavigate: (page: string) => void;
@@ -10,7 +11,7 @@ interface CoursesPageProps {
 }
 
 export function CoursesPage({ onOpenVideoDetail }: CoursesPageProps) {
-  const { language } = useLanguage();
+  const { t } = useLanguage();
   const [courses, setCourses] = useState<any[]>([]);
   const [coursesLoading, setCoursesLoading] = useState(false);
   const [coursesError, setCoursesError] = useState<string | null>(null);
@@ -91,37 +92,37 @@ export function CoursesPage({ onOpenVideoDetail }: CoursesPageProps) {
   }, [courses]);
 
   const levels = [
-    { id: "all levels", label: "all levels" },
-    { id: "beginner", label: "beginner" },
-    { id: "advanced", label: "advanced" },
-    { id: "pro", label: "pro" },
+    { id: "all levels", label: t("filters.levelAll") },
+    { id: "beginner", label: t("filters.levelBeginner") },
+    { id: "advanced", label: t("filters.levelAdvanced") },
+    { id: "pro", label: t("filters.levelPro") },
   ];
 
   const priceFilters: Array<{ id: "all" | "free" | "paid"; label: string }> = [
-    { id: "all", label: "All" },
-    { id: "free", label: "Free" },
-    { id: "paid", label: "Paid" },
+    { id: "all", label: t("filters.priceAll") },
+    { id: "free", label: t("filters.priceFree") },
+    { id: "paid", label: t("filters.pricePaid") },
   ];
 
   const sortOptions: Array<{
     id: "newest" | "popular" | "rating" | "price-low" | "price-high" | "all";
     label: string;
   }> = [
-    { id: "newest", label: language === "km" ? "?????" : "New Releases" },
-    { id: "popular", label: language === "km" ? "???????" : "Most Popular" },
+    { id: "newest", label: t("courses.newReleases") },
+    { id: "popular", label: t("filters.mostPopular") },
     {
       id: "rating",
-      label: language === "km" ? "?????????????" : "Highest Rated",
+      label: t("filters.highestRated"),
     },
     {
       id: "price-low",
-      label: language === "km" ? "???????????????" : "Price: Low to High",
+      label: t("filters.priceLowHigh"),
     },
     {
       id: "price-high",
-      label: language === "km" ? "???????????????" : "Price: High to Low",
+      label: t("filters.priceHighLow"),
     },
-    { id: "all", label: language === "km" ? "?????????????" : "All Videos" },
+    { id: "all", label: t("filters.allVideos") },
   ];
 
   const filteredCourses = useMemo(() => {
@@ -345,7 +346,7 @@ export function CoursesPage({ onOpenVideoDetail }: CoursesPageProps) {
           className="w-full h-44 object-cover"
         />
         <div className="absolute top-3 left-3 inline-flex items-center gap-1 rounded-full bg-white/90 px-3 py-1 text-xs font-semibold text-gray-900 shadow dark:bg-gray-900/90 dark:text-gray-100">
-          {video.category || "Video"}
+          {video.category || t("labels.video")}
         </div>
       </div>
 
@@ -365,35 +366,37 @@ export function CoursesPage({ onOpenVideoDetail }: CoursesPageProps) {
         <div className="flex items-center gap-4 text-xs text-gray-500 dark:text-gray-400">
           <div className="flex items-center gap-1">
             <Eye className="w-4 h-4" />
-            <span>{formatViews(Number(video.students_count ?? 0))} Students</span>
+            <span>
+              {formatViews(Number(video.students_count ?? 0))} {t("labels.students")}
+            </span>
           </div>
           <div className="flex items-center gap-1">
             <Calendar className="w-4 h-4" />
-            <span>{Number(video.lesson_count ?? 0)} Lessons</span>
+            <span>{Number(video.lesson_count ?? 0)} {t("labels.lessons")}</span>
           </div>
         </div>
 
         <div className="flex items-center justify-between text-sm">
           <span className="text-blue-600 font-semibold dark:text-blue-300">
             {Number(video.min_price ?? 0) === 0
-              ? "Free"
+              ? t("labels.free")
               : `$${Number(video.min_price ?? 0).toFixed(2)}`}
           </span>
           <div className="flex items-center gap-2">
             <img
               src={video.author_avatar_url || "/avatar-default.png"}
-              alt={video.author_name || "Author"}
+              alt={video.author_name || t("labels.instructor")}
               className="w-7 h-7 rounded-full object-cover"
             />
             <span className="text-xs text-gray-500 dark:text-gray-400">
-              {video.author_name || "Instructor"}
+              {video.author_name || t("labels.instructor")}
             </span>
           </div>
         </div>
 
         <button className="w-full rounded-xl bg-gradient-to-r from-blue-600 to-purple-600 text-white text-sm font-semibold py-2.5 flex items-center justify-center gap-2">
           <Play className="w-4 h-4" />
-          {language === "km" ? "មើលវីដេអូ" : "View Video"}
+          {t("courses.viewVideo")}
         </button>
       </div>
     </div>
@@ -405,27 +408,23 @@ export function CoursesPage({ onOpenVideoDetail }: CoursesPageProps) {
         <div className="mb-8 flex flex-col gap-4 rounded-2xl border border-gray-100 bg-white p-5 shadow-sm dark:border-gray-800 dark:bg-gray-900 md:flex-row md:items-center md:justify-between">
           <div>
             <h1 className="text-2xl font-semibold text-gray-900 dark:text-gray-100">
-              {language === "km" ? "វីដេអូប្លុក" : "Video Blog"}
+              {t("courses.videoBlogTitle")}
             </h1>
             <p className="text-sm text-gray-500 dark:text-gray-400">
-              {language === "km" ? "ស្វែងរកវីដេអូថ្មីៗ" : "Find new videos fast"}
+              {t("courses.videoBlogSubtitle")}
             </p>
           </div>
-          <div className="relative w-full md:max-w-sm">
-            <Search className="absolute left-4 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400" />
-            <input
-              type="text"
-              value={searchTerm}
-              onChange={(event) => setSearchTerm(event.target.value)}
-              placeholder={language === "km" ? "ស្វែងរក" : "Search videos"}
-              className="w-full pl-11 pr-4 py-2.5 rounded-xl border border-gray-200 bg-gray-50 text-sm text-gray-900 focus:outline-none focus:ring-2 focus:ring-blue-500 dark:border-gray-800 dark:bg-gray-900 dark:text-gray-100"
-            />
-          </div>
+          <Search
+            value={searchTerm}
+            onChange={setSearchTerm}
+            placeholder={t("courses.searchVideos")}
+            className="w-full md:max-w-sm"
+            inputClassName="bg-gray-50 focus:ring-blue-500 dark:bg-gray-900 dark:border-gray-800"
+          />
         </div>
 
         <div className="grid grid-cols-1 md:grid-cols-12 gap-8">
           <CoursesFilter
-            language={language}
             categories={categories}
             tags={tags}
             levels={levels}
@@ -453,10 +452,10 @@ export function CoursesPage({ onOpenVideoDetail }: CoursesPageProps) {
                   <div className="space-y-4">
                     <div>
                       <h2 className="text-2xl font-semibold text-gray-900 dark:text-gray-100">
-                        {language === "km" ? "???????????" : "New Releases"}
+                        {t("courses.newReleases")}
                       </h2>
                       <p className="text-sm text-gray-500 dark:text-gray-400">
-                        {language === "km" ? "?????????????" : "Latest uploads"}
+                        {t("courses.latestUploads")}
                       </p>
                     </div>
                     <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-6">
@@ -467,10 +466,10 @@ export function CoursesPage({ onOpenVideoDetail }: CoursesPageProps) {
                   <div className="space-y-4">
                     <div>
                       <h2 className="text-2xl font-semibold text-gray-900 dark:text-gray-100">
-                        {language === "km" ? "?????????????" : "Popular Videos"}
+                        {t("courses.popularVideos")}
                       </h2>
                       <p className="text-sm text-gray-500 dark:text-gray-400">
-                        {language === "km" ? "????????" : "Most watched"}
+                        {t("courses.mostWatched")}
                       </p>
                     </div>
                     <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-6">
@@ -481,18 +480,18 @@ export function CoursesPage({ onOpenVideoDetail }: CoursesPageProps) {
                   <div className="space-y-4">
                     <div>
                       <h2 className="text-2xl font-semibold text-gray-900 dark:text-gray-100">
-                        {language === "km" ? "?????????????" : "All Videos"}
+                        {t("filters.allVideos")}
                       </h2>
                       <p className="text-sm text-gray-500 dark:text-gray-400">
                         {filteredCourses.length}{" "}
-                        {language === "km" ? "??????" : "videos available"}
+                        {t("courses.videosAvailable")}
                       </p>
                     </div>
 
                     <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-6">
                       {coursesLoading ? (
                         <div className="col-span-full text-sm text-gray-500 dark:text-gray-400">
-                          {language === "km" ? "??????????..." : "Loading..."}
+                          {t("common.loading")}
                         </div>
                       ) : coursesError ? (
                         <div className="col-span-full text-sm text-red-600 dark:text-red-400">
@@ -515,27 +514,21 @@ export function CoursesPage({ onOpenVideoDetail }: CoursesPageProps) {
                   <div>
                     <h2 className="text-2xl font-semibold text-gray-900 dark:text-gray-100">
                       {viewMode === "newest"
-                        ? language === "km"
-                          ? "???????????"
-                          : "New Releases"
+                        ? t("courses.newReleases")
                         : viewMode === "popular"
-                        ? language === "km"
-                          ? "?????????????"
-                          : "Popular Videos"
-                        : language === "km"
-                        ? "?????????????????"
-                        : "Highest Rated"}
+                        ? t("courses.popularVideos")
+                        : t("filters.highestRated")}
                     </h2>
                     <p className="text-sm text-gray-500 dark:text-gray-400">
                       {sectionCourses.length}{" "}
-                      {language === "km" ? "??????" : "videos available"}
+                      {t("courses.videosAvailable")}
                     </p>
                   </div>
 
                   <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-6">
                     {coursesLoading ? (
                       <div className="col-span-full text-sm text-gray-500 dark:text-gray-400">
-                        {language === "km" ? "??????????..." : "Loading..."}
+                        {t("common.loading")}
                       </div>
                     ) : coursesError ? (
                       <div className="col-span-full text-sm text-red-600 dark:text-red-400">

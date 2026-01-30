@@ -5,6 +5,7 @@ import { CourseCard } from "../../components/CourseCard";
 import { useLanguage } from "../../contexts/LanguageContext";
 import { SlugFilter } from "../../components/filters/SlugFilter";
 import { Pagination } from "../../components/Pagination";
+import { Search } from "../../components/Search";
 
 /* ================= DB TYPE ================= */
 type DbTool = {
@@ -20,7 +21,7 @@ type DbTool = {
 };
 
 export function ToolsPage({ onOpenProductDetail }: { onOpenProductDetail: (slug: string) => void }) {
-  const { language, t } = useLanguage();
+  const { t } = useLanguage();
 
   const [tools, setTools] = useState<DbTool[]>([]);
   const [loading, setLoading] = useState(true);
@@ -125,13 +126,11 @@ export function ToolsPage({ onOpenProductDetail }: { onOpenProductDetail: (slug:
           <div className="flex items-center gap-3 mb-4">
             <Wrench className="w-12 h-12" />
             <h1 className="text-4xl md:text-5xl font-bold">
-              {language === "km" ? "ឧបករណ៍" : "Productivity Tools"}
+              {t("tools.title")}
             </h1>
           </div>
           <p className="text-xl text-green-100">
-            {language === "km"
-              ? "រកឃើញឧបករណ៍ដើម្បីបង្កើនផលិតភាព"
-              : "Discover tools to boost productivity and efficiency"}
+            {t("tools.subtitle")}
           </p>
         </div>
       </div>
@@ -143,7 +142,7 @@ export function ToolsPage({ onOpenProductDetail }: { onOpenProductDetail: (slug:
           <aside className="lg:col-span-1">
             <SlugFilter
               filterTitle={t("courses.filters")}
-              slugLabel={language === "km" ? "??????" : "Slugs"}
+              slugLabel={t("filters.slugs")}
               sortLabel={t("courses.sortBy")}
               slugs={[allLabel, ...visibleSlugs]}
               selectedSlug={selectedSlug}
@@ -172,15 +171,16 @@ export function ToolsPage({ onOpenProductDetail }: { onOpenProductDetail: (slug:
                       {selectedSlug}
                     </h2>
                     <p className="text-gray-600 mt-1">
-                      {sortedTools.length} {language === "km" ? "??????" : "tools"} {t("courses.available")}
+                      {sortedTools.length} {t("labels.tools")} {t("common.available")}
                     </p>
                   </div>
                   <div className="flex flex-col sm:flex-row gap-3 w-full sm:w-auto">
-                    <input
+                    <Search
                       value={slugQuery}
-                      onChange={(event) => setSlugQuery(event.target.value)}
-                      placeholder="Search slug..."
-                      className="w-full sm:w-64 rounded-lg border border-gray-200 bg-white px-3 py-2 text-sm text-gray-700 shadow-sm focus:outline-none focus:ring-2 focus:ring-green-500 dark:bg-gray-900 dark:border-gray-700 dark:text-gray-100"
+                      onChange={setSlugQuery}
+                      placeholder={t("search.slug")}
+                      className="w-full sm:w-64"
+                      inputClassName="rounded-lg shadow-sm focus:ring-green-500"
                     />
                     {selectedSlug !== allLabel && (
                       <button

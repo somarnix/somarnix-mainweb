@@ -49,7 +49,7 @@ export function Sidebar({
     { id: "programs", icon: Code, label: language === "km" ? "កម្មវិធី" : "Programs", page: "programs" },
     { id: "games", icon: Gamepad2, label: language === "km" ? "ហ្គេម" : "Games", page: "games" },
     { id: "tools", icon: Wrench, label: language === "km" ? "ឧបករណ៍" : "Tools", page: "tools" },
-    { id: "blog", icon: Play, label: language === "km" ? "វគ្គសិក្សា" : "Courses", page: "blog" },
+    { id: "blog", icon: Play, label: language === "km" ? "ប្លុក" : "Blog", page: "blog" },
     { id: "about", icon: Info, label: language === "km" ? "អំពីយើង" : "About", page: "services" },
   ];
 

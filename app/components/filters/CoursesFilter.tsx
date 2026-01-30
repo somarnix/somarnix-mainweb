@@ -1,4 +1,5 @@
 import { Filter } from "lucide-react";
+import { useLanguage } from "../../contexts/LanguageContext";
 
 type SortOption = {
   id: "newest" | "popular" | "rating" | "price-low" | "price-high" | "all";
@@ -6,7 +7,6 @@ type SortOption = {
 };
 
 type CoursesFilterProps = {
-  language: string;
   categories: { id: string; name: string }[];
   tags: { id: string; label: string }[];
   levels: { id: string; label: string }[];
@@ -27,7 +27,6 @@ type CoursesFilterProps = {
 };
 
 export function CoursesFilter({
-  language,
   categories,
   tags,
   levels,
@@ -46,18 +45,19 @@ export function CoursesFilter({
   onSortClick,
   onClearFilters,
 }: CoursesFilterProps) {
+  const { t } = useLanguage();
   return (
     <aside className="md:col-span-4 lg:col-span-3 bg-white rounded-2xl border border-gray-100 p-5 space-y-6 h-fit shadow-sm dark:border-gray-800 dark:bg-gray-900">
       <div className="w-3/2">
         <div>
           <div className="flex items-center gap-2 text-sm font-semibold text-gray-700 dark:text-gray-200">
             <Filter className="w-4 h-4" />
-            {language === "km" ? "តម្រង" : "Filters"}
+            {t("filters.title")}
           </div>
 
           <div className="space-y-3">
             <p className="text-xs font-semibold text-gray-500 uppercase tracking-wide dark:text-gray-400">
-              {language === "km" ? "ប្រភេទ" : "Categories"}
+              {t("filters.categories")}
             </p>
             <button
               onClick={() => onSelectCategory("")}
@@ -67,7 +67,7 @@ export function CoursesFilter({
                   : "hover:bg-gray-50 text-gray-700 dark:text-gray-200 dark:hover:bg-gray-800"
               }`}
             >
-              {language === "km" ? "វីដេអូទាំងអស់" : "All Videos"}
+              {t("filters.allVideos")}
             </button>
 
             {categories.map((category) => {
@@ -90,7 +90,7 @@ export function CoursesFilter({
 
           <div className="space-y-3">
             <p className="text-xs font-semibold text-gray-500 uppercase tracking-wide dark:text-gray-400">
-              {language === "km" ? "តម្រៀបតាម" : "Sort By"}
+              {t("filters.sortBy")}
             </p>
             <div className="space-y-2">
               {sortOptions.map((option) => {
@@ -120,7 +120,7 @@ export function CoursesFilter({
 
           <div className="space-y-3">
             <p className="text-xs font-semibold text-gray-500 uppercase tracking-wide dark:text-gray-400">
-              {language === "km" ? "ស្លាក" : "Tag"}
+              {t("filters.tag")}
             </p>
             <div className="space-y-2">
               {tags.map((tag) => (
@@ -142,7 +142,7 @@ export function CoursesFilter({
 
           <div className="space-y-3">
             <p className="text-xs font-semibold text-gray-500 uppercase tracking-wide dark:text-gray-400">
-              {language === "km" ? "កម្រិត" : "Level"}
+              {t("filters.level")}
             </p>
             <div className="space-y-2">
               {levels.map((level) => (
@@ -164,7 +164,7 @@ export function CoursesFilter({
 
           <div className="space-y-3">
             <p className="text-xs font-semibold text-gray-500 uppercase tracking-wide dark:text-gray-400">
-              {language === "km" ? "តម្លៃ" : "Price"}
+              {t("filters.price")}
             </p>
             <div className="space-y-2">
               {priceFilters.map((option) => (
@@ -191,7 +191,7 @@ export function CoursesFilter({
         onClick={onClearFilters}
         className="w-full rounded-xl border border-blue-200 px-4 py-2 text-sm text-blue-600 hover:bg-blue-50 dark:border-blue-900/40 dark:text-blue-300 dark:hover:bg-blue-900/20"
       >
-        {language === "km" ? "សម្អាតតម្រងទាំងអស់" : "Clear all filters"}
+        {t("filters.clearAll")}
       </button>
     </aside>
   );

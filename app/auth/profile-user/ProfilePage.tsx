@@ -117,6 +117,21 @@ type FreeCoursesResponse = {
   courses?: VideoCourseItem[];
 };
 
+type CountryOption = {
+  name: string;
+  cca2: string;
+  flag: string;
+  dial: string;
+  dials: string[];
+};
+
+type StoredCountry = {
+  name: string;
+  cca2: string;
+  flag: string;
+  dial: string;
+};
+
 const AVATARS: string[] = ["/Job Jik.jpg", "/Mrrecaps.png", "/Nut Roth Logo.png", "/Nut Roth.jpg"];
 
 const ORDER_STATUS_ORDER: OrderStateKey[] = [
@@ -175,6 +190,10 @@ export function ProfilePage({ onNavigate, onOpenProductDetail }: ProfilePageProp
     phone: "",
     location: "",
   });
+  const [countries, setCountries] = useState<CountryOption[]>([]);
+  const [countryQuery, setCountryQuery] = useState("");
+  const [countryOpen, setCountryOpen] = useState(false);
+  const [selectedCountry, setSelectedCountry] = useState<CountryOption | null>(null);
 
   const redirectedRef = useRef(false);
 
@@ -190,6 +209,78 @@ export function ProfilePage({ onNavigate, onOpenProductDetail }: ProfilePageProp
     return () => clearTimeout(tmr);
   }, [user, onNavigate]);
 
+  useEffect(() => {
+    let alive = true;
+    const loadCountries = async () => {
+      try {
+        const res = await fetch(
+          "https://restcountries.com/v3.1/all?fields=name,cca2,flags,idd",
+          { cache: "force-cache" }
+        );
+        if (!res.ok) throw new Error("Failed to load countries");
+        const data = await res.json();
+        const mapped: CountryOption[] = (Array.isArray(data) ? data : [])
+          .map((item: any) => {
+            const name = item?.name?.common ?? "";
+            const cca2 = String(item?.cca2 ?? "").toUpperCase();
+            const flag = item?.flags?.png || item?.flags?.svg || "";
+            const root = item?.idd?.root ?? "";
+            const suffixes: string[] = Array.isArray(item?.idd?.suffixes)
+              ? item.idd.suffixes
+              : [];
+            const dials = root
+              ? (suffixes.length ? suffixes : [""])
+                  .map((suffix) => `${root}${suffix}`)
+                  .filter(Boolean)
+              : [];
+            const dial = dials[0] ?? "";
+            if (!name || !dial) return null;
+            return { name, cca2, flag, dial, dials };
+          })
+          .filter(Boolean) as CountryOption[];
+        mapped.sort((a, b) => a.name.localeCompare(b.name));
+        if (alive) setCountries(mapped);
+      } catch {
+        if (alive) setCountries([]);
+      }
+    };
+
+    loadCountries();
+    return () => {
+      alive = false;
+    };
+  }, []);
+
+  const findCountryFromPhone = useCallback(
+    (value: string) => {
+      if (!value) return null;
+      const cleaned = value.replace(/[^\d+]/g, "");
+      if (!cleaned.startsWith("+")) return null;
+      let best: { country: CountryOption; dial: string } | null = null;
+      for (const country of countries) {
+        const match = country.dials.find((dial) => cleaned.startsWith(dial));
+        if (match && (!best || match.length > best.dial.length)) {
+          best = { country, dial: match };
+        }
+      }
+      return best;
+    },
+    [countries]
+  );
+
+  const saveCountryToStorage = useCallback((country: CountryOption | null) => {
+    if (typeof window === "undefined") return;
+    if (!country) return;
+    const payload: StoredCountry = {
+      name: country.name,
+      cca2: country.cca2,
+      flag: country.flag,
+      dial: country.dial,
+    };
+    localStorage.setItem("edugroit-country", JSON.stringify(payload));
+    window.dispatchEvent(new Event("edugroit-country-change"));
+  }, []);
+
   const displayName = useMemo(() => {
     if (!user) return "";
     const fn = (user.firstName ?? "").trim();
@@ -197,6 +288,20 @@ export function ProfilePage({ onNavigate, onOpenProductDetail }: ProfilePageProp
     const full = `${fn} ${ln}`.trim();
     return full || user.username || user.email || "";
   }, [user]);
+
+  useEffect(() => {
+    if (!user?.phone || countries.length === 0) return;
+    const match = findCountryFromPhone(user.phone);
+    if (!match) return;
+    setSelectedCountry(match.country);
+    saveCountryToStorage(match.country);
+    const number = user.phone.replace(/[^\d+]/g, "").slice(match.dial.length);
+    setEditForm((prev) => ({
+      ...prev,
+      phone: number,
+      location: match.country.name,
+    }));
+  }, [user?.phone, countries.length, findCountryFromPhone, saveCountryToStorage]);
 
   const joinedText = useMemo(() => {
     if (!user?.joinedDate) return "";
@@ -297,11 +402,19 @@ export function ProfilePage({ onNavigate, onOpenProductDetail }: ProfilePageProp
   const startEditing = () => {
     if (!user) return;
     const full = `${user.firstName ?? ""} ${user.lastName ?? ""}`.trim();
+    const match = user.phone ? findCountryFromPhone(user.phone) : null;
+    if (match) {
+      setSelectedCountry(match.country);
+      saveCountryToStorage(match.country);
+    }
+    const phoneNumber = match
+      ? user.phone.replace(/[^\d+]/g, "").slice(match.dial.length)
+      : user.phone || "";
     setEditForm({
       name: full || user.username || "",
       bio: user.bio || "",
-      phone: user.phone || "",
-      location: user.place || "",
+      phone: phoneNumber,
+      location: match?.country.name || user.place || "",
     });
     setIsEditing(true);
   };
@@ -315,15 +428,58 @@ export function ProfilePage({ onNavigate, onOpenProductDetail }: ProfilePageProp
     const firstName = parts.length > 1 ? parts.slice(0, -1).join(" ") : parts[0] ?? "";
     const lastName = parts.length > 1 ? parts[parts.length - 1] : "";
 
+    const rawNumber = editForm.phone.trim();
+    const cleanedNumber = rawNumber.replace(/\D/g, "");
+    const phoneValue =
+      cleanedNumber && selectedCountry?.dial
+        ? `${selectedCountry.dial}${cleanedNumber}`
+        : rawNumber.startsWith("+")
+        ? rawNumber.replace(/[^\d+]/g, "")
+        : cleanedNumber
+        ? `+${cleanedNumber}`
+        : undefined;
+    const placeValue = selectedCountry?.name || editForm.location || undefined;
+
     await updateProfile({
       firstName: firstName || undefined,
       lastName: lastName || undefined,
       bio: editForm.bio || undefined,
-      phone: editForm.phone || undefined,
-      place: editForm.location || undefined,
+      phone: phoneValue || undefined,
+      place: placeValue,
     });
 
     setIsEditing(false);
+  };
+
+  const filteredCountries = useMemo(() => {
+    const q = countryQuery.trim().toLowerCase();
+    if (!q) return countries;
+    return countries.filter((c) => {
+      return (
+        c.name.toLowerCase().includes(q) ||
+        c.cca2.toLowerCase().includes(q) ||
+        c.dial.replace("+", "").includes(q)
+      );
+    });
+  }, [countries, countryQuery]);
+
+  const handlePhoneInput = (value: string) => {
+    const trimmed = value.trim();
+    if (trimmed.startsWith("+")) {
+      const match = findCountryFromPhone(trimmed);
+      if (match) {
+        setSelectedCountry(match.country);
+        saveCountryToStorage(match.country);
+        const number = trimmed.replace(/[^\d+]/g, "").slice(match.dial.length);
+        setEditForm((prev) => ({
+          ...prev,
+          phone: number,
+          location: match.country.name,
+        }));
+        return;
+      }
+    }
+    setEditForm((prev) => ({ ...prev, phone: value }));
   };
 
   const fetchStats = useCallback(async () => {
@@ -1443,17 +1599,92 @@ export function ProfilePage({ onNavigate, onOpenProductDetail }: ProfilePageProp
                     onChange={(e) => setEditForm({ ...editForm, bio: e.target.value })}
                   />
                   <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                    <div className="relative">
+                      <button
+                        type="button"
+                        onClick={() => setCountryOpen((prev) => !prev)}
+                        className="w-full flex items-center justify-between gap-2 rounded-xl border border-gray-200 bg-white px-3 py-2 text-sm text-gray-700 shadow-sm hover:border-blue-400 focus:outline-none focus:ring-2 focus:ring-blue-500 dark:border-gray-700 dark:bg-gray-900 dark:text-gray-200"
+                      >
+                        <span className="flex items-center gap-2">
+                          {selectedCountry?.flag ? (
+                            <img
+                              src={selectedCountry.flag}
+                              alt={selectedCountry.name}
+                              className="h-5 w-5 rounded-full object-cover"
+                            />
+                          ) : (
+                            <Globe className="h-4 w-4 text-gray-400" />
+                          )}
+                          <span className="font-medium">
+                            {selectedCountry?.dial || t("profile.country")}
+                          </span>
+                          <span className="text-xs text-gray-500">
+                            {selectedCountry?.name || t("profile.selectCountry")}
+                          </span>
+                        </span>
+                        <span className="text-xs text-gray-400">▾</span>
+                      </button>
+                      {countryOpen && (
+                        <div className="absolute z-30 mt-2 w-full rounded-xl border border-gray-200 bg-white shadow-lg dark:border-gray-700 dark:bg-gray-900">
+                          <div className="p-2 border-b border-gray-100 dark:border-gray-800">
+                            <input
+                              value={countryQuery}
+                              onChange={(e) => setCountryQuery(e.target.value)}
+                              placeholder={t("profile.searchCountry")}
+                              className="w-full rounded-lg border border-gray-200 bg-white px-3 py-2 text-xs text-gray-700 focus:outline-none focus:ring-2 focus:ring-blue-500 dark:border-gray-700 dark:bg-gray-900 dark:text-gray-200"
+                            />
+                          </div>
+                          <div className="max-h-64 overflow-y-auto">
+                            {filteredCountries.length === 0 ? (
+                              <div className="px-3 py-2 text-xs text-gray-500">
+                                {t("profile.noCountry")}
+                              </div>
+                            ) : (
+                              filteredCountries.map((country) => (
+                                <button
+                                  key={`${country.cca2}-${country.dial}`}
+                                  type="button"
+                                  onClick={() => {
+                                    setSelectedCountry(country);
+                                    saveCountryToStorage(country);
+                                    setCountryOpen(false);
+                                    setCountryQuery("");
+                                    setEditForm((prev) => ({
+                                      ...prev,
+                                      location: country.name,
+                                    }));
+                                  }}
+                                  className="w-full flex items-center gap-3 px-3 py-2 text-left text-sm text-gray-700 hover:bg-gray-50 dark:text-gray-200 dark:hover:bg-gray-800"
+                                >
+                                  {country.flag ? (
+                                    <img
+                                      src={country.flag}
+                                      alt={country.name}
+                                      className="h-5 w-5 rounded-full object-cover"
+                                    />
+                                  ) : (
+                                    <Globe className="h-4 w-4 text-gray-400" />
+                                  )}
+                                  <span className="font-semibold text-sm">{country.dial}</span>
+                                  <span className="text-xs text-gray-500">{country.name}</span>
+                                </button>
+                              ))
+                            )}
+                          </div>
+                        </div>
+                      )}
+                    </div>
                     <Input
-                      placeholder={t("profile.phone")}
+                      placeholder={t("profile.phoneNumber")}
                       value={editForm.phone}
-                      onChange={(e) => setEditForm({ ...editForm, phone: e.target.value })}
-                    />
-                    <Input
-                      placeholder={t("profile.location")}
-                      value={editForm.location}
-                      onChange={(e) => setEditForm({ ...editForm, location: e.target.value })}
+                      onChange={(e) => handlePhoneInput(e.target.value)}
                     />
                   </div>
+                  <Input
+                    placeholder={t("profile.location")}
+                    value={selectedCountry?.name || editForm.location}
+                    disabled
+                  />
                   <Button onClick={handleSaveProfile} className="w-full">
                     {t("profile.saveChanges")}
                   </Button>

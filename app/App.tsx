@@ -2,9 +2,7 @@
 // app/App.tsx
 import { useEffect, useMemo, useState } from "react";
 import { usePathname } from "next/navigation";
-import { Header } from "./components/Header";
-import { Sidebar } from "./components/Sidebar";
-import { Footer } from "./components/Footer";
+import { MainLayout } from "./layouts/MainLayout";
 
 import HomePage from "./pages/homepage/HomePage";
 import { AllPage } from "./pages/all-category/AllPage";
@@ -15,6 +13,8 @@ import { ToolsPage } from "./pages/tools-ai/ToolsPage";
 import { CoursesPage } from "./pages/courses/CoursesPage";
 import { VideoDetailPage } from "./pages/courses/VideoDetailPage";
 import { ServicesPage } from "./pages/services/ServicesPage";
+import { BlogPage } from "./pages/blogs/BlogPage";
+import { Becomeseller } from "./pages/becomeseller/Becomeseller";
 
 import LoginPage from "./auth/login/LoginPage";
 import { RegisterPage } from "./auth/register/RegisterPage";
@@ -44,6 +44,7 @@ import { ChatPage } from "./pages/chat/ChatPage";
 import { ChatConversationPage } from "./pages/chat/ChatConversationPage";
 import Veo3 from "./pages/tools-ai/veo3/Veo3";
 import ToolDownload from "./pages/tools-ai/tooldownloan/ToolDownload";
+import VideoEditorPage from "./pages/tools-ai/video-editor/Videoeditor";
 
 type AppPage =
   | "home"
@@ -58,7 +59,9 @@ type AppPage =
   | "tool-detail"
   | "product-detail"
   | "blog"
+  | "video-courses"
   | "services"
+  | "becomeseller"
   | "profile"
   | "account"
   | "login"
@@ -97,7 +100,9 @@ const ALL_PAGES: ReadonlyArray<AppPage> = [
   "video-detail",
   "product-detail",
   "blog",
+  "video-courses",
   "services",
+  "becomeseller",
   "profile",
   "account",
   "login",
@@ -124,9 +129,10 @@ const STATIC_ROUTES: Record<string, AppPage> = {
   "/tools": "tools",
   "/all": "all",
   "/chat": "chat",
-  "/courses": "blog",
+  "/courses": "video-courses",
   "/blog": "blog",
   "/services": "services",
+  "/becomeseller": "becomeseller",
   "/profile": "profile",
   "/account": "account",
   "/login": "login",
@@ -281,9 +287,13 @@ function buildPathForPage(
     case "video-detail":
       return ctx?.videoId ? `/courses/${encodeURIComponent(String(ctx.videoId))}` : "/courses";
     case "blog":
+      return "/blog";
+    case "video-courses":
       return "/courses";
     case "services":
       return "/services";
+    case "becomeseller":
+      return "/becomeseller";
     case "profile":
       return "/profile";
     case "account":
@@ -532,11 +542,19 @@ export default function App() {
 
       case "tool-detail":
         if (!toolSlug) return <ToolsPage onOpenProductDetail={handleOpenProductDetail} />;
-        if (toolSlug === "toolveo3") return <Veo3 />;
-        if (toolSlug === "tooldownloan") return <ToolDownload />;
+        {
+          const normalizedTool = toolSlug.toLowerCase();
+          if (normalizedTool === "toolveo3") return <Veo3 />;
+          if (normalizedTool === "tooldownloan") return <ToolDownload />;
+          if (normalizedTool === "videoeditor" || normalizedTool === "video-editor")
+            return <VideoEditorPage />;
+        }
         return <ToolsPage onOpenProductDetail={handleOpenProductDetail} />;
 
       case "blog":
+        return <BlogPage />;
+
+      case "video-courses":
         return (
           <CoursesPage
             onNavigate={handleNavigate}
@@ -549,7 +567,7 @@ export default function App() {
           <VideoDetailPage
             slug={videoDetailSlug}
             onNavigate={handleNavigate}
-            onBack={() => handleNavigate("blog")}
+            onBack={() => handleNavigate("video-courses")}
             onOpenOrderDetail={handleOpenOrderDetail}
           />
         ) : (
@@ -561,6 +579,8 @@ export default function App() {
 
       case "services":
         return <ServicesPage onNavigate={handleNavigate} />;
+      case "becomeseller":
+        return <Becomeseller />;
 
       case "chat":
         return (
@@ -693,41 +713,18 @@ const showHeaderFooter =
               <Toaster position="top-right" richColors />
 
               {showHeaderFooter ? (
-                <>
-                  <Header
-                    onNavigate={handleNavigate}
-                    currentPage={activePage}
-                    sidebarOpen={sidebarOpen}
-                    setSidebarOpen={setSidebarOpen}
-                    mobileSidebarOpen={mobileSidebarOpen}
-                    setMobileSidebarOpen={setMobileSidebarOpen}
-                    cartCount={cartCount} // ✅ dynamic count
-                    onOpenChat={handleOpenChat}
-                  />
-
-                  <main id="main_container" className="flex flex-1 min-h-0">
-                    <div className="sidebar">
-                      <Sidebar
-                        isOpen={sidebarOpen}
-                        onNavigate={handleNavigate}
-                        isMobile={false}
-                      />
-                    </div>
-
-                    <Sidebar
-                      isOpen={mobileSidebarOpen}
-                      onNavigate={handleNavigate}
-                      onClose={() => setMobileSidebarOpen(false)}
-                      isMobile={true}
-                    />
-
-                    <div className="content_area flex-1 min-w-0">
-                      {renderPage()}
-                    </div>
-                  </main>
-
-                  <Footer />
-                </>
+                <MainLayout
+                  currentPage={activePage}
+                  onNavigate={handleNavigate}
+                  sidebarOpen={sidebarOpen}
+                  setSidebarOpen={setSidebarOpen}
+                  mobileSidebarOpen={mobileSidebarOpen}
+                  setMobileSidebarOpen={setMobileSidebarOpen}
+                  cartCount={cartCount}
+                  onOpenChat={handleOpenChat}
+                >
+                  {renderPage()}
+                </MainLayout>
               ) : (
                 <div className="flex-1">{renderPage()}</div>
               )}

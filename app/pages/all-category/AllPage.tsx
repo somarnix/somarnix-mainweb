@@ -4,6 +4,7 @@ import { CourseCard } from "../../components/CourseCard";
 import { useLanguage } from "../../contexts/LanguageContext";
 import { AllFilter } from "../../components/filters/AllFilter";
 import { Pagination } from "../../components/Pagination";
+import { Search } from "../../components/Search";
 
 /* ================= DB TYPE ================= */
 type DbProduct = {
@@ -20,7 +21,7 @@ type DbProduct = {
 };
 
 export function AllPage({ onOpenProductDetail }: { onOpenProductDetail: (slug: string) => void }) {
-  const { language } = useLanguage();
+  const { t } = useLanguage();
 
   const [products, setProducts] = useState<DbProduct[]>([]);
   const [loading, setLoading] = useState(true);
@@ -102,11 +103,11 @@ export function AllPage({ onOpenProductDetail }: { onOpenProductDetail: (slug: s
 
   /* ================= CONTENT TYPES ================= */
   const contentTypes = [
-    { id: "all", label: language === "km" ? "????" : "All" },
-    { id: "ai", label: "AI" },
-    { id: "program", label: language === "km" ? "????????" : "Programs" },
-    { id: "game", label: language === "km" ? "?????" : "Games" },
-    { id: "tools", label: language === "km" ? "??????" : "Tools" },
+    { id: "all", label: t("filters.all") },
+    { id: "ai", label: t("filters.ai") },
+    { id: "program", label: t("filters.programs") },
+    { id: "game", label: t("filters.games") },
+    { id: "tools", label: t("filters.tools") },
   ];
 
   /* ================= NAVIGATION ================= */
@@ -120,14 +121,10 @@ export function AllPage({ onOpenProductDetail }: { onOpenProductDetail: (slug: s
       <div className="bg-gradient-to-r from-blue-600 to-purple-600 text-white py-16">
         <div className="max-w-7xl mx-auto px-4">
           <h1 className="text-4xl md:text-5xl font-bold mb-4">
-            {language === "km"
-              ? "រុករកផលិតផលទាំងអស់"
-              : "Explore All Products"}
+            {t("all.title")}
           </h1>
           <p className="text-xl text-blue-100">
-            {language === "km"
-              ? "រកឃើញវគ្គសិក្សា កម្មវិធី ហ្គេម និងឧបករណ៍"
-              : "Discover courses, programs, games, and tools all in one place"}
+            {t("all.subtitle")}
           </p>
         </div>
       </div>
@@ -138,9 +135,6 @@ export function AllPage({ onOpenProductDetail }: { onOpenProductDetail: (slug: s
           {/* ================= FILTER SIDEBAR ================= */}
           <aside className="lg:col-span-1">
             <AllFilter
-              language={language}
-              searchTerm={searchTerm}
-              onSearchChange={setSearchTerm}
               contentTypes={contentTypes}
               selectedType={selectedType}
               onSelectType={setSelectedType}
@@ -155,20 +149,25 @@ export function AllPage({ onOpenProductDetail }: { onOpenProductDetail: (slug: s
               <div className="text-center text-gray-500">Loading...</div>
             ) : sortedItems.length > 0 ? (
               <>
-                <div className="mb-6">
-                  <h2 className="text-2xl font-bold">
+                <div className="mb-6 flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4">
+                  <div>
+                    <h2 className="text-2xl font-bold">
                     {selectedType === "all"
-                      ? language === "km"
-                        ? "ទាំងអស់"
-                        : "All Products"
+                      ? t("all.allProducts")
                       : contentTypes.find((type) => type.id === selectedType)?.label ??
                         selectedType}
                   </h2>
                   <p className="text-gray-600 mt-1">
-                    {sortedItems.length}{" "}
-                    {language === "km" ? "ផលិតផល" : "products"}{" "}
-                    {language === "km" ? "???" : "available"}
+                    {sortedItems.length} {t("all.products")} {t("all.available")}
                   </p>
+                  </div>
+                  <Search
+                    value={searchTerm}
+                    onChange={setSearchTerm}
+                    placeholder={t("search.slug")}
+                    className="w-full sm:w-64"
+                    inputClassName="rounded-lg shadow-sm focus:ring-blue-500"
+                  />
                 </div>
 
                 <div className="grid sm:grid-cols-2 lg:grid-cols-3 gap-6">
@@ -196,13 +195,13 @@ export function AllPage({ onOpenProductDetail }: { onOpenProductDetail: (slug: s
             ) : (
               <div className="text-center py-12">
                 <div className="inline-flex items-center justify-center w-16 h-16 rounded-full bg-gray-100 mb-4">
-                  <Filter className="w-8 h-8 text-gray-400" />
+                  <div className="w-8 h-8 rounded-full bg-gray-200" />
                 </div>
                 <h3 className="text-xl font-semibold mb-2">
-                  {language === "km" ? "????????????" : "No results"}
+                  {t("all.noResults")}
                 </h3>
                 <p className="text-gray-600">
-                  {language === "km" ? "?????????????????" : "Try adjusting your filters."}
+                  {t("all.noResultsDesc")}
                 </p>
               </div>
             )}

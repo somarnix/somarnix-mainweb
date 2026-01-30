@@ -1,12 +1,10 @@
 import { Filter } from "lucide-react";
+import { useLanguage } from "../../contexts/LanguageContext";
 
 type SortKey = "popular" | "price-low" | "price-high" | "rating";
 type ContentType = { id: "all" | "ai" | "program" | "game" | "tools"; label: string };
 
 type AllFilterProps = {
-  language: string;
-  searchTerm: string;
-  onSearchChange: (value: string) => void;
   contentTypes: ContentType[];
   selectedType: ContentType["id"];
   onSelectType: (value: ContentType["id"]) => void;
@@ -15,35 +13,25 @@ type AllFilterProps = {
 };
 
 export function AllFilter({
-  language,
-  searchTerm,
-  onSearchChange,
   contentTypes,
   selectedType,
   onSelectType,
   sortBy,
   onSortChange,
 }: AllFilterProps) {
+  const { t } = useLanguage();
   return (
     <div className="bg-white dark:bg-gray-800 rounded-2xl border border-gray-100 shadow-sm p-6 sticky top-24">
-      <div className="mb-6">
-        <div className="flex items-center gap-2 mb-4">
-          <Filter className="w-5 h-5" />
-          <h2 className="text-lg font-bold">
-            {language === "km" ? "?????" : "Filters"}
-          </h2>
-        </div>
-        <input
-          value={searchTerm}
-          onChange={(event) => onSearchChange(event.target.value)}
-          placeholder={language === "km" ? "???????" : "Search"}
-          className="w-full rounded-xl border border-gray-200 bg-gray-50 px-4 py-2 text-sm outline-none transition focus:border-blue-300 focus:ring-2 focus:ring-blue-100 dark:border-gray-700 dark:bg-gray-900"
-        />
+      <div className="flex items-center gap-2 mb-6">
+        <Filter className="w-5 h-5" />
+        <h2 className="text-lg font-bold">
+          {t("filters.title")}
+        </h2>
       </div>
 
       <div className="mb-6">
         <p className="text-xs font-semibold uppercase tracking-wide text-gray-500 mb-3">
-          {language === "km" ? "?????????" : "Categories"}
+          {t("filters.categories")}
         </p>
         <div className="space-y-2">
           {contentTypes.map((type) => (
@@ -64,13 +52,13 @@ export function AllFilter({
 
       <div>
         <p className="text-xs font-semibold uppercase tracking-wide text-gray-500 mb-3">
-          {language === "km" ? "?????????" : "Sort By"}
+          {t("filters.sortBy")}
         </p>
         {[
-          ["popular", language === "km" ? "???????" : "Most Popular"],
-          ["rating", language === "km" ? "???????????" : "Highest Rated"],
-          ["price-low", language === "km" ? "???????????????" : "Price: Low to High"],
-          ["price-high", language === "km" ? "???????????????" : "Price: High to Low"],
+          ["popular", t("filters.mostPopular")],
+          ["rating", t("filters.highestRated")],
+          ["price-low", t("filters.priceLowHigh")],
+          ["price-high", t("filters.priceHighLow")],
         ].map(([key, label]) => (
           <button
             key={key}

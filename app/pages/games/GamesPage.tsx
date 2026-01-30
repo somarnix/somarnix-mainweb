@@ -5,6 +5,7 @@ import { CourseCard } from "../../components/CourseCard";
 import { useLanguage } from "../../contexts/LanguageContext";
 import { SlugFilter } from "../../components/filters/SlugFilter";
 import { Pagination } from "../../components/Pagination";
+import { Search } from "../../components/Search";
 
 type DbGame = {
   id: number;
@@ -19,7 +20,7 @@ type DbGame = {
 };
 
 export function GamesPage({ onOpenProductDetail }: { onOpenProductDetail: (slug: string) => void }) {
-  const { language, t } = useLanguage();
+  const { t } = useLanguage();
 
   const [games, setGames] = useState<DbGame[]>([]);
   const [loading, setLoading] = useState(true);
@@ -123,13 +124,11 @@ export function GamesPage({ onOpenProductDetail }: { onOpenProductDetail: (slug:
           <div className="flex items-center gap-3 mb-4">
             <Gamepad2 className="w-12 h-12" />
             <h1 className="text-4xl md:text-5xl font-bold">
-              {language === "km" ? "ហ្គេម" : "Games & Entertainment"}
+              {t("games.title")}
             </h1>
           </div>
           <p className="text-xl text-purple-100">
-            {language === "km"
-              ? "រកឃើញហ្គេមសម្រាប់ការកំសាន្ត"
-              : "Discover amazing games for entertainment and fun"}
+            {t("games.subtitle")}
           </p>
         </div>
       </div>
@@ -141,7 +140,7 @@ export function GamesPage({ onOpenProductDetail }: { onOpenProductDetail: (slug:
           <aside className="lg:col-span-1">
             <SlugFilter
               filterTitle={t("courses.filters")}
-              slugLabel={language === "km" ? "??????" : "Slugs"}
+              slugLabel={t("filters.slugs")}
               sortLabel={t("courses.sortBy")}
               slugs={[allLabel, ...visibleSlugs]}
               selectedSlug={selectedSlug}
@@ -172,15 +171,16 @@ export function GamesPage({ onOpenProductDetail }: { onOpenProductDetail: (slug:
                       {selectedSlug}
                     </h2>
                     <p className="text-gray-600 mt-1">
-                      {sortedGames.length} {language === "km" ? "?????" : "games"} {t("courses.available")}
+                      {sortedGames.length} {t("labels.games")} {t("common.available")}
                     </p>
                   </div>
                   <div className="flex flex-col sm:flex-row gap-3 w-full sm:w-auto">
-                    <input
+                    <Search
                       value={slugQuery}
-                      onChange={(event) => setSlugQuery(event.target.value)}
-                      placeholder="Search slug..."
-                      className="w-full sm:w-64 rounded-lg border border-gray-200 bg-white px-3 py-2 text-sm text-gray-700 shadow-sm focus:outline-none focus:ring-2 focus:ring-purple-500 dark:bg-gray-900 dark:border-gray-700 dark:text-gray-100"
+                      onChange={setSlugQuery}
+                      placeholder={t("search.slug")}
+                      className="w-full sm:w-64"
+                      inputClassName="rounded-lg shadow-sm focus:ring-purple-500"
                     />
                     {selectedSlug !== allLabel && (
                       <button

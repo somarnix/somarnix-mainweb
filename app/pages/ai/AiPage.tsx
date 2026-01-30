@@ -6,6 +6,8 @@ import { Button } from "../../components/ui/button";
 import { Badge } from "../../components/ui/badge";
 import { useLanguage } from "../../contexts/LanguageContext";
 import { SlugFilter } from "../../components/filters/SlugFilter";
+import { Pagination } from "../../components/Pagination";
+import { Search } from "../../components/Search";
 
 type DbCourse = {
   id: number;
@@ -33,6 +35,8 @@ export function AiPage({ onOpenProductDetail }: { onOpenProductDetail: (slug: st
   const [sortBy, setSortBy] = useState<
     "popular" | "price-low" | "price-high" | "rating"
   >("popular");
+  const [currentPage, setCurrentPage] = useState(1);
+  const [itemsPerPage, setItemsPerPage] = useState(6);
 
   /* ================= FETCH FROM DB ================= */
   useEffect(() => {
@@ -49,6 +53,15 @@ export function AiPage({ onOpenProductDetail }: { onOpenProductDetail: (slug: st
     updateLimit();
     window.addEventListener("resize", updateLimit);
     return () => window.removeEventListener("resize", updateLimit);
+  }, []);
+
+  useEffect(() => {
+    const updateItemsPerPage = () => {
+      setItemsPerPage(window.innerWidth < 768 ? 3 : 6);
+    };
+    updateItemsPerPage();
+    window.addEventListener("resize", updateItemsPerPage);
+    return () => window.removeEventListener("resize", updateItemsPerPage);
   }, []);
 
   /* ================= FILTER ================= */
@@ -77,6 +90,16 @@ export function AiPage({ onOpenProductDetail }: { onOpenProductDetail: (slug: st
         return b.students - a.students;
     }
   });
+
+  useEffect(() => {
+    setCurrentPage(1);
+  }, [selectedSlug, sortBy, slugQuery]);
+
+  const totalPages = Math.max(1, Math.ceil(sortedCourses.length / itemsPerPage));
+  const pagedCourses = sortedCourses.slice(
+    (currentPage - 1) * itemsPerPage,
+    currentPage * itemsPerPage
+  );
 
   /* ================= CATEGORIES ================= */
   const allSlugs = Array.from(new Set(courses.map((c) => c.slug))).sort(
@@ -154,11 +177,12 @@ export function AiPage({ onOpenProductDetail }: { onOpenProductDetail: (slug: st
                   </div>
 
                   <div className="flex flex-col sm:flex-row gap-3 w-full sm:w-auto">
-                    <input
+                    <Search
                       value={slugQuery}
-                      onChange={(event) => setSlugQuery(event.target.value)}
-                      placeholder="Search slug..."
-                      className="w-full sm:w-64 rounded-lg border border-gray-200 bg-white px-3 py-2 text-sm text-gray-700 shadow-sm focus:outline-none focus:ring-2 focus:ring-blue-500 dark:bg-gray-900 dark:border-gray-700 dark:text-gray-100"
+                      onChange={setSlugQuery}
+                      placeholder={t("search.slug")}
+                      className="w-full sm:w-64"
+                      inputClassName="rounded-lg shadow-sm focus:ring-blue-500"
                     />
                     {selectedSlug !== allLabel && (
                       <Badge
@@ -176,7 +200,7 @@ export function AiPage({ onOpenProductDetail }: { onOpenProductDetail: (slug: st
                 {/* Grid */}
                 {sortedCourses.length > 0 ? (
                   <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-6">
-                    {sortedCourses.map((c) => (
+                    {pagedCourses.map((c) => (
                       <CourseCard
                         key={c.id}
                         id={c.id}
@@ -209,6 +233,12 @@ export function AiPage({ onOpenProductDetail }: { onOpenProductDetail: (slug: st
                     </Button>
                   </div>
                 )}
+                <Pagination
+                  currentPage={currentPage}
+                  totalPages={totalPages}
+                  onPageChange={setCurrentPage}
+                  className="mt-6"
+                />
               </>
             )}
           </main>
