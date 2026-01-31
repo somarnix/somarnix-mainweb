@@ -45,6 +45,8 @@ import { ChatConversationPage } from "./pages/chat/ChatConversationPage";
 import Veo3 from "./pages/tools-ai/veo3/Veo3";
 import ToolDownload from "./pages/tools-ai/tooldownloan/ToolDownload";
 import VideoEditorPage from "./pages/tools-ai/video-editor/Videoeditor";
+import TranslateVideoAI from "./pages/tools-ai/translatevideo/TranslateVideoAI";
+import PromtAi from "./pages/tools-ai/promt-ai/PromtAi";
 
 type AppPage =
   | "home"
@@ -548,6 +550,10 @@ export default function App() {
           if (normalizedTool === "tooldownloan") return <ToolDownload />;
           if (normalizedTool === "videoeditor" || normalizedTool === "video-editor")
             return <VideoEditorPage />;
+          if (normalizedTool === "translatevideo-ai" || normalizedTool === "translatevideo")
+            return <TranslateVideoAI />;
+          if (normalizedTool === "prompt-ai" || normalizedTool === "promt-ai")
+            return <PromtAi />;
         }
         return <ToolsPage onOpenProductDetail={handleOpenProductDetail} />;
 
