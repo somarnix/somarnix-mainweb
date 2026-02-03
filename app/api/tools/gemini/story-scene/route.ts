@@ -1,0 +1,113 @@
+import { NextResponse } from "next/server";
+
+const GEMINI_MODEL_MAP: Record<string, string> = {
+  "flash-lite": "gemini-2.5-flash-lite",
+  flash: "gemini-2.5-flash",
+};
+
+const GROQ_MODEL_MAP: Record<string, string> = {
+  instant: "llama-3.1-8b-instant",
+  versatile: "llama-3.1-70b-versatile",
+  mixtral: "mixtral-8x7b-32768",
+};
+
+export async function POST(req: Request) {
+  const groqKey = process.env.GROQ_API_KEY;
+  const geminiKey = process.env.GOOGLE_API_KEY || process.env.GEMINI_API_KEY;
+  if (!groqKey && !geminiKey) {
+    return NextResponse.json(
+      { error: "Missing GROQ_API_KEY (or GOOGLE_API_KEY for Gemini fallback)." },
+      { status: 500 }
+    );
+  }
+
+  const body = await req.json().catch(() => null);
+  if (!body) {
+    return NextResponse.json({ error: "Invalid request" }, { status: 400 });
+  }
+
+  const prompt = String(body.prompt || "").trim();
+  const modelKey = String(body.model || "instant");
+  const groqModel = GROQ_MODEL_MAP[modelKey] || GROQ_MODEL_MAP.instant;
+  const geminiModel = GEMINI_MODEL_MAP[modelKey] || GEMINI_MODEL_MAP.flash;
+  const sceneCount = Math.min(20, Math.max(3, Number(body.sceneCount || 10)));
+
+  if (!prompt) {
+    return NextResponse.json({ error: "Prompt is required" }, { status: 400 });
+  }
+
+  const system = [
+    "You are a story-to-scenes generator.",
+    "Return STRICT JSON only.",
+    "Schema: { \"character_sheet\": [ { \"name\": string, \"details\": string } ], \"scenes\": [ { \"title\": string, \"summary\": string, \"visual\": string, \"actions\": string, \"camera\": string, \"audio\": string } ] }",
+    `Generate exactly ${sceneCount} scenes in order from beginning to end.`,
+    "If output would be too long, make each scene concise but keep all required fields.",
+    "Maintain locked characters and keep their traits consistent across all scenes.",
+    "Do NOT invent new characters.",
+    "Do NOT use labels like Character 1/2/3 in the output. Refer to characters by their names or roles only.",
+    "No markdown, no extra text.",
+  ].join(" ");
+
+  if (groqKey) {
+    const res = await fetch("https://api.groq.com/openai/v1/chat/completions", {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+        Authorization: `Bearer ${groqKey}`,
+      },
+      body: JSON.stringify({
+        model: groqModel,
+        temperature: 0.7,
+        max_tokens: 4096,
+        messages: [
+          { role: "system", content: system },
+          { role: "user", content: prompt },
+        ],
+      }),
+    });
+
+    const data = await res.json().catch(() => null);
+    if (!res.ok) {
+      return NextResponse.json(
+        { error: data?.error?.message || "Groq story-to-scene generation failed" },
+        { status: 500 }
+      );
+    }
+
+    const text = String(data?.choices?.[0]?.message?.content || "");
+    return NextResponse.json({ text });
+  }
+
+  const payload = {
+    contents: [
+      {
+        parts: [{ text: system }, { text: prompt }],
+      },
+    ],
+  };
+
+  const res = await fetch(
+    `https://generativelanguage.googleapis.com/v1beta/models/${geminiModel}:generateContent`,
+    {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+        "x-goog-api-key": geminiKey,
+      },
+      body: JSON.stringify(payload),
+    }
+  );
+
+  const data = await res.json().catch(() => null);
+  if (!res.ok) {
+    return NextResponse.json(
+      { error: data?.error?.message || "Gemini story-to-scene generation failed" },
+      { status: 500 }
+    );
+  }
+
+  const parts = data?.candidates?.[0]?.content?.parts || [];
+  const text = parts.map((p: { text?: string }) => p.text).filter(Boolean).join("\n");
+
+  return NextResponse.json({ text });
+}
