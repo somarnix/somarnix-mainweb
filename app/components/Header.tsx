@@ -1,6 +1,6 @@
 // app\components\Header.tsx
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
-import { ShoppingCart, Menu, X, User, Globe, Moon, Sun, LogOut, Settings, BookOpen, Wallet, DollarSign, Package, FileText, Layers, ChevronRight, Facebook, Youtube, Send, MessageCircle, Loader2, Smile, SmilePlus, Sticker, Pin, ArrowLeft, MoreVertical, Edit3, Trash2, Check } from 'lucide-react';
+import { ShoppingCart, Menu, X, User, Globe, Moon, Sun, LogOut, Settings, BookOpen, Wallet, DollarSign, Package, FileText, Layers, ChevronRight, Facebook, Youtube, Send, MessageCircle, Loader2, Smile, SmilePlus, Sticker, Pin, ArrowLeft, MoreVertical, Edit3, Trash2, Check, Bell } from 'lucide-react';
 import { Button } from './ui/button';
 import { useLanguage } from '../contexts/LanguageContext';
 import { useTheme } from '../contexts/ThemeContext';
@@ -90,6 +90,12 @@ type StickerPack = {
   stickers: string[];
 };
 
+type HeaderNotificationOrder = {
+  id: number;
+  order_number: string;
+  product_title: string | null;
+};
+
 interface HeaderProps {
   onNavigate: (page: string) => void;
   currentPage: string;
@@ -113,6 +119,15 @@ export function Header({
 }: HeaderProps) {
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
   const [accountPopupOpen, setAccountPopupOpen] = useState(false);
+  const [notificationOpen, setNotificationOpen] = useState(false);
+  const [notificationLoading, setNotificationLoading] = useState(false);
+  const [purchaseNotifications, setPurchaseNotifications] = useState<
+    HeaderNotificationOrder[]
+  >([]);
+  const [soldNotifications, setSoldNotifications] = useState<
+    HeaderNotificationOrder[]
+  >([]);
+  const [notificationError, setNotificationError] = useState<string | null>(null);
   const { language, setLanguage, t } = useLanguage();
   const { theme, toggleTheme } = useTheme();
   const { user, isAuthenticated, logout } = useAuth();
@@ -148,6 +163,7 @@ export function Header({
   }>({ name: "United States", code: "US", flag: "🇺🇸", dial: "+1" });
   const chatWidgetRef = useRef<HTMLDivElement | null>(null);
   const chatWidgetMessagesRef = useRef<HTMLDivElement | null>(null);
+  const notificationRef = useRef<HTMLDivElement | null>(null);
   const chatWidgetPinnedMessages = useMemo(
     () => chatWidgetMessages.filter((msg) => msg.isPinned && !msg.deletedAt),
     [chatWidgetMessages]
@@ -434,6 +450,59 @@ const mapSummary = (raw: any): HeaderChatSummary => {
       return next;
     });
   };
+
+  const handleToggleNotifications = () => {
+    setNotificationOpen((prev) => !prev);
+  };
+
+  useEffect(() => {
+    if (!notificationOpen) return;
+    let active = true;
+    const loadNotifications = async () => {
+      setNotificationLoading(true);
+      setNotificationError(null);
+      try {
+        const res = await fetch("/api/notifications/orders", {
+          cache: "no-store",
+          credentials: "include",
+        });
+        const data = await res.json().catch(() => ({}));
+        if (!res.ok) {
+          throw new Error(
+            typeof data?.error === "string" ? data.error : "Failed to load"
+          );
+        }
+        if (!active) return;
+        setPurchaseNotifications(
+          Array.isArray(data.purchaseOrders) ? data.purchaseOrders : []
+        );
+        setSoldNotifications(Array.isArray(data.soldOrders) ? data.soldOrders : []);
+      } catch (err) {
+        if (!active) return;
+        setNotificationError(err instanceof Error ? err.message : "Failed to load");
+        setPurchaseNotifications([]);
+        setSoldNotifications([]);
+      } finally {
+        if (active) setNotificationLoading(false);
+      }
+    };
+    loadNotifications();
+    return () => {
+      active = false;
+    };
+  }, [notificationOpen]);
+
+  useEffect(() => {
+    if (!notificationOpen) return;
+    const onDocClick = (event: MouseEvent) => {
+      const target = event.target as Node;
+      if (notificationRef.current && !notificationRef.current.contains(target)) {
+        setNotificationOpen(false);
+      }
+    };
+    document.addEventListener("mousedown", onDocClick);
+    return () => document.removeEventListener("mousedown", onDocClick);
+  }, [notificationOpen]);
 
   const handleSelectWidgetConversation = (conversation: HeaderChatSummary) => {
     setChatWidgetActive(conversation);
@@ -1001,6 +1070,124 @@ const mapSummary = (raw: any): HeaderChatSummary => {
                 {t("header.becomeSeller")}
               </button>
             </div>
+
+          {/* Notification */}
+          <div className="relative" ref={notificationRef}>
+            <button
+              onClick={handleToggleNotifications}
+              className="relative p-2 text-gray-700 dark:text-gray-300 hover:text-blue-600 dark:hover:text-blue-400 transition-colors"
+              title="Notifications"
+            >
+              <Bell className="w-5 h-5" />
+              <span className="absolute top-1 right-1 block w-2 h-2 rounded-full bg-green-500" />
+            </button>
+
+            {notificationOpen && (
+              <div className="absolute right-0 mt-3 w-80 rounded-2xl border border-gray-100 dark:border-gray-700 bg-white dark:bg-gray-900 shadow-2xl overflow-hidden z-40">
+                <div className="px-4 py-3 border-b border-gray-100 dark:border-gray-800 text-sm text-gray-500 dark:text-gray-400">
+                  No order cancellation
+                </div>
+
+                <div className="bg-gray-50 dark:bg-gray-800/50 px-4 py-2 text-[11px] font-semibold tracking-[0.12em] text-gray-500 dark:text-gray-400 flex items-center justify-between">
+                  <span>Purchase Orders</span>
+                  <button
+                    onClick={() => {
+                      setNotificationOpen(false);
+                      onNavigate("orders");
+                    }}
+                    className="text-red-500 hover:text-red-600 flex items-center gap-1"
+                  >
+                    View all
+                    <ChevronRight className="w-3 h-3" />
+                  </button>
+                </div>
+
+                <div className="divide-y divide-gray-100 dark:divide-gray-800">
+                  {notificationLoading ? (
+                    <div className="px-4 py-4 text-sm text-gray-500">
+                      Loading...
+                    </div>
+                  ) : notificationError ? (
+                    <div className="px-4 py-4 text-sm text-red-500">
+                      {notificationError}
+                    </div>
+                  ) : purchaseNotifications.length === 0 ? (
+                    <div className="px-4 py-4 text-sm text-gray-500">
+                      No purchase orders
+                    </div>
+                  ) : (
+                    purchaseNotifications.map((item) => (
+                      <div
+                        key={item.order_number}
+                        className="flex items-start gap-3 px-4 py-3"
+                      >
+                        <div className="mt-1 h-9 w-9 rounded-full bg-gray-100 dark:bg-gray-800 flex items-center justify-center text-gray-400">
+                          <ShoppingCart className="w-4 h-4" />
+                        </div>
+                        <div className="min-w-0">
+                          <div className="text-sm font-semibold text-gray-900 dark:text-white truncate">
+                            {item.product_title || "Order item"}
+                          </div>
+                          <div className="text-xs text-gray-500">
+                            #{item.order_number}
+                          </div>
+                        </div>
+                      </div>
+                    ))
+                  )}
+                </div>
+
+                <div className="bg-gray-50 dark:bg-gray-800/50 px-4 py-2 text-[11px] font-semibold tracking-[0.12em] text-gray-500 dark:text-gray-400 flex items-center justify-between">
+                  <span>Sold Orders</span>
+                  <button
+                    onClick={() => {
+                      setNotificationOpen(false);
+                      onNavigate("orders");
+                    }}
+                    className="text-red-500 hover:text-red-600 flex items-center gap-1"
+                  >
+                    View all
+                    <ChevronRight className="w-3 h-3" />
+                  </button>
+                </div>
+
+                <div className="divide-y divide-gray-100 dark:divide-gray-800">
+                  {notificationLoading ? (
+                    <div className="px-4 py-4 text-sm text-gray-500">
+                      Loading...
+                    </div>
+                  ) : notificationError ? (
+                    <div className="px-4 py-4 text-sm text-red-500">
+                      {notificationError}
+                    </div>
+                  ) : soldNotifications.length === 0 ? (
+                    <div className="px-4 py-4 text-center text-sm text-gray-500 dark:text-gray-400">
+                      No new sold orders
+                    </div>
+                  ) : (
+                    soldNotifications.map((item) => (
+                      <div
+                        key={item.order_number}
+                        className="flex items-start gap-3 px-4 py-3"
+                      >
+                        <div className="mt-1 h-9 w-9 rounded-full bg-gray-100 dark:bg-gray-800 flex items-center justify-center text-gray-400">
+                          <Package className="w-4 h-4" />
+                        </div>
+                        <div className="min-w-0">
+                          <div className="text-sm font-semibold text-gray-900 dark:text-white truncate">
+                            {item.product_title || "Order item"}
+                          </div>
+                          <div className="text-xs text-gray-500">
+                            #{item.order_number}
+                          </div>
+                        </div>
+                      </div>
+                    ))
+                  )}
+                </div>
+              </div>
+            )}
+          </div>
 
           {/* Chat */}
           <div className="relative">

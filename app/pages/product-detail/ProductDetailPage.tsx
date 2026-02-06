@@ -10,6 +10,8 @@ import {
   RotateCcw,
   ShieldCheck,
   CheckCircle2,
+  AlertTriangle,
+  Bell,
 } from "lucide-react";
 
 import { Button } from "@/app/components/ui/button";
@@ -413,6 +415,18 @@ export default function ProductDetailPage({
       : "Out of stock"
     : "In stock";
 
+  const stockPill = isOutOfStock ? (
+    <div className="inline-flex items-center gap-2 rounded-full border border-red-200/70 bg-red-50 px-3 py-1 text-xs font-semibold text-red-700 dark:border-red-500/40 dark:bg-red-500/10 dark:text-red-200">
+      <AlertTriangle className="h-3.5 w-3.5" />
+      Out of stock
+    </div>
+  ) : (
+    <div className="inline-flex items-center gap-2 rounded-full border border-emerald-200/70 bg-emerald-50 px-3 py-1 text-xs font-semibold text-emerald-700 dark:border-emerald-400/40 dark:bg-emerald-500/10 dark:text-emerald-200">
+      <CheckCircle2 className="h-3.5 w-3.5" />
+      {stockText}
+    </div>
+  );
+
   const featureList: string[] = [
     ...(product.level ? [`Level: ${product.level}`] : []),
     "Instant access after payment",
@@ -551,9 +565,16 @@ export default function ProductDetailPage({
                 <img
                   src={imageSrc}
                   alt={product.title || "Product image"}
-                  className="w-full h-full object-cover"
+                  className={`h-full w-full object-cover transition ${
+                    isOutOfStock ? "grayscale-[0.35] opacity-90" : ""
+                  }`}
                   loading="lazy"
                 />
+                {isOutOfStock && (
+                  <div className="absolute left-4 top-4 rounded-full border border-red-200/70 bg-red-50 px-3 py-1 text-xs font-semibold text-red-700 shadow-sm dark:border-red-500/40 dark:bg-red-500/10 dark:text-red-200">
+                    Out of stock
+                  </div>
+                )}
               </div>
 
               {product.description && (
@@ -622,11 +643,46 @@ export default function ProductDetailPage({
                   {product.buyers_count ?? 0} buyers
                 </div>
 
-                <div className="text-gray-600 dark:text-gray-300">{stockText}</div>
+                {stockPill}
               </div>
             </div>
 
             <div className="lg:sticky lg:top-24 rounded-2xl border bg-white dark:bg-gray-900 shadow-sm p-6">
+              {isOutOfStock && (
+                <div className="mb-4 rounded-xl border border-red-200/70 bg-red-50 p-4 text-sm text-red-700 dark:border-red-500/40 dark:bg-red-500/10 dark:text-red-200">
+                  <div className="flex items-start gap-3">
+                    <AlertTriangle className="mt-0.5 h-5 w-5" />
+                    <div className="space-y-2">
+                      <div className="font-semibold">Currently out of stock</div>
+                      <div className="text-xs text-red-700/80 dark:text-red-200/80">
+                        We’re restocking soon. Check back or get notified when it’s
+                        available.
+                      </div>
+                      <div className="flex flex-wrap gap-2">
+                        <button
+                          type="button"
+                          onClick={() => toast.success("We’ll notify you when it’s back.")}
+                          className="inline-flex items-center gap-2 rounded-lg border border-red-300/60 bg-white/80 px-3 py-1.5 text-xs font-semibold text-red-700 shadow-sm hover:bg-white dark:border-red-400/40 dark:bg-transparent dark:text-red-200"
+                        >
+                          <Bell className="h-3.5 w-3.5" />
+                          Notify me
+                        </button>
+                        <button
+                          type="button"
+                          onClick={() =>
+                            document
+                              .getElementById("related-products")
+                              ?.scrollIntoView({ behavior: "smooth" })
+                          }
+                          className="rounded-lg border border-red-300/40 px-3 py-1.5 text-xs text-red-600/90 hover:border-red-300/80 dark:border-red-400/30 dark:text-red-200/80"
+                        >
+                          View similar
+                        </button>
+                      </div>
+                    </div>
+                  </div>
+                </div>
+              )}
               <div className="flex items-baseline gap-3 mb-4">
                 <div className="text-3xl font-extrabold text-gray-900 dark:text-white">
                   {mainPrice ? formatPrice(mainPrice) : t("course.free") || "Free"}
@@ -975,7 +1031,7 @@ export default function ProductDetailPage({
         </div>
 
         {/* RELATED PRODUCTS (FULL WIDTH) */}
-        <div className="mt-10">
+        <div id="related-products" className="mt-10">
           <div className="flex items-center justify-between gap-3 mb-4">
             <h2 className="text-2xl font-bold">Related Products</h2>
             {relatedLoading && (

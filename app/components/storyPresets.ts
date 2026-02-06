@@ -1,3 +1,4 @@
+// gstechedukh\app\components\storyPresets.ts
 export type StoryPreset =
   | "animation"
   | "person"

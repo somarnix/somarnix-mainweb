@@ -16,6 +16,8 @@ type DbTool = {
   min_price: number | null;
   min_original_price: number | null;
   category: string;
+  stock_qty: number | null;
+  is_unlimited_stock: 0 | 1 | null;
   students: number;
   rating: number;
 };
@@ -77,6 +79,15 @@ export function ToolsPage({ onOpenProductDetail }: { onOpenProductDetail: (slug:
 
   /* ================= SORT ================= */
   const sortedTools = [...searchedTools].sort((a, b) => {
+    const aOut =
+      !a.is_unlimited_stock && typeof a.stock_qty === "number"
+        ? a.stock_qty <= 0
+        : false;
+    const bOut =
+      !b.is_unlimited_stock && typeof b.stock_qty === "number"
+        ? b.stock_qty <= 0
+        : false;
+    if (aOut !== bOut) return aOut ? 1 : -1;
     switch (sortBy) {
       case "price-low":
         return (a.min_price ?? 0) - (b.min_price ?? 0);
@@ -203,6 +214,8 @@ export function ToolsPage({ onOpenProductDetail }: { onOpenProductDetail: (slug:
                       price={tool.min_price}
                       originalPrice={tool.min_original_price}
                       category={tool.category}
+                      stockQty={tool.stock_qty}
+                      isUnlimitedStock={tool.is_unlimited_stock}
                       onViewDetails={handleViewDetails}
                       id={tool.id}
                     />

@@ -22,6 +22,12 @@ import {
   parseSingleCharacter,
   parseSingleObject,
 } from "@/app/components/promt/promptUtils";
+import PresetSelector from "@/app/pages/tools-ai/promt-ai/components/PresetSelector";
+import PromptInput from "@/app/pages/tools-ai/promt-ai/components/PromptInput";
+import SummaryEditor from "@/app/pages/tools-ai/promt-ai/components/SummaryEditor";
+import AssetEditor from "@/app/pages/tools-ai/promt-ai/components/AssetEditor";
+import HelpAnimalPanel from "@/app/pages/tools-ai/promt-ai/components/HelpAnimalPanel";
+import IdeaResults from "@/app/pages/tools-ai/promt-ai/components/IdeaResults";
 
 
 export default function TextToStoryPage() {
@@ -39,6 +45,8 @@ export default function TextToStoryPage() {
   const [storyLocationsDraft, setStoryLocationsDraft] = useState<LocationDraft[]>([]);
   const [storyHazardsDraft, setStoryHazardsDraft] = useState<HazardDraft[]>([]);
   const [storyScenesDraft, setStoryScenesDraft] = useState<{ title: string; summary: string }[]>([]);
+  const [scenePage, setScenePage] = useState(1);
+  const scenesPerPage = 10;
   const [storyParsedOnce, setStoryParsedOnce] = useState(false);
   const [storyCopyStatus, setStoryCopyStatus] = useState("");
   const [storyEditIndex, setStoryEditIndex] = useState<number | null>(null);
@@ -49,7 +57,11 @@ export default function TextToStoryPage() {
   const [helpIdeas, setHelpIdeas] = useState<HelpAnimalIdea[]>([]);
   const [helpSelectedIndex, setHelpSelectedIndex] = useState<number | null>(null);
   const [helpSceneCount, setHelpSceneCount] = useState(40);
+  const [helpPart1SceneCount, setHelpPart1SceneCount] = useState(40);
   const [helpAutoDesign, setHelpAutoDesign] = useState("");
+  const [helpAutoDesignBase, setHelpAutoDesignBase] = useState("");
+  const [helpAutoDesignScenes, setHelpAutoDesignScenes] = useState<string[]>([]);
+  const helpAutoDesignBatchSize = 15;
   const [helpLockAssetsOnly, setHelpLockAssetsOnly] = useState(false);
   const [helpAutoAddNewAssets, setHelpAutoAddNewAssets] = useState(false);
 
@@ -230,57 +242,27 @@ export default function TextToStoryPage() {
       return { title, detail };
     });
   };
-
+  
   const normalizeHelpAnimalCharacters = (chars: CharacterDraft[]) => {
+    // Helper to clean up "upunknown" artifacts from parsing
     const cleanValue = (value?: string) =>
       value ? value.replace(/\bupunknown\b/gi, "unknown").trim() : "";
-    const namePools: Record<string, string[]> = {
-      cat: ["Felix", "Luna", "Milo", "Nala", "Whiskers", "Willow"],
-      dog: ["Buddy", "Max", "Daisy", "Scout", "Ruby", "Rocky"],
-      rabbit: ["Clover", "Pip", "Hazel", "Snow"],
-      fox: ["Rusty", "Sable", "Ember"],
-      bear: ["Bruno", "Maple", "Otto"],
-      wolf: ["Shadow", "Ash", "Raven"],
-      bird: ["Skye", "Ava", "Piper"],
-      deer: ["Willow", "Fawn", "Maple"],
-      otter: ["River", "Otis", "Mara"],
-      beaver: ["Timber", "Nora", "Chip"],
-      mouse: ["Pip", "Moss", "Bean"],
-    };
-    const speciesOrder = Object.keys(namePools);
-    const usedNames = new Set<string>();
-    const getSpecies = (role: string, appearance: string) => {
-      const text = `${role} ${appearance}`.toLowerCase();
-      if (text.includes("cat")) return "cat";
-      if (text.includes("dog")) return "dog";
-      if (text.includes("rabbit")) return "rabbit";
-      if (text.includes("fox")) return "fox";
-      if (text.includes("bear")) return "bear";
-      if (text.includes("wolf")) return "wolf";
-      if (text.includes("bird")) return "bird";
-      if (text.includes("deer")) return "deer";
-      if (text.includes("otter")) return "otter";
-      if (text.includes("beaver")) return "beaver";
-      if (text.includes("mouse") || text.includes("mice")) return "mouse";
-      return "";
-    };
-    const pickName = (species: string, fallbackIndex: number) => {
-      const pool = namePools[species] || ["Willow", "Felix", "Luna", "Milo"];
-      for (let i = 0; i < pool.length; i += 1) {
-        const candidate = pool[i];
-        if (!usedNames.has(candidate)) {
-          usedNames.add(candidate);
-          return candidate;
-        }
-      }
-      const fallback = pool[fallbackIndex % pool.length];
-      usedNames.add(fallback);
-      return fallback;
-    };
+
     return chars.map((char, idx) => {
-      const cleaned = {
+      // 1. Get the name the USER typed
+      let rawName = cleanValue(char.name);
+
+      // 2. If name is missing, empty, or literally "unknown", default to generic "Character X"
+      // This prevents the code from injecting "Lyly", "Luna", or "Bob".
+      if (!rawName || rawName.toLowerCase() === "unknown" || rawName.toLowerCase().startsWith("character")) {
+        rawName = `Character ${idx + 1}`; 
+      }
+
+      // 3. Keep exactly what the user typed for everything else.
+      // We do NOT guess species or roles anymore.
+      return {
         ...char,
-        name: cleanValue(char.name),
+        name: rawName, 
         appearance: cleanValue(char.appearance),
         age: cleanValue(char.age),
         gender: cleanValue(char.gender),
@@ -290,35 +272,6 @@ export default function TextToStoryPage() {
         accessories: cleanValue(char.accessories),
         expression: cleanValue(char.expression),
         colors: cleanValue(char.colors),
-      };
-      const nameLower = cleaned.name.toLowerCase();
-      const isGenericName =
-        !nameLower || /^character\s*\d+$/i.test(nameLower) || nameLower === "unknown";
-      const species = getSpecies(cleaned.role || "", cleaned.appearance || "");
-      const inferredRole =
-        cleaned.role && cleaned.role.toLowerCase() !== "unknown"
-          ? cleaned.role
-          : species
-          ? species
-          : cleaned.role;
-      const ageLower = cleaned.age?.toLowerCase() || "";
-      const appearanceLower = cleaned.appearance?.toLowerCase() || "";
-      const inferredAge =
-        ageLower && ageLower !== "unknown"
-          ? cleaned.age
-          : /kitten|puppy|cub|baby|child|small/.test(appearanceLower)
-          ? "child"
-          : /adult/.test(appearanceLower)
-          ? "adult"
-          : cleaned.age;
-      const nextName = isGenericName
-        ? pickName(species || speciesOrder[idx % speciesOrder.length], idx)
-        : cleaned.name;
-      return {
-        ...cleaned,
-        name: nextName,
-        role: inferredRole || "",
-        age: inferredAge || "",
       };
     });
   };
@@ -506,11 +459,13 @@ export default function TextToStoryPage() {
       ...prev,
       { title: `Scene ${prev.length + 1}`, summary: "" },
     ]);
+    setScenePage(1);
   };
 
   // Remove a scene from the list
   const handleRemoveStoryScene = (index: number) => {
     setStoryScenesDraft((prev) => prev.filter((_, idx) => idx !== index));
+    setScenePage((prev) => Math.max(1, prev));
   };
 
   // Handle changes to scene fields
@@ -538,6 +493,223 @@ export default function TextToStoryPage() {
     } finally {
       window.setTimeout(() => setStoryCopyStatus(""), 2000);
     }
+  };
+
+  const buildStoryResults = async () => {
+    setStoryError("");
+    setStoryResults([]);
+
+    if (!storyIdeaDraft.trim()) {
+      setStoryError("Please enter a story idea before generating.");
+      return;
+    }
+
+    const characterLines = storyCharactersDraft
+      .map((char, idx) => {
+        const bits = [
+          `Character ${idx + 1}: ${char.name || "Unknown"}`,
+          char.appearance ? `Appearance: ${char.appearance}` : "",
+          char.role ? `Role: ${char.role}` : "",
+          char.gender ? `Gender: ${char.gender}` : "",
+          char.age ? `Age: ${char.age}` : "",
+          char.typegender ? `TypeGender: ${char.typegender}` : "",
+          char.size ? `Size: ${char.size}` : "",
+          char.outfit ? `Outfit: ${char.outfit}` : "",
+          char.accessories ? `Accessories: ${char.accessories}` : "",
+          char.expression ? `Expression: ${char.expression}` : "",
+          char.colors ? `Colors: ${char.colors}` : "",
+        ].filter(Boolean);
+        return bits.join(" | ");
+      })
+      .join("\n");
+
+    const objectLines = storyObjectsDraft
+      .map((obj, idx) => {
+        const bits = [
+          `Object ${idx + 1}: ${obj.name || "Unknown"}`,
+          obj.details || "",
+        ].filter(Boolean);
+        return bits.join(" | ");
+      })
+      .join("\n");
+
+    const locationLines = storyLocationsDraft
+      .map((loc, idx) => {
+        const bits = [
+          `Location ${idx + 1}: ${loc.name || "Unknown"}`,
+          loc.details || "",
+        ].filter(Boolean);
+        return bits.join(" | ");
+      })
+      .join("\n");
+
+    const hazardLines = storyHazardsDraft
+      .map((haz, idx) => {
+        const bits = [
+          `Hazard ${idx + 1}: ${haz.name || "Unknown"}`,
+          haz.details || "",
+        ].filter(Boolean);
+        return bits.join(" | ");
+      })
+      .join("\n");
+
+    setStoryLoading(true);
+    try {
+      if (storySelected === "help-animal") {
+        const basePrompt = buildHelpAnimalIdeaPrompt(
+          storySummaryDraft.trim(),
+          characterLines,
+          objectLines,
+          storyIdeaDraft.trim(),
+          helpPart1SceneCount,
+          helpLockAssetsOnly
+        );
+
+        const res = await fetch("/api/tools/gemini/story", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            model: "instant",
+            count: 1,
+            prompt: [HELP_ANIMAL_SYSTEM_PROMPT, basePrompt]
+              .filter(Boolean)
+              .join("\n\n"),
+          }),
+        });
+
+        const data = await res.json().catch(() => null);
+        if (!res.ok) {
+          throw new Error(data?.error || "Idea request failed");
+        }
+
+        const text = String(data?.text || "");
+        const parsed = parseStoryJson(text);
+        const ideas = Array.isArray(parsed?.ideas) ? parsed.ideas : [];
+        const normalized = ideas
+          .map((item: Record<string, unknown>) => ({
+            title: String(item?.title || "").trim(),
+            one_line: String(item?.one_line || "").trim(),
+          }))
+          .filter((item) => item.title || item.one_line)
+          .slice(0, 1);
+
+        if (normalized.length === 0) {
+          throw new Error("No ideas returned.");
+        }
+
+        setHelpIdeas(normalized);
+        setHelpSelectedIndex(0);
+        setHelpAutoDesign("");
+        setHelpAutoDesignBase("");
+        setHelpAutoDesignScenes([]);
+        setStoryResults([]);
+        return;
+      }
+
+      const presetLabel = getStoryPresetLabel(storySelected);
+      const prompt = [
+        "You are a movie idea generator.",
+        `Preset: ${presetLabel}.`,
+        "",
+        "CRITICAL RULES:",
+        "- Use ONLY the provided summary, story idea direction, and asset lists.",
+        "- Do NOT invent new characters, objects, locations, or hazards.",
+        "- Use ONLY the exact names provided in the CHARACTERS list.",
+        "- If a character has no name, refer to them by their Role (e.g. 'The Officer').",
+        "",
+        "OUTPUT STRICT JSON ONLY with this shape (no markdown):",
+        '{ "ideas": [ { "title": "...", "detail": "..." } ] }',
+        "",
+        "Generate exactly 5 ideas.",
+        "Each detail must be 2-4 sentences, clear and cinematic.",
+        "",
+        "STORY IDEA DIRECTION:",
+        storyIdeaDraft.trim(),
+        "",
+        "SUMMARY:",
+        storySummaryDraft.trim() || "(none)",
+        "",
+        "CHARACTERS (ONLY THESE):",
+        characterLines || "(none)",
+        "",
+        "OBJECTS (ONLY THESE):",
+        objectLines || "(none)",
+        "",
+        "LOCATIONS (ONLY THESE):",
+        locationLines || "(none)",
+        "",
+        "HAZARDS (ONLY THESE):",
+        hazardLines || "(none)",
+      ].join("\n");
+
+      const res = await fetch("/api/tools/gemini/story", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ prompt, model: "instant" }),
+      });
+
+      const data = await res.json().catch(() => null);
+      if (!res.ok) {
+        throw new Error(data?.error || "Idea request failed");
+      }
+
+      const text = String(data?.text || "");
+      const parsed = parseStoryJson(text);
+      let ideas: StoryIdea[] = [];
+      if (parsed && Array.isArray(parsed.ideas)) {
+        ideas = parsed.ideas
+          .map((item: Record<string, unknown>) => ({
+            title: String(item?.title || "").trim(),
+            detail: String(item?.detail || item?.story || "").trim(),
+          }))
+          .filter((item) => item.title || item.detail)
+          .slice(0, 5);
+      } else {
+        ideas = parseStoryIdeasText(text).slice(0, 5);
+      }
+
+      if (ideas.length === 0) {
+        throw new Error("No ideas returned.");
+      }
+
+      setHelpIdeas([]);
+      setHelpSelectedIndex(null);
+      setStoryResults(ideas);
+    } catch (err) {
+      setStoryError(err instanceof Error ? err.message : String(err));
+    } finally {
+      setStoryLoading(false);
+    }
+  };
+
+  const handleResetStory = () => {
+    setStoryPrompt("");
+    setStorySelected("animation");
+    setStoryResults([]);
+    setStoryMeta({ summary: "", characters: [] });
+    setStorySummaryDraft("");
+    setStoryIdeaDraft("");
+    setStoryCharactersDraft([]);
+    setStoryObjectsDraft([]);
+    setStoryLocationsDraft([]);
+    setStoryHazardsDraft([]);
+    setStoryScenesDraft([]);
+    setScenePage(1);
+    setStoryParsedOnce(false);
+    setStoryCopyStatus("");
+    setStoryEditIndex(null);
+    setStoryError("");
+    setPasteCharacterDraft("");
+    setPasteObjectDraft("");
+    setHelpIdeas([]);
+    setHelpSelectedIndex(null);
+    setHelpSceneCount(40);
+    setHelpPart1SceneCount(40);
+    setHelpAutoDesign("");
+    setHelpAutoDesignBase("");
+    setHelpAutoDesignScenes([]);
+    setHelpLockAssetsOnly(false);
+    setHelpAutoAddNewAssets(false);
   };
 
   const sliceHelpAutoDesignSection = (text: string, headingKey: string) => {
@@ -577,240 +749,55 @@ export default function TextToStoryPage() {
     return output;
   };
 
-  // Regex to match bullet points (e.g., "- " or "* ")
-  const BULLET_REGEX = /^\s*[-*]\s*/;
+  // Helper function to remove leading bullets/numbers for cleaner parsing
+  const cleanLineStart = (line: string) => line.replace(/^[-*•\d\.\)\s]+/, "").trim();
 
   const extractCharactersFromAutoDesign = (text: string) => {
-    const lines = sliceHelpAutoDesignSection(text, "Character Design");
-    const items: CharacterDraft[] = [];
+      const lines = sliceHelpAutoDesignSection(text, "Character Design");
+      const items: CharacterDraft[] = [];
 
-    lines.forEach((rawLine) => {
-      const line = rawLine.trim();
-      if (!line) return;
+      lines.forEach((rawLine) => {
+        const line = rawLine.trim();
+        if (!line) return;
 
-      const cleanNoStars = line.replace(/\*\*/g, "").trim();
-      if (/^new\s*:\s*(none|null|n\/a)?$/i.test(cleanNoStars)) return;
+        const cleanNoStars = line.replace(/\*\*/g, "").trim();
+        if (/^new\s*:\s*(none|null|n\/a)?$/i.test(cleanNoStars)) return;
 
-      if (!BULLET_REGEX.test(line)) return;
+        const normalized = cleanLineStart(line);
+        const { name, details } = parseNameDetailsLine(normalized);
 
-      const normalized = line.replace(BULLET_REGEX, "- ").trim();
-      const { name, details } = parseNameDetailsLine(normalized);
+        const cleanName = (name || "")
+          .replace(/\*\*/g, "")
+          .replace(/^NEW\s*/i, "")
+          .trim();
 
-      const cleanName = (name || "")
-        .replace(/\*\*/g, "")
-        .replace(/^NEW\s*/i, "")
-        .trim();
+        const cleanDetails = (details || "").replace(/\*\*/g, "").trim();
 
-      const cleanDetails = (details || "").replace(/\*\*/g, "").trim();
+        if (!cleanName) return;
+        if (/^(new|none|null|n\/a)$/i.test(cleanName)) return;
+        if (/^(none|null|n\/a)$/i.test(cleanDetails)) return;
 
-      if (!cleanName) return;
-      if (/^(new|none|null|n\/a)$/i.test(cleanName)) return;
-      if (/^(none|null|n\/a)$/i.test(cleanDetails)) return;
+        // --- NEW LOGIC START ---
+        let role = "";
+        let appearance = cleanDetails;
 
-      items.push({ name: cleanName, appearance: cleanDetails });
-    });
-
-    return items;
-  };
-
-  const extractObjectsFromAutoDesign = (text: string) => {
-    const lines = sliceHelpAutoDesignSection(text, "Object Design");
-    const items: ObjectDraft[] = [];
-
-    lines.forEach((rawLine) => {
-      const line = rawLine.trim();
-      if (!line) return;
-
-      if (!BULLET_REGEX.test(line)) return;
-
-      const normalized = line.replace(BULLET_REGEX, "- ").trim();
-      const parsed = parseNameDetailsLine(normalized);
-
-      const name = (parsed.name || "")
-        .replace(/^NEW\s*/i, "")
-        .replace(/\(.*\)/, "")
-        .trim();
-
-      const details = (parsed.details || "").trim();
-
-      if (!name) return;
-      if (/^(new|none|null|n\/a)$/i.test(name)) return;
-      if (/^(none|null|n\/a)$/i.test(details)) return;
-
-      items.push({ name, details });
-    });
-
-    return items;
-  };
-
-  const extractLocationsFromAutoDesign = (text: string) => {
-    const lines = sliceHelpAutoDesignSection(text, "LOCATION DESIGN");
-    return lines
-      .map((rawLine) => rawLine.trim())
-      .filter((line) => /^[-*]\s*/.test(line))
-      .map((line) => {
-        const parsed = parseNameDetailsLine(line);
-        return {
-          name: parsed.name.replace(/^NEW\s*/i, "").trim(),
-          details: parsed.details,
-        };
-      })
-      .filter((item) => item.name);
-  };
-
-  const extractHazardsFromAutoDesign = (text: string) => {
-    const lines = sliceHelpAutoDesignSection(text, "HAZARDS & OBSTACLES");
-    return lines
-      .map((rawLine) => rawLine.trim())
-      .filter((line) => /^[-*]\s*/.test(line))
-      .map((line) => {
-        const parsed = parseNameDetailsLine(line);
-        return {
-          name: parsed.name.replace(/^NEW\s*/i, "").trim(),
-          details: parsed.details,
-        };
-      })
-      .filter((item) => item.name);
-  };
-
-  const handleAddLocationsFromAutoDesign = () => {
-    if (!helpAutoDesign.trim()) return;
-    const items = extractLocationsFromAutoDesign(helpAutoDesign);
-    if (items.length === 0) return;
-    setStoryLocationsDraft((prev) => {
-      const existing = new Set(prev.map((loc) => loc.name.toLowerCase()));
-      const next = [...prev];
-      items.forEach((item) => {
-        const name = item.name.replace(/^\*\*|\*\*$/g, "").trim();
-        if (!existing.has(name.toLowerCase())) {
-          next.push({ name, details: item.details || "" });
-          existing.add(name.toLowerCase());
+        // Split by "|" to separate Role from Appearance
+        if (cleanDetails.includes("|")) {
+          const parts = cleanDetails.split("|");
+          role = parts[0].trim();
+          appearance = parts.slice(1).join("|").trim();
         }
-      });
-      return next;
-    });
-  };
+        // --- NEW LOGIC END ---
 
-  const handleAddHazardsFromAutoDesign = () => {
-    if (!helpAutoDesign.trim()) return;
-    const items = extractHazardsFromAutoDesign(helpAutoDesign);
-    if (items.length === 0) return;
-    setStoryHazardsDraft((prev) => {
-      const existing = new Set(prev.map((haz) => haz.name.toLowerCase()));
-      const next = [...prev];
-      items.forEach((item) => {
-        const name = item.name.replace(/^\*\*|\*\*$/g, "").trim();
-        if (!existing.has(name.toLowerCase())) {
-          next.push({ name, details: item.details || "" });
-          existing.add(name.toLowerCase());
-        }
-      });
-      return next;
-    });
-  };
-const extractScenesFromAutoDesign = (text: string) => {
-    // Look for "Scenes:" or "SCENES" followed by numbered lines
-    const scenesStartRegex = /(?:^|\n)\**Scenes:?\**\s*(?:\n|$)/i;
-    const match = text.match(scenesStartRegex);
-    if (!match || match.index === undefined) return [];
-
-    const contentAfter = text.substring(match.index + match[0].length);
-    const lines = contentAfter.split(/\r?\n/);
-    const scenes: { title: string; summary: string }[] = [];
-
-    lines.forEach((line) => {
-      const trimmed = line.trim();
-      // Match lines starting with "1. ", "2. ", etc.
-      const sceneMatch = trimmed.match(/^(\d+)\.\s+(.*)/);
-      if (sceneMatch) {
-        scenes.push({
-          title: `Scene ${sceneMatch[1]}`,
-          summary: sceneMatch[2].trim(),
+        // Push Role and Appearance to the draft object
+        items.push({ 
+          name: cleanName, 
+          role: role, 
+          appearance: appearance 
         });
-      }
-    });
-
-    return scenes;
-  };
-
-  const handleAddScenesFromAutoDesign = () => {
-    if (!helpAutoDesign.trim()) return;
-    const items = extractScenesFromAutoDesign(helpAutoDesign);
-    if (items.length === 0) return;
-
-    setStoryScenesDraft((prev) => {
-      // Avoid duplicates based on summary
-      const existingSummaries = new Set(prev.map((s) => s.summary.toLowerCase()));
-      const next = [...prev];
-      items.forEach((item) => {
-        if (!existingSummaries.has(item.summary.toLowerCase())) {
-          next.push(item);
-          existingSummaries.add(item.summary.toLowerCase());
-        }
-      });
-      return next;
-    });
-    // Optional: Give feedback that scenes were added
-    setStoryCopyStatus(`Added ${items.length} scenes!`);
-    setTimeout(() => setStoryCopyStatus(""), 2000);
-  };
-
-  const handleAddCharactersFromAutoDesign = () => {
-    if (helpLockAssetsOnly) return; // ✅ extra hard guard (optional but good)
-    if (!helpAutoDesign.trim()) return;
-
-    const items = extractCharactersFromAutoDesign(helpAutoDesign);
-    if (items.length === 0) return;
-
-    setStoryCharactersDraft((prev) => {
-      const existing = new Set(prev.map((char) => (char.name || "").toLowerCase()));
-      const next = [...prev];
-
-      items.forEach((item) => {
-        const name = (item.name || "").trim() || `Character ${next.length + 1}`;
-
-        // ✅ EXTRA SAFETY: skip fake entries
-        if (/^(new|none|null|n\/a)$/i.test(name)) return;
-
-        if (!existing.has(name.toLowerCase())) {
-          next.push({
-            name,
-            appearance: item.appearance || "",
-          });
-          existing.add(name.toLowerCase());
-        }
       });
 
-      return next;
-    });
-  };
-
-  const handleAddObjectsFromAutoDesign = () => {
-    if (!helpAutoDesign.trim()) return;
-    const items = extractObjectsFromAutoDesign(helpAutoDesign);
-    if (items.length === 0) return;
-    setStoryObjectsDraft((prev) => {
-      const existing = new Set(prev.map((obj) => obj.name.toLowerCase()));
-      const next = [...prev];
-      items.forEach((item) => {
-        const name = item.name.trim() || `Object ${next.length + 1}`;
-        if (!existing.has(name.toLowerCase())) {
-          next.push({
-            name,
-            details: item.details || "",
-          });
-          existing.add(name.toLowerCase());
-        }
-      });
-      return next;
-    });
-  };
-
-  const handlePasteObject = () => {
-    if (!pasteObjectDraft.trim()) return;
-    const parsed = parseSingleObject(pasteObjectDraft);
-    setStoryObjectsDraft((prev) => [...prev, parsed]);
-    setPasteObjectDraft("");
+      return items;
   };
 
   const handleCopyStoryCharacters = async () => {
@@ -848,6 +835,91 @@ const extractScenesFromAutoDesign = (text: string) => {
     }
   };
 
+  const handleAddCharactersFromAutoDesign = (sourceText: string | any = helpAutoDesign) => {
+      if (helpLockAssetsOnly) return;
+      
+      // 1. Determine which text to use (argument string OR state string)
+      const textToUse = typeof sourceText === "string" ? sourceText : helpAutoDesign;
+      
+      if (!textToUse.trim()) return;
+
+      // 2. FIX: Pass 'textToUse' instead of 'sourceText'
+      const items = extractCharactersFromAutoDesign(textToUse);
+      
+      if (items.length === 0) return;
+
+      setStoryCharactersDraft((prev) => {
+        const existing = new Set(prev.map((char) => (char.name || "").toLowerCase()));
+        const next = [...prev];
+
+        items.forEach((item) => {
+          const name = (item.name || "").trim() || `Character ${next.length + 1}`;
+          if (/^(new|none|null|n\/a)$/i.test(name)) return;
+
+          if (!existing.has(name.toLowerCase())) {
+            next.push({
+              name,
+              role: item.role || "",
+              appearance: item.appearance || "",
+            });
+            existing.add(name.toLowerCase());
+          }
+        });
+
+        return next;
+      });
+  };
+
+  const extractObjectsFromAutoDesign = (text: string) => {
+    const lines = sliceHelpAutoDesignSection(text, "Object Design");
+    const items: ObjectDraft[] = [];
+
+    lines.forEach((rawLine) => {
+      const line = rawLine.trim();
+      if (!line) return;
+
+      const normalized = cleanLineStart(line);
+      const parsed = parseNameDetailsLine(normalized);
+
+      const name = (parsed.name || "")
+        .replace(/^NEW\s*/i, "")
+        .replace(/\(.*\)/, "")
+        .trim();
+
+      const details = (parsed.details || "").trim();
+
+      if (!name) return;
+      if (/^(new|none|null|n\/a)$/i.test(name)) return;
+      if (/^(none|null|n\/a)$/i.test(details)) return;
+
+      items.push({ name, details });
+    });
+
+    return items;
+  };
+
+  const handleAddObjectsFromAutoDesign = (sourceText: string = helpAutoDesign) => {
+    const textToUse = typeof sourceText === "string" ? sourceText : helpAutoDesign;
+    if (!textToUse.trim()) return;
+    const items = extractObjectsFromAutoDesign(textToUse);
+    if (items.length === 0) return;
+    setStoryObjectsDraft((prev) => {
+      const existing = new Set(prev.map((obj) => obj.name.toLowerCase()));
+      const next = [...prev];
+      items.forEach((item) => {
+        const name = item.name.trim() || `Object ${next.length + 1}`;
+        if (!existing.has(name.toLowerCase())) {
+          next.push({
+            name,
+            details: item.details || "",
+          });
+          existing.add(name.toLowerCase());
+        }
+      });
+      return next;
+    });
+  };
+
   const handleCopyStoryObjects = async () => {
     const lines: string[] = [];
     if (storyObjectsDraft.length > 0) {
@@ -872,6 +944,111 @@ const extractScenesFromAutoDesign = (text: string) => {
     } finally {
       window.setTimeout(() => setStoryCopyStatus(""), 2000);
     }
+  };
+
+  const handleCopyAllAssets = async () => {
+    const sections: string[] = [];
+    if (storyCharactersDraft.length > 0) {
+      sections.push("Characters");
+      storyCharactersDraft.forEach((char, idx) => {
+        sections.push(`Character ${idx + 1}`);
+        sections.push(`Name: ${char.name || `Character ${idx + 1}`}`);
+        if (char.gender) sections.push(`Gender: ${char.gender}`);
+        if (char.age) sections.push(`Age: ${char.age}`);
+        if (char.typegender) sections.push(`TypeGender: ${char.typegender}`);
+        if (char.size) sections.push(`Size: ${char.size}`);
+        if (char.role) sections.push(`Role: ${char.role}`);
+        if (char.appearance) sections.push(`Appearance: ${char.appearance}`);
+        if (char.outfit) sections.push(`Outfit: ${char.outfit}`);
+        if (char.accessories) sections.push(`Accessories: ${char.accessories}`);
+        if (char.expression) sections.push(`Expression: ${char.expression}`);
+        if (char.colors) sections.push(`Colors: ${char.colors}`);
+        sections.push("");
+      });
+    }
+    if (storyObjectsDraft.length > 0) {
+      sections.push("Objects");
+      storyObjectsDraft.forEach((obj, idx) => {
+        sections.push(`Object ${idx + 1}`);
+        sections.push(`Name: ${obj.name || `Object ${idx + 1}`}`);
+        if (obj.details) sections.push(obj.details.replace(/\s*\|\s*/g, "\n"));
+        sections.push("");
+      });
+    }
+    if (storyLocationsDraft.length > 0) {
+      sections.push("Locations");
+      storyLocationsDraft.forEach((loc, idx) => {
+        sections.push(`Location ${idx + 1}`);
+        sections.push(`Name: ${loc.name || `Location ${idx + 1}`}`);
+        if (loc.details) sections.push(`Details: ${loc.details}`);
+        sections.push("");
+      });
+    }
+    if (storyHazardsDraft.length > 0) {
+      sections.push("Hazards & Obstacles");
+      storyHazardsDraft.forEach((haz, idx) => {
+        sections.push(`Hazard ${idx + 1}`);
+        sections.push(`Name: ${haz.name || `Hazard ${idx + 1}`}`);
+        if (haz.details) sections.push(`Details: ${haz.details}`);
+        sections.push("");
+      });
+    }
+
+    const text = sections.join("\n").trim();
+    if (!text) {
+      setStoryCopyStatus("Nothing to copy.");
+      return;
+    }
+    try {
+      await navigator.clipboard.writeText(text);
+      setStoryCopyStatus("Copied!");
+    } catch {
+      setStoryCopyStatus("Copy failed.");
+    } finally {
+      window.setTimeout(() => setStoryCopyStatus(""), 2000);
+    }
+  };
+
+  const handlePasteObject = () => {
+    if (!pasteObjectDraft.trim()) return;
+    const parsed = parseSingleObject(pasteObjectDraft);
+    setStoryObjectsDraft((prev) => [...prev, parsed]);
+    setPasteObjectDraft("");
+  };
+
+  const extractLocationsFromAutoDesign = (text: string) => {
+    const lines = sliceHelpAutoDesignSection(text, "LOCATION DESIGN");
+    return lines
+      .map((rawLine) => rawLine.trim())
+      .filter((line) => line.length > 0 && !line.startsWith("#")) // Permissive filter: just ensure it's not empty or a header
+      .map((line) => {
+        const normalized = cleanLineStart(line);
+        const parsed = parseNameDetailsLine(normalized);
+        return {
+          name: parsed.name.replace(/^NEW\s*/i, "").trim(),
+          details: parsed.details,
+        };
+      })
+      .filter((item) => item.name);
+  };
+
+  const handleAddLocationsFromAutoDesign = (sourceText: string = helpAutoDesign) => {
+    const textToUse = typeof sourceText === "string" ? sourceText : helpAutoDesign;
+    if (!textToUse.trim()) return;
+    const items = extractLocationsFromAutoDesign(textToUse);
+    if (items.length === 0) return;
+    setStoryLocationsDraft((prev) => {
+      const existing = new Set(prev.map((loc) => loc.name.toLowerCase()));
+      const next = [...prev];
+      items.forEach((item) => {
+        const name = item.name.replace(/^\*\*|\*\*$/g, "").trim();
+        if (!existing.has(name.toLowerCase())) {
+          next.push({ name, details: item.details || "" });
+          existing.add(name.toLowerCase());
+        }
+      });
+      return next;
+    });
   };
 
   const handleCopyStoryLocations = async () => {
@@ -900,6 +1077,41 @@ const extractScenesFromAutoDesign = (text: string) => {
     }
   };
 
+  const extractHazardsFromAutoDesign = (text: string) => {
+    const lines = sliceHelpAutoDesignSection(text, "HAZARDS & OBSTACLES");
+    return lines
+      .map((rawLine) => rawLine.trim())
+      .filter((line) => line.length > 0 && !line.startsWith("#")) // Permissive filter
+      .map((line) => {
+        const normalized = cleanLineStart(line);
+        const parsed = parseNameDetailsLine(normalized);
+        return {
+          name: parsed.name.replace(/^NEW\s*/i, "").trim(),
+          details: parsed.details,
+        };
+      })
+      .filter((item) => item.name);
+  };
+
+  const handleAddHazardsFromAutoDesign = (sourceText: string = helpAutoDesign) => {
+    const textToUse = typeof sourceText === "string" ? sourceText : helpAutoDesign;
+    if (!textToUse.trim()) return;
+    const items = extractHazardsFromAutoDesign(textToUse);
+    if (items.length === 0) return;
+    setStoryHazardsDraft((prev) => {
+      const existing = new Set(prev.map((haz) => haz.name.toLowerCase()));
+      const next = [...prev];
+      items.forEach((item) => {
+        const name = item.name.replace(/^\*\*|\*\*$/g, "").trim();
+        if (!existing.has(name.toLowerCase())) {
+          next.push({ name, details: item.details || "" });
+          existing.add(name.toLowerCase());
+        }
+      });
+      return next;
+    });
+  };
+
   const handleCopyStoryHazards = async () => {
     const lines: string[] = [];
     if (storyHazardsDraft.length > 0) {
@@ -926,268 +1138,160 @@ const extractScenesFromAutoDesign = (text: string) => {
     }
   };
 
-  const handleCopyAllAssets = async () => {
-    const sections: string[] = [];
-    if (storyCharactersDraft.length > 0) {
-      sections.push("Characters");
-      storyCharactersDraft.forEach((char, idx) => {
-        sections.push(`Character ${idx + 1}`);
-        sections.push(`Name: ${char.name}`);
-        if (char.gender) sections.push(`Gender: ${char.gender}`);
-        if (char.age) sections.push(`Age: ${char.age}`);
-        if (char.typegender) sections.push(`TypeGender: ${char.typegender}`);
-        if (char.size) sections.push(`Size: ${char.size}`);
-        if (char.role) sections.push(`Role: ${char.role}`);
-        if (char.appearance) sections.push(`Appearance: ${char.appearance}`);
-        if (char.outfit) sections.push(`Outfit: ${char.outfit}`);
-        if (char.accessories) sections.push(`Accessories: ${char.accessories}`);
-        if (char.expression) sections.push(`Expression: ${char.expression}`);
-        if (char.colors) sections.push(`Colors: ${char.colors}`);
-        sections.push("");
-      });
+  const extractScenesFromAutoDesign = (text: string) => {
+    let lines = sliceHelpAutoDesignSection(text, "SCENE LIST");
+    if (lines.length === 0) {
+      lines = sliceHelpAutoDesignSection(text, "SCENES");
     }
-    if (storyObjectsDraft.length > 0) {
-      sections.push("Objects");
-      storyObjectsDraft.forEach((obj, idx) => {
-        sections.push(`Object ${idx + 1}`);
-        sections.push(`Name: ${obj.name}`);
-        if (obj.details) sections.push(obj.details.replace(/\s*\|\s*/g, "\n"));
-        sections.push("");
-      });
+
+    if (lines.length === 0) {
+      const match = text.match(/(?:^|\n)\**Scenes:?\**\s*(?:\n|$)/i);
+      if (match && match.index !== undefined) {
+        const contentAfter = text.substring(match.index + match[0].length);
+        lines = contentAfter.split(/\r?\n/);
+      }
     }
-    if (storyLocationsDraft.length > 0) {
-      sections.push("Locations");
-      storyLocationsDraft.forEach((loc, idx) => {
-        sections.push(`Location ${idx + 1}`);
-        sections.push(`Name: ${loc.name}`);
-        if (loc.details) sections.push(`Details: ${loc.details}`);
-        sections.push("");
-      });
-    }
-    if (storyHazardsDraft.length > 0) {
-      sections.push("Hazards & Obstacles");
-      storyHazardsDraft.forEach((haz, idx) => {
-        sections.push(`Hazard ${idx + 1}`);
-        sections.push(`Name: ${haz.name}`);
-        if (haz.details) sections.push(`Details: ${haz.details}`);
-        sections.push("");
-      });
-    }
-    const text = sections.join("\n").trim();
-    if (!text) {
-      setStoryCopyStatus("Nothing to copy.");
-      return;
-    }
-    try {
-      await navigator.clipboard.writeText(text);
-      setStoryCopyStatus("Copied!");
-    } catch {
-      setStoryCopyStatus("Copy failed.");
-    } finally {
-      window.setTimeout(() => setStoryCopyStatus(""), 2000);
-    }
+
+    const scenes: { title: string; summary: string }[] = [];
+
+    lines.forEach((line) => {
+      const trimmed = line.trim();
+      if (!trimmed) return;
+
+      const sceneMatch =
+        trimmed.match(
+          /^(?:[-*•]\s*)?(?:\*\*)?Scene\s+(\d+)(?:\*\*)?\s*[:\.\)\-\u2013\u2014]\s*(.*)/i
+        ) ||
+        trimmed.match(/^(?:[-*•]\s*)?Scene\s+(\d+)\s+(.*)/i);
+
+      if (sceneMatch) {
+        scenes.push({
+          title: `Scene ${sceneMatch[1]}`,
+          summary: sceneMatch[2].trim(),
+        });
+      } else if (scenes.length > 0) {
+        // If a line doesn't have a number but we are in a scene list, 
+        // append it to the previous scene (handles multiline scene descriptions)
+        scenes[scenes.length - 1].summary += " " + trimmed;
+      }
+    });
+
+    return scenes;
   };
 
+  const handleAddScenesFromAutoDesign = (sourceText: string = helpAutoDesign) => {
+    const textToUse = typeof sourceText === "string" ? sourceText : helpAutoDesign;
+    if (!textToUse.trim()) return;
+    const items = extractScenesFromAutoDesign(textToUse);
+    if (items.length === 0) return;
 
-  const handleResetStory = () => {
-    setStoryPrompt("");
-    setStoryResults([]);
-    setStoryMeta({ summary: "", characters: [] });
-    setStorySummaryDraft("");
-    setStoryIdeaDraft("");
-    setStoryCharactersDraft([]);
-    setStoryObjectsDraft([]);
-    setStoryLocationsDraft([]);
-    setStoryHazardsDraft([]);
-    setStoryParsedOnce(false);
-    setStoryCopyStatus("");
-    setStoryEditIndex(null);
-    setStoryError("");
-    setHelpIdeas([]);
-    setHelpSelectedIndex(null);
-    setHelpSceneCount(40);
-    setHelpAutoDesign("");
-    setHelpLockAssetsOnly(false);
-    setHelpAutoAddNewAssets(false);
-  };
-
-  const buildStoryResults = async () => {
-    setStoryError("");
-    setStoryLoading(true);
-    const parsedRaw = storyParsedOnce
-      ? { summary: storySummaryDraft, characters: storyCharactersDraft, objects: storyObjectsDraft }
-      : parseStoryInput(storyPrompt);
-    const parsed =
-      storySelected === "help-animal"
-        ? { ...parsedRaw, characters: normalizeHelpAnimalCharacters(parsedRaw.characters) }
-        : parsedRaw;
-
-    setStoryMeta({ summary: parsed.summary, characters: parsed.characters });
-    if (!storyParsedOnce) {
-      setStorySummaryDraft(parsed.summary);
-      setStoryCharactersDraft(parsed.characters);
-      setStoryObjectsDraft(parsed.objects);
-      setStoryLocationsDraft(parsed.locations);
-      setStoryHazardsDraft(parsed.hazards);
-      setStoryParsedOnce(true);
+    const targetCount = Math.max(0, helpSceneCount);
+    const nextItems = [...items];
+    if (targetCount > nextItems.length) {
+      for (let i = nextItems.length; i < targetCount; i += 1) {
+        nextItems.push({
+          title: `Scene ${i + 1}`,
+          summary: "",
+        });
+      }
     }
 
-    const names =
-      parsed.characters.length > 0
-        ? parsed.characters.map((c) => c.name).join(", ")
-        : "";
-    const objectText =
-      parsed.objects.length > 0
-        ? parsed.objects.map((o) => `${o.name}${o.details ? ` (${o.details})` : ""}`).join(", ")
-        : "";
-    const baseSummary = parsed.summary || "Create vivid story ideas.";
-    const storyIdeaHint = storyIdeaDraft.trim();
-    if (!storyIdeaHint) {
-      setStoryError("Story idea is required.");
-      setStoryLoading(false);
-      return;
-    }
-
-    const isEatAsmr = storySelected === "eat-asmr";
-    const isCutAsmr = storySelected === "cut-asmr";
-    const isCookingAsmr = storySelected === "cooking-asmr";
-    const isHelpAnimal = storySelected === "help-animal";
-
-    try {
-      const res = await fetch("/api/tools/gemini/story", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          model: "instant",
-          count: 5,
-          prompt: isHelpAnimal
-            ? [
-                HELP_ANIMAL_SYSTEM_PROMPT,
-                buildHelpAnimalIdeaPrompt(baseSummary, names, objectText, storyIdeaHint),
-              ]
-                .filter(Boolean)
-                .join("\n\n")
-            : [
-                `Story type: ${getStoryPresetLabel(storySelected)}.`,
-                isEatAsmr
-                  ? "EAT ASMR RULE: The story MUST be about eating. Focus on bites, chewing sounds, crunchy/soft textures, and edible items. Do not describe non-edible objects as food."
-                  : "",
-                isCutAsmr
-                  ? "CUT ASMR RULE: The story MUST be about cutting/slicing. Focus on blades, clean cuts, crisp slice sounds, and cut textures."
-                  : "",
-                isCookingAsmr
-                  ? "COOKING ASMR RULE: The story MUST be about cooking. Focus on prep, mixing, sizzling, plating, and cooking textures/sounds."
-                  : "",
-                isHelpAnimal
-                  ? [
-                      "HELP ANIMAL RULE: Every idea MUST be a clear animal rescue/care story.",
-                      "Keep realism and compassion. Avoid graphic violence.",
-                      "Include: danger/problem -> rescue action -> safe outcome.",
-                      "Use ONLY the provided characters/objects/summary; do NOT add new animals or random food unless listed.",
-                      "Keep the setting consistent with the summary (no random kitchens/forests unless mentioned).",
-                      "Make it heart-warming, family-friendly, and focused on helping the animal.",
-                  "Write the idea so it can expand into a long-form movie with micro-beats.",
-                ].join(" ")
-              : "",
-                `Summary: ${baseSummary}`,
-                storyIdeaHint ? `User story idea: ${storyIdeaHint}` : "",
-                names ? `Characters: ${names}` : "",
-                objectText ? `Objects: ${objectText}` : "",
-            "OUTPUT STRICT JSON ONLY: { \"ideas\": [ { \"title\": string, \"one_line\": string } ] }",
-            "Use one_line only (do NOT use story).",
-            "Generate exactly 5 unique ideas in ideas[].",
-          ]
-            .filter(Boolean)
-            .join("\n"),
-        }),
+    setStoryScenesDraft((prev) => {
+      const keyFor = (scene: { title: string; summary: string }) =>
+        (scene.summary || scene.title).toLowerCase();
+      const existingKeys = new Set(prev.map(keyFor));
+      const next = [...prev];
+      nextItems.forEach((item) => {
+        const key = keyFor(item);
+        if (!existingKeys.has(key)) {
+          next.push(item);
+          existingKeys.add(key);
+        }
       });
-      const data = await res.json().catch(() => null);
-      if (!res.ok) {
-        throw new Error(data?.error || "Story generation failed");
-      }
-      const parsedJson = parseStoryJson(String(data?.text || ""));
-      const ideas = Array.isArray(parsedJson?.ideas)
-        ? parsedJson.ideas
-        : Array.isArray(parsedJson)
-        ? parsedJson
-        : [];
-      const parsedTextIdeas = ideas.length === 0 ? parseStoryIdeasText(String(data?.text || "")) : [];
-      const results = (ideas.length > 0 ? ideas : parsedTextIdeas).map(
-        (idea: { title?: string; story?: string; detail?: string; one_line?: string }, idx: number) => ({
-          title: String(idea?.title || `Idea ${idx + 1}`),
-          detail: String(idea?.one_line || idea?.story || idea?.detail || ""),
-        })
-      );
-      if (results.length === 0) {
-        throw new Error("No ideas returned");
-      }
-      setStoryResults(results);
-      if (isHelpAnimal) {
-        setHelpIdeas(
-          results.map((idea, idx) => ({
-            title: idea.title || `Idea ${idx + 1}`,
-            one_line: idea.detail || "",
-          }))
-        );
-        setHelpSelectedIndex(null);
-        setHelpAutoDesign("");
-      }
-    } catch (err) {
-      setStoryError(err instanceof Error ? err.message : String(err));
-    } finally {
-      setStoryLoading(false);
-    }
+      return next;
+    });
+    setScenePage(1);
+    setStoryCopyStatus(`Added ${nextItems.length} scenes!`);
+    setTimeout(() => setStoryCopyStatus(""), 2000);
   };
 
-  const handleGenerateHelpAutoDesign = async () => {
-    if (helpSelectedIndex === null || !helpIdeas[helpSelectedIndex]) return;
-    setStoryError("");
-    setStoryLoading(true);
-    try {
+  const splitAutoDesignText = (text: string) => {
+    if (!text) return { base: "", scenes: [] as string[] };
+    const lines = text.split("\n");
+    const startIndex = lines.findIndex((line) =>
+      /SCENE LIST/i.test(line.replace(/\*\*/g, ""))
+    );
+    if (startIndex === -1) {
+      return { base: text.trim(), scenes: [] as string[] };
+    }
+    const base = lines.slice(0, startIndex).join("\n").trim();
+    const sceneLines = lines
+      .slice(startIndex + 1)
+      .map((line) => line.trim())
+      .filter(Boolean);
+    return { base, scenes: sceneLines };
+  };
+
+  const composeAutoDesignText = (base: string, scenes: string[]) => {
+    const trimmedBase = base.trim();
+    if (scenes.length === 0) return trimmedBase;
+    return [trimmedBase, "", "## 5) SCENE LIST", ...scenes]
+      .filter(Boolean)
+      .join("\n");
+  };
+
+  const buildHelpAutoDesignContext = (sceneLines: string[]) =>
+    sceneLines
+      .slice(-3)
+      .map((line) => line.replace(/^[-*\s]+/, "").trim())
+      .join("\n");
+
+  const helpAutoDesignGeneratedCount = Math.min(
+    helpAutoDesignScenes.length,
+    helpSceneCount
+  );
+  const helpAutoDesignStartScene = Math.min(
+    helpAutoDesignGeneratedCount + 1,
+    helpSceneCount
+  );
+  const helpAutoDesignEndScene = Math.min(
+    helpAutoDesignGeneratedCount + helpAutoDesignBatchSize,
+    helpSceneCount
+  );
+  const helpAutoDesignFinished = helpAutoDesignGeneratedCount >= helpSceneCount;
+
+  const requestHelpAutoDesignBatch = async (
+      startScene: number,
+      endScene: number,
+      includeBlueprint: boolean,
+      previousContext: string
+    ) => {
+      // ... (lines 1007-1033 omitted - no changes to prompt building) ...
+      if (helpSelectedIndex === null || !helpIdeas[helpSelectedIndex]) {
+        throw new Error("Select a Help Animal idea first.");
+      }
       const idea = helpIdeas[helpSelectedIndex];
+      const basePrompt = buildHelpAnimalAutoDesignPrompt(
+        idea.title,
+        idea.one_line,
+        helpSceneCount,
+        storySummaryDraft,
+        storyCharactersDraft.map(c => c.name).join(", "),
+        storyObjectsDraft.map(o => o.name).join(", "),
+        helpLockAssetsOnly,
+        startScene,
+        endScene,
+        includeBlueprint,
+        previousContext
+      );
+
       const res = await fetch("/api/tools/gemini/story", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
           model: "instant",
           count: 1,
-          prompt: [
-            HELP_ANIMAL_SYSTEM_PROMPT,
-            buildHelpAnimalAutoDesignPrompt(
-              idea.title,
-              idea.one_line,
-              helpSceneCount,
-              storySummaryDraft,
-              storyCharactersDraft
-                .map((char, idx) => {
-                  const bits = [
-                    `Character ${idx + 1}: ${char.name || "Unknown"}`,
-                    char.appearance ? `Appearance: ${char.appearance}` : "",
-                    char.role ? `Role: ${char.role}` : "",
-                    char.gender ? `Gender: ${char.gender}` : "",
-                    char.age ? `Age: ${char.age}` : "",
-                    char.typegender ? `TypeGender: ${char.typegender}` : "",
-                    char.size ? `Size: ${char.size}` : "",
-                    char.outfit ? `Outfit: ${char.outfit}` : "",
-                    char.accessories ? `Accessories: ${char.accessories}` : "",
-                    char.expression ? `Expression: ${char.expression}` : "",
-                    char.colors ? `Colors: ${char.colors}` : "",
-                  ].filter(Boolean);
-                  return bits.join(" | ");
-                })
-                .join("\n"),
-              storyObjectsDraft
-                .map((obj, idx) => {
-                  const bits = [
-                    `Object ${idx + 1}: ${obj.name || "Unknown"}`,
-                    obj.details || "",
-                  ].filter(Boolean);
-                  return bits.join(" | ");
-                })
-                .join("\n"),
-              helpLockAssetsOnly
-            ),
-          ]
+          prompt: [HELP_ANIMAL_SYSTEM_PROMPT, basePrompt]
             .filter(Boolean)
             .join("\n\n"),
         }),
@@ -1196,19 +1300,138 @@ const extractScenesFromAutoDesign = (text: string) => {
       if (!res.ok) {
         throw new Error(data?.error || "Auto design failed");
       }
-      setHelpAutoDesign(String(data?.text || ""));
+
+      // --- CLEANING LOGIC START ---
+      let rawText = String(data?.text || "");
+
+      // 1. Remove JSON blocks (This removes the Part 1 output)
+      rawText = rawText.replace(/```json[\s\S]*?```/gi, "");
+
+      // 2. Remove "Part 1" text headers if present
+      if (rawText.includes("Part 2")) {
+        const parts = rawText.split(/##\s*Part\s*2/i);
+        rawText = parts[parts.length - 1]; // Keep everything AFTER "Part 2"
+      } 
+      else if (rawText.includes("MOVIE BLUEPRINT")) {
+        const parts = rawText.split(/MOVIE\s*BLUEPRINT/i);
+        rawText = parts[parts.length - 1];
+      }
+
+      const finalText = rawText.trim();
+      // --- CLEANING LOGIC END ---
+
+      const split = splitAutoDesignText(finalText);
+      
+      // --- STRICT SCENE FILTERING ---
+      const allFoundScenes = extractScenesFromAutoDesign(finalText);
+      
+      // Strictly keep ONLY scenes asked for in this batch (e.g., 1-15).
+      // This ignores scenes 16-40 if the AI hallucinated them as empty lines.
+      const validBatchScenes = allFoundScenes.filter((s) => {
+        const match = s.title.match(/Scene\s+(\d+)/i);
+        if (match) {
+          const num = parseInt(match[1], 10);
+          return num >= startScene && num <= endScene;
+        }
+        return false;
+      });
+
+      const validSceneLines = validBatchScenes.map(
+        (s) => `- ${s.title}: ${s.summary}`
+      );
+
+      return {
+        base: split.base,
+        scenes: validSceneLines,
+      };
+  };
+  
+  const handleGenerateHelpAutoDesign = async () => {
+    if (helpAutoDesignFinished) return;
+    setStoryError("");
+    setStoryLoading(true);
+    try {
+      const includeBlueprint = helpAutoDesignBase.trim().length === 0;
+      const previousContext = buildHelpAutoDesignContext(helpAutoDesignScenes);
+      const { base, scenes } = await requestHelpAutoDesignBatch(
+        helpAutoDesignStartScene,
+        helpAutoDesignEndScene,
+        includeBlueprint,
+        previousContext
+      );
+
+      const nextBase = includeBlueprint && base ? base : helpAutoDesignBase;
+      const nextScenes = [...helpAutoDesignScenes, ...scenes].slice(
+        0,
+        helpSceneCount
+      );
+
+      setHelpAutoDesignBase(nextBase);
+      setHelpAutoDesignScenes(nextScenes);
+      const nextAutoDesignText = composeAutoDesignText(nextBase, nextScenes);
+      setHelpAutoDesign(nextAutoDesignText);
+
       if (helpAutoAddNewAssets && !helpLockAssetsOnly) {
-        handleAddCharactersFromAutoDesign();
-        handleAddObjectsFromAutoDesign();
-        handleAddLocationsFromAutoDesign();
-        handleAddHazardsFromAutoDesign();
-        handleAddScenesFromAutoDesign();
+        handleAddCharactersFromAutoDesign(nextAutoDesignText);
+        handleAddObjectsFromAutoDesign(nextAutoDesignText);
+        handleAddLocationsFromAutoDesign(nextAutoDesignText);
+        handleAddHazardsFromAutoDesign(nextAutoDesignText);
+        handleAddScenesFromAutoDesign(nextAutoDesignText);
       }
     } catch (err) {
       setStoryError(err instanceof Error ? err.message : String(err));
     } finally {
       setStoryLoading(false);
     }
+  };
+
+  const handleRegenerateHelpAutoDesignBatch = async () => {
+      if (helpAutoDesignScenes.length === 0 || storyLoading) return;
+      setStoryError("");
+      setStoryLoading(true);
+      try {
+        const generatedCount = helpAutoDesignScenes.length;
+        
+        // Calculate the start of the current/last batch correctly
+        const lastBatchStart =
+          Math.floor((Math.max(generatedCount, 1) - 1) / helpAutoDesignBatchSize) *
+            helpAutoDesignBatchSize + 1;
+        
+        const startScene = lastBatchStart;
+        const endScene = Math.min(
+          lastBatchStart + helpAutoDesignBatchSize - 1,
+          helpSceneCount
+        );
+
+        const keepCount = startScene - 1;
+        const baseScenes = helpAutoDesignScenes.slice(0, keepCount);
+        const includeBlueprint = helpAutoDesignBase.trim().length === 0;
+        const previousContext = buildHelpAutoDesignContext(baseScenes);
+
+        // 1. Request the batch
+        const { base, scenes } = await requestHelpAutoDesignBatch(
+          startScene,
+          endScene,
+          includeBlueprint,
+          previousContext
+        );
+
+        // 2. Format logic: If the response looks like JSON, we need to flatten it 
+        // so your 'extractScenesFromAutoDesign' can read it later.
+        const nextBase = includeBlueprint && base ? base : helpAutoDesignBase;
+        const nextScenes = [...baseScenes, ...scenes].slice(0, helpSceneCount);
+
+        setHelpAutoDesignBase(nextBase);
+        setHelpAutoDesignScenes(nextScenes);
+        
+        // Update the text area with formatted text, not raw JSON
+        setHelpAutoDesign(composeAutoDesignText(nextBase, nextScenes));
+        
+      } catch (err) {
+        setStoryError(err instanceof Error ? err.message : String(err));
+      } finally {
+        setStoryLoading(false);
+      }
   };
 
   return (
@@ -1229,554 +1452,115 @@ const extractScenesFromAutoDesign = (text: string) => {
         </header>
 
         <section className="rounded-3xl border border-slate-800 bg-slate-900/70 p-6 shadow-xl">
-          <div className="flex flex-wrap gap-2">
-            {STORY_PRESETS.map((preset) => (
-              <button
-                key={preset.key}
-                onClick={() => setStorySelected(preset.key)}
-                className={`rounded-2xl px-4 py-2 text-xs font-semibold transition ${
-                  storySelected === preset.key
-                    ? "bg-slate-100 text-slate-900"
-                    : "border border-slate-700 bg-slate-950/60 text-slate-200 hover:border-slate-400"
-                }`}
-              >
-                {preset.label}
-              </button>
-            ))}
-          </div>
+          <PresetSelector
+            presets={STORY_PRESETS}
+            selected={storySelected}
+            onSelect={setStorySelected}
+          />
 
           <div className="mt-6 grid gap-4 lg:grid-cols-[1.1fr_0.9fr]">
             <div className="space-y-4 text-sm text-slate-200">
-              <div>
-                <label className="text-xs uppercase tracking-[0.2em] text-slate-400">
-                  Paste prompt
-                </label>
-                <textarea
-                  value={storyPrompt}
-                  onChange={(e) => setStoryPrompt(e.target.value)}
-                  rows={6}
-                  className="mt-2 w-full rounded-2xl border border-slate-800 bg-slate-950/80 px-3 py-2 text-sm text-slate-100"
-                  placeholder="Paste your image description prompt here..."
-                />
-              </div>
-              <button
-                onClick={handleParseStory}
-                className="w-full rounded-2xl border border-slate-700 bg-slate-950/60 px-4 py-3 text-sm font-semibold text-slate-200 hover:border-slate-400"
-              >
-                Parse summary + characters
-              </button>
+              <PromptInput
+                value={storyPrompt}
+                onChange={setStoryPrompt}
+                onParse={handleParseStory}
+              />
 
 
               {storyParsedOnce && (
-                <div className="rounded-2xl border border-slate-800 bg-slate-950/80 p-4">
-                  <p className="text-xs uppercase tracking-[0.2em] text-slate-400">
-                    Edit summary
-                  </p>
-                  <textarea
-                    value={storySummaryDraft}
-                    onChange={(e) => setStorySummaryDraft(e.target.value)}
-                    rows={4}
-                    className="mt-2 w-full rounded-2xl border border-slate-800 bg-slate-900/60 px-3 py-2 text-sm text-slate-100"
+                <div className="space-y-4">
+                  <SummaryEditor
+                    summary={storySummaryDraft}
+                    onSummaryChange={setStorySummaryDraft}
+                    idea={storyIdeaDraft}
+                    onIdeaChange={setStoryIdeaDraft}
                   />
-                  <div className="mt-4">
-                    <div className="flex items-center justify-between">
-                      <p className="text-xs uppercase tracking-[0.2em] text-slate-400">
-                        Story idea
-                      </p>
-                      <span className="text-[10px] uppercase tracking-[0.2em] text-emerald-300">
-                        Required
-                      </span>
-                    </div>
-                    <textarea
-                      value={storyIdeaDraft}
-                      onChange={(e) => setStoryIdeaDraft(e.target.value)}
-                      rows={3}
-                      className="mt-2 w-full rounded-2xl border border-slate-800 bg-slate-900/60 px-3 py-2 text-sm text-slate-100"
-                      placeholder="Describe your movie idea or plot direction (required)..."
-                    />
-                  </div>
-
-                  <div className="mt-4 flex items-center justify-between">
-                    <p className="text-xs uppercase tracking-[0.2em] text-slate-400">
-                      Characters
-                    </p>
-                    <div className="flex items-center gap-2">
-                      <button
-                        onClick={handleCopyAllAssets}
-                        className="rounded-full border border-emerald-400/60 px-3 py-1 text-xs text-emerald-200 hover:border-emerald-300"
-                      >
-                        Copy all
-                      </button>
-                      <button
-                        onClick={handleCopyStoryCharacters}
-                        className="rounded-full border border-slate-700 px-3 py-1 text-xs text-slate-200 hover:border-slate-400"
-                      >
-                        Copy characters
-                      </button>
-                      <button
-                        onClick={handleAddStoryCharacter}
-                        className="rounded-full border border-slate-700 px-3 py-1 text-xs text-slate-200 hover:border-slate-400"
-                      >
-                        Add character
-                      </button>
-                    </div>
-                  </div>
-                  <div className="mt-3 rounded-2xl border border-slate-800 bg-slate-900/60 p-3">
-                    <p className="text-xs text-slate-400">
-                      Paste character block to auto-fill
-                    </p>
-                    <textarea
-                      value={pasteCharacterDraft}
-                      onChange={(e) => setPasteCharacterDraft(e.target.value)}
-                      rows={5}
-                      className="mt-2 w-full rounded-xl border border-slate-800 bg-slate-950/70 px-3 py-2 text-xs text-slate-100"
-                      placeholder={`Character 3\n\nGender: unknown\n\nAge: child\n\nTypeGender: unknown\n\nSize: unknown\n\n  Role: swimmer\n\nAppearance: white rabbit with long ears\n\nOutfit: purple swimsuit with light spots\n\nAccessories: pink swim cap, pink goggles, clear glasses\n\nExpression: smiling\n\nColors: white, purple, pink, grey`}
-                    />
-                    <button
-                      onClick={handlePasteCharacter}
-                      className="mt-2 rounded-full border border-slate-700 px-3 py-1 text-xs text-slate-200 hover:border-slate-400"
-                    >
-                      Add from text
-                    </button>
-                  </div>
-                  {storyCopyStatus && (
-                    <p className="mt-2 text-xs text-slate-400">{storyCopyStatus}</p>
-                  )}
-                  <div className="mt-3 space-y-3">
-                    {storyCharactersDraft.length === 0 && (
-                      <p className="text-xs text-slate-400">No characters found yet.</p>
-                    )}
-                    {storyCharactersDraft.map((char, idx) => (
-                      <div
-                        key={`${char.name}-${idx}`}
-                        className="rounded-2xl border border-slate-800 bg-slate-900/60 p-3"
-                      >
-                        <div className="flex items-center justify-between">
-                          <p className="text-sm font-semibold text-white">Character {idx + 1}</p>
-                          <div className="flex items-center gap-3">
-                            <button
-                              onClick={() =>
-                                setStoryEditIndex(storyEditIndex === idx ? null : idx)
-                              }
-                              className="text-xs text-slate-200 hover:text-white"
-                            >
-                              {storyEditIndex === idx ? "Done" : "Edit"}
-                            </button>
-                            <button
-                              onClick={() => handleRemoveStoryCharacter(idx)}
-                              className="text-xs text-red-300 hover:text-red-200"
-                            >
-                              Remove
-                            </button>
-                          </div>
-                        </div>
-
-                        {storyEditIndex === idx ? (
-                          <>
-                            <input
-                              value={char.name}
-                              onChange={(e) =>
-                                handleStoryCharacterChange(idx, "name", e.target.value)
-                              }
-                              className="mt-2 w-full rounded-xl border border-slate-800 bg-slate-950/70 px-3 py-2 text-sm text-slate-100"
-                              placeholder="Character name"
-                            />
-                            <textarea
-                              value={char.appearance}
-                              onChange={(e) =>
-                                handleStoryCharacterChange(
-                                  idx,
-                                  "appearance",
-                                  e.target.value
-                                )
-                              }
-                              rows={2}
-                              className="mt-2 w-full rounded-xl border border-slate-800 bg-slate-950/70 px-3 py-2 text-sm text-slate-100"
-                              placeholder="Appearance / details"
-                            />
-                            <div className="mt-3 grid gap-2 md:grid-cols-2">
-                              <select
-                                value={char.gender || "unknown"}
-                                onChange={(e) =>
-                                  handleStoryCharacterChange(idx, "gender", e.target.value)
-                                }
-                                className="w-full rounded-xl border border-slate-800 bg-slate-950/70 px-3 py-2 text-sm text-slate-100"
-                              >
-                                {GENDER_OPTIONS.map((option) => (
-                                  <option key={option} value={option}>
-                                    {option}
-                                  </option>
-                                ))}
-                              </select>
-                              <select
-                                value={char.typegender || "unknown"}
-                                onChange={(e) =>
-                                  handleStoryCharacterChange(idx, "typegender", e.target.value)
-                                }
-                                className="w-full rounded-xl border border-slate-800 bg-slate-950/70 px-3 py-2 text-sm text-slate-100"
-                              >
-                                {TYPE_GENDER_OPTIONS.map((option) => (
-                                  <option key={option} value={option}>
-                                    {option}
-                                  </option>
-                                ))}
-                              </select>
-                              <select
-                                value={char.size || "unknown"}
-                                onChange={(e) =>
-                                  handleStoryCharacterChange(idx, "size", e.target.value)
-                                }
-                                className="w-full rounded-xl border border-slate-800 bg-slate-950/70 px-3 py-2 text-sm text-slate-100"
-                              >
-                                {SIZE_OPTIONS.map((option) => (
-                                  <option key={option} value={option}>
-                                    {option}
-                                  </option>
-                                ))}
-                              </select>
-                              <select
-                                value={char.age || ""}
-                                onChange={(e) =>
-                                  handleStoryCharacterChange(idx, "age", e.target.value)
-                                }
-                                className="w-full rounded-xl border border-slate-800 bg-slate-950/70 px-3 py-2 text-sm text-slate-100"
-                              >
-                                <option value="">Select age</option>
-                                <option value="unknown">unknown</option>
-                                {AGE_OPTION_GROUPS.map((group) => (
-                                  <optgroup key={group.label} label={group.label}>
-                                    {group.options.map((option) => (
-                                      <option key={option} value={option}>
-                                        {option}
-                                      </option>
-                                    ))}
-                                  </optgroup>
-                                ))}
-                              </select>
-                              <input
-                                value={char.role || ""}
-                                onChange={(e) =>
-                                  handleStoryCharacterChange(idx, "role", e.target.value)
-                                }
-                                className="w-full rounded-xl border border-slate-800 bg-slate-950/70 px-3 py-2 text-sm text-slate-100"
-                                placeholder="Role"
-                              />
-                              <input
-                                value={char.outfit || ""}
-                                onChange={(e) =>
-                                  handleStoryCharacterChange(idx, "outfit", e.target.value)
-                                }
-                                className="w-full rounded-xl border border-slate-800 bg-slate-950/70 px-3 py-2 text-sm text-slate-100"
-                                placeholder="Outfit"
-                              />
-                              <input
-                                value={char.accessories || ""}
-                                onChange={(e) =>
-                                  handleStoryCharacterChange(
-                                    idx,
-                                    "accessories",
-                                    e.target.value
-                                  )
-                                }
-                                className="w-full rounded-xl border border-slate-800 bg-slate-950/70 px-3 py-2 text-sm text-slate-100"
-                                placeholder="Accessories"
-                              />
-                              <input
-                                value={char.expression || ""}
-                                onChange={(e) =>
-                                  handleStoryCharacterChange(
-                                    idx,
-                                    "expression",
-                                    e.target.value
-                                  )
-                                }
-                                className="w-full rounded-xl border border-slate-800 bg-slate-950/70 px-3 py-2 text-sm text-slate-100"
-                                placeholder="Expression"
-                              />
-                              <input
-                                value={char.colors || ""}
-                                onChange={(e) =>
-                                  handleStoryCharacterChange(idx, "colors", e.target.value)
-                                }
-                                className="w-full rounded-xl border border-slate-800 bg-slate-950/70 px-3 py-2 text-sm text-slate-100 md:col-span-2"
-                                placeholder="Colors"
-                              />
-                            </div>
-                          </>
-                        ) : (
-                          <div className="mt-2 grid gap-1 text-xs text-slate-300">
-                            <p>Name: {char.name || "unknown"}</p>
-                            {char.appearance && <p>Appearance: {char.appearance}</p>}
-                            {char.gender && <p>Gender: {char.gender}</p>}
-                            {char.age && <p>Age: {char.age}</p>}
-                            {char.typegender && <p>TypeGender: {char.typegender}</p>}
-                            {char.size && <p>Size: {char.size}</p>}
-                            {char.role && <p>Role: {char.role}</p>}
-                            {char.outfit && <p>Outfit: {char.outfit}</p>}
-                            {char.accessories && <p>Accessories: {char.accessories}</p>}
-                            {char.expression && <p>Expression: {char.expression}</p>}
-                            {char.colors && <p>Colors: {char.colors}</p>}
-                          </div>
-                        )}
-                      </div>
-                    ))}
-                  </div>
-
-                  <div className="mt-6 flex items-center justify-between">
-                    <p className="text-xs uppercase tracking-[0.2em] text-slate-400">
-                      Objects
-                    </p>
-                    <div className="flex items-center gap-2">
-                      <button
-                        onClick={handleCopyStoryObjects}
-                        className="rounded-full border border-slate-700 px-3 py-1 text-xs text-slate-200 hover:border-slate-400"
-                      >
-                        Copy objects
-                      </button>
-                      <button
-                        onClick={handleAddStoryObject}
-                        className="rounded-full border border-slate-700 px-3 py-1 text-xs text-slate-200 hover:border-slate-400"
-                      >
-                        Add object
-                      </button>
-                    </div>
-                  </div>
-                  <div className="mt-3 rounded-2xl border border-slate-800 bg-slate-900/60 p-3">
-                    <p className="text-xs text-slate-400">
-                      Paste object block to auto-fill
-                    </p>
-                    <textarea
-                      value={pasteObjectDraft}
-                      onChange={(e) => setPasteObjectDraft(e.target.value)}
-                      rows={4}
-                      className="mt-2 w-full rounded-xl border border-slate-800 bg-slate-950/70 px-3 py-2 text-xs text-slate-100"
-                      placeholder={`Object 1\n\nName: Plate of spaghetti\n\nDescription: Plate of spaghetti with tomato sauce and cheese\n\nMaterial: food\n\nCondition: fresh\n\nColors: red, yellow, white, beige`}
-                    />
-                    <button
-                      onClick={handlePasteObject}
-                      className="mt-2 rounded-full border border-slate-700 px-3 py-1 text-xs text-slate-200 hover:border-slate-400"
-                    >
-                      Add from text
-                    </button>
-                  </div>
-                  <div className="mt-3 space-y-3">
-                    {storyObjectsDraft.length === 0 && (
-                      <p className="text-xs text-slate-400">No objects found yet.</p>
-                    )}
-                    {storyObjectsDraft.map((obj, idx) => (
-                      <div
-                        key={`${obj.name}-${idx}`}
-                        className="rounded-2xl border border-slate-800 bg-slate-900/60 p-3"
-                      >
-                        <div className="flex items-center justify-between">
-                          <p className="text-sm font-semibold text-white">Object {idx + 1}</p>
-                          <button
-                            onClick={() => handleRemoveStoryObject(idx)}
-                            className="text-xs text-red-300 hover:text-red-200"
-                          >
-                            Remove
-                          </button>
-                        </div>
-                        <input
-                          value={obj.name}
-                          onChange={(e) => handleStoryObjectChange(idx, "name", e.target.value)}
-                          className="mt-2 w-full rounded-xl border border-slate-800 bg-slate-950/70 px-3 py-2 text-sm text-slate-100"
-                          placeholder="Object name"
-                        />
-                        <textarea
-                          value={obj.details}
-                          onChange={(e) => handleStoryObjectChange(idx, "details", e.target.value)}
-                          rows={2}
-                          className="mt-2 w-full rounded-xl border border-slate-800 bg-slate-950/70 px-3 py-2 text-sm text-slate-100"
-                          placeholder="Object details"
-                        />
-                      </div>
-                    ))}
-                  </div>
-
-                  <div className="mt-6 flex items-center justify-between">
-                    <p className="text-xs uppercase tracking-[0.2em] text-slate-400">
-                      Locations
-                    </p>
-                    <div className="flex items-center gap-2">
-                      <button
-                        onClick={handleCopyStoryLocations}
-                        className="rounded-full border border-slate-700 px-3 py-1 text-xs text-slate-200 hover:border-slate-400"
-                      >
-                        Copy locations
-                      </button>
-                      <button
-                        onClick={handleAddStoryLocation}
-                        className="rounded-full border border-slate-700 px-3 py-1 text-xs text-slate-200 hover:border-slate-400"
-                      >
-                        Add location
-                      </button>
-                    </div>
-                  </div>
-                  <div className="mt-3 space-y-3">
-                    {storyLocationsDraft.length === 0 && (
-                      <p className="text-xs text-slate-400">No locations yet.</p>
-                    )}
-                    {storyLocationsDraft.map((loc, idx) => (
-                      <div
-                        key={`${loc.name}-${idx}`}
-                        className="rounded-2xl border border-slate-800 bg-slate-900/60 p-3"
-                      >
-                        <div className="flex items-center justify-between">
-                          <p className="text-sm font-semibold text-white">Location {idx + 1}</p>
-                          <button
-                            onClick={() => handleRemoveStoryLocation(idx)}
-                            className="text-xs text-red-300 hover:text-red-200"
-                          >
-                            Remove
-                          </button>
-                        </div>
-                        <input
-                          value={loc.name}
-                          onChange={(e) => handleStoryLocationChange(idx, "name", e.target.value)}
-                          className="mt-2 w-full rounded-xl border border-slate-800 bg-slate-950/70 px-3 py-2 text-sm text-slate-100"
-                          placeholder="Location name"
-                        />
-                        <textarea
-                          value={loc.details}
-                          onChange={(e) =>
-                            handleStoryLocationChange(idx, "details", e.target.value)
-                          }
-                          rows={2}
-                          className="mt-2 w-full rounded-xl border border-slate-800 bg-slate-950/70 px-3 py-2 text-sm text-slate-100"
-                          placeholder="Location details"
-                        />
-                      </div>
-                    ))}
-                  </div>
-
-                  <div className="mt-6 flex items-center justify-between">
-                    <p className="text-xs uppercase tracking-[0.2em] text-slate-400">
-                      Hazards & Obstacles
-                    </p>
-                    <div className="flex items-center gap-2">
-                      <button
-                        onClick={handleCopyStoryHazards}
-                        className="rounded-full border border-slate-700 px-3 py-1 text-xs text-slate-200 hover:border-slate-400"
-                      >
-                        Copy hazards
-                      </button>
-                      <button
-                        onClick={handleAddStoryHazard}
-                        className="rounded-full border border-slate-700 px-3 py-1 text-xs text-slate-200 hover:border-slate-400"
-                      >
-                        Add hazard
-                      </button>
-                    </div>
-                  </div>
-                  <div className="mt-3 space-y-3">
-                    {storyHazardsDraft.length === 0 && (
-                      <p className="text-xs text-slate-400">No hazards yet.</p>
-                    )}
-                    {storyHazardsDraft.map((hazard, idx) => (
-                      <div
-                        key={`${hazard.name}-${idx}`}
-                        className="rounded-2xl border border-slate-800 bg-slate-900/60 p-3"
-                      >
-                        <div className="flex items-center justify-between">
-                          <p className="text-sm font-semibold text-white">Hazard {idx + 1}</p>
-                          <button
-                            onClick={() => handleRemoveStoryHazard(idx)}
-                            className="text-xs text-red-300 hover:text-red-200"
-                          >
-                            Remove
-                          </button>
-                        </div>
-                        <input
-                          value={hazard.name}
-                          onChange={(e) =>
-                            handleStoryHazardChange(idx, "name", e.target.value)
-                          }
-                          className="mt-2 w-full rounded-xl border border-slate-800 bg-slate-950/70 px-3 py-2 text-sm text-slate-100"
-                          placeholder="Hazard name"
-                        />
-                        <textarea
-                          value={hazard.details}
-                          onChange={(e) =>
-                            handleStoryHazardChange(idx, "details", e.target.value)
-                          }
-                          rows={2}
-                          className="mt-2 w-full rounded-xl border border-slate-800 bg-slate-950/70 px-3 py-2 text-sm text-slate-100"
-                          placeholder="Hazard details"
-                        />
-                      </div>
-                    ))}
-                  </div>
-                  <div className="mt-6 flex items-center justify-between">
-                    <p className="text-xs uppercase tracking-[0.2em] text-slate-400">
-                     Scene
-                    </p>
-                    <div className="flex items-center gap-2">
-                      <button
-                        onClick={handleCopyStoryScenes}
-                        className="rounded-full border border-slate-700 px-3 py-1 text-xs text-slate-200 hover:border-slate-400"
-                      >
-                        Copy scenes
-                      </button>
-                      <button
-                        onClick={handleAddStoryScene}
-                        className="rounded-full border border-slate-700 px-3 py-1 text-xs text-slate-200 hover:border-slate-400"
-                      >
-                        Add Scene
-                      </button>
-                    </div>
-                  </div>
-                  <div className="mt-3 space-y-3">
-                    {storyScenesDraft.length === 0 && (
-                      <p className="text-xs text-slate-400">No scenes yet.</p>
-                    )}
-                    {storyScenesDraft.map((scene, idx) => (
-                      <div
-                        key={`${scene.name}-${idx}`}
-                        className="rounded-2xl border border-slate-800 bg-slate-900/60 p-3"
-                      >
-                        <div className="flex items-center justify-between">
-                          <p className="text-sm font-semibold text-white">Scene {idx + 1}</p>
-                          <button
-                            onClick={() => handleRemoveStoryScene(idx)}
-                            className="text-xs text-red-300 hover:text-red-200"
-                          >
-                            Remove
-                          </button>
-                        </div>
-                        <input
-                          value={scene.name}
-                          onChange={(e) =>
-                            handleStorySceneChange(idx, "name", e.target.value)
-                          }
-                          className="mt-2 w-full rounded-xl border border-slate-800 bg-slate-950/70 px-3 py-2 text-sm text-slate-100"
-                          placeholder="Scene name"
-                        />
-                        <textarea
-                          value={scene .details}
-                          onChange={(e) =>
-                            handleStorySceneChange(idx, "details", e.target.value)
-                          }
-                          rows={2}
-                          className="mt-2 w-full rounded-xl border border-slate-800 bg-slate-950/70 px-3 py-2 text-sm text-slate-100"
-                          placeholder="Scene details"
-                        />
-                      </div>
-                    ))}
-                  </div>                  
+                  <AssetEditor
+                    characters={storyCharactersDraft}
+                    objects={storyObjectsDraft}
+                    locations={storyLocationsDraft}
+                    hazards={storyHazardsDraft}
+                    scenes={storyScenesDraft}
+                    storyEditIndex={storyEditIndex}
+                    onToggleEdit={setStoryEditIndex}
+                    onRemoveCharacter={handleRemoveStoryCharacter}
+                    onChangeCharacter={handleStoryCharacterChange}
+                    onAddCharacter={handleAddStoryCharacter}
+                    onCopyCharacters={handleCopyStoryCharacters}
+                    onCopyAll={handleCopyAllAssets}
+                    pasteCharacterDraft={pasteCharacterDraft}
+                    onPasteCharacterDraftChange={setPasteCharacterDraft}
+                    onPasteCharacter={handlePasteCharacter}
+                    copyStatus={storyCopyStatus}
+                    genderOptions={GENDER_OPTIONS}
+                    typeGenderOptions={TYPE_GENDER_OPTIONS}
+                    sizeOptions={SIZE_OPTIONS}
+                    ageOptionGroups={AGE_OPTION_GROUPS}
+                    onAddObject={handleAddStoryObject}
+                    onCopyObjects={handleCopyStoryObjects}
+                    onChangeObject={handleStoryObjectChange}
+                    onRemoveObject={handleRemoveStoryObject}
+                    pasteObjectDraft={pasteObjectDraft}
+                    onPasteObjectDraftChange={setPasteObjectDraft}
+                    onPasteObject={handlePasteObject}
+                    onAddLocation={handleAddStoryLocation}
+                    onCopyLocations={handleCopyStoryLocations}
+                    onChangeLocation={handleStoryLocationChange}
+                    onRemoveLocation={handleRemoveStoryLocation}
+                    onAddHazard={handleAddStoryHazard}
+                    onCopyHazards={handleCopyStoryHazards}
+                    onChangeHazard={handleStoryHazardChange}
+                    onRemoveHazard={handleRemoveStoryHazard}
+                    onAddScene={handleAddStoryScene}
+                    onCopyScenes={handleCopyStoryScenes}
+                    onChangeScene={handleStorySceneChange}
+                    onRemoveScene={handleRemoveStoryScene}
+                    scenePage={scenePage}
+                    scenesPerPage={scenesPerPage}
+                    onScenePageChange={setScenePage}
+                  />
                 </div>
               )}
 
-              
-
               {storySelected === "help-animal" && (
                 <div className="flex flex-col gap-3 sm:flex-row">
+                  <div className="w-full sm:max-w-[180px]">
+                    <label className="text-[10px] uppercase tracking-[0.2em] text-emerald-200/80">
+                      Part 1 scene count
+                    </label>
+                    <select
+                      value={helpPart1SceneCount}
+                      onChange={(event) =>
+                        setHelpPart1SceneCount(Number(event.target.value))
+                      }
+                      className="mt-2 w-full rounded-2xl border border-emerald-300/30 bg-emerald-500/10 px-3 py-2 text-xs text-emerald-50"
+                    >
+                      {[20, 40, 60, 80, 100].map((count) => (
+                        <option key={count} value={count}>
+                          {count} scenes
+                        </option>
+                      ))}
+                    </select>
+                  </div>
+                  <label className="flex items-center gap-2 rounded-2xl border border-emerald-300/20 bg-emerald-500/5 px-3 py-2 text-xs text-emerald-100">
+                    <input
+                      type="checkbox"
+                      checked={helpLockAssetsOnly}
+                      onChange={(event) =>
+                        setHelpLockAssetsOnly(event.target.checked)
+                      }
+                      className="h-4 w-4 rounded border-emerald-200/60 bg-slate-900 text-emerald-400"
+                    />
+                    Lock input assets only (no new characters/objects/locations/hazards)
+                  </label>
                   <button
                     onClick={buildStoryResults}
                     disabled={storyLoading}
                     className="w-full rounded-2xl bg-gradient-to-r from-emerald-300 to-teal-400 px-4 py-3 text-sm font-semibold text-slate-950 shadow-lg shadow-emerald-400/40 disabled:opacity-50"
                   >
-                    {storyLoading ? "Generating..." : "Generate 5 movie ideas"}
+                    {storyLoading
+                      ? "Generating..."
+                      : "Run Part 1 Normalize & Controlled Expansion"}
                   </button>
                   <button
                     onClick={handleResetStory}
@@ -1812,161 +1596,33 @@ const extractScenesFromAutoDesign = (text: string) => {
               )}
             </div>
 
-            {storySelected === "help-animal" && (
-              <div className="space-y-3 text-sm text-slate-200">
-                {helpIdeas.length > 0 && (
-                  <div className="rounded-2xl border border-slate-800 bg-slate-950/80 p-4 text-sm text-slate-200">
-                    <p className="text-xs uppercase tracking-[0.2em] text-slate-400">
-                      PART 1 - Movie Idea Generation
-                    </p>
-                    <div className="mt-3 space-y-2">
-                      {helpIdeas.map((idea, idx) => (
-                        <button
-                          key={`${idea.title}-${idx}`}
-                          onClick={() => setHelpSelectedIndex(idx)}
-                          className={`w-full rounded-2xl border px-3 py-2 text-left text-sm transition ${
-                            helpSelectedIndex === idx
-                              ? "border-emerald-400 bg-emerald-500/10 text-emerald-100"
-                              : "border-slate-800 bg-slate-900/60 text-slate-200 hover:border-slate-400"
-                          }`}
-                        >
-                          <span className="font-semibold">
-                            {idx + 1}. {idea.title}
-                          </span>
-                          <span className="block text-xs text-slate-300">
-                            {idea.one_line}
-                          </span>
-                        </button>
-                      ))}
-                    </div>
-                    <p className="mt-3 text-xs text-slate-400">
-                      Which movie idea number would you like to continue with?
-                    </p>
-                  </div>
-                )}
-
-                {helpSelectedIndex !== null && (
-                  <div className="rounded-2xl border border-slate-800 bg-slate-950/80 p-4 text-sm text-slate-200">
-                    <p className="text-xs uppercase tracking-[0.2em] text-slate-400">
-                      PART 2 — Scene Count
-                    </p>
-                    <p className="mt-2 text-xs text-slate-300">
-                      You selected idea #{helpSelectedIndex + 1}:{" "}
-                      <span className="font-semibold text-white">
-                        {helpIdeas[helpSelectedIndex]?.title}
-                      </span>
-                    </p>
-                  <label className="mt-3 block text-xs uppercase tracking-[0.2em] text-slate-400">
-                    How many scenes should this movie have?
-                  </label>
-                  <select
-                    value={helpSceneCount}
-                    onChange={(e) => setHelpSceneCount(Number(e.target.value))}
-                    className="mt-2 w-full rounded-2xl border border-slate-800 bg-slate-900/60 px-3 py-2 text-sm text-slate-100"
-                  >
-                    {[20, 40, 60, 80, 100].map((count) => (
-                      <option key={count} value={count}>
-                        {count} scenes
-                      </option>
-                    ))}
-                  </select>
-                  <label className="mt-3 flex items-center gap-2 text-xs text-slate-300">
-                    <input
-                      type="checkbox"
-                      checked={helpLockAssetsOnly}
-                      onChange={(e) => setHelpLockAssetsOnly(e.target.checked)}
-                      className="h-4 w-4 rounded border-slate-500 bg-slate-900 text-emerald-400"
-                    />
-                    Lock input assets only (no new characters/objects/locations/hazards)
-                  </label>
-                  <label className="mt-2 flex items-center gap-2 text-xs text-slate-300">
-                    <input
-                      type="checkbox"
-                      checked={helpAutoAddNewAssets}
-                      onChange={(e) => setHelpAutoAddNewAssets(e.target.checked)}
-                      disabled={helpLockAssetsOnly}
-                      className="h-4 w-4 rounded border-slate-500 bg-slate-900 text-emerald-400 disabled:opacity-40"
-                    />
-                    Auto‑add NEW assets from auto‑design
-                  </label>
-                  <button
-                    onClick={handleGenerateHelpAutoDesign}
-                    disabled={storyLoading}
-                    className="mt-3 w-full rounded-2xl bg-gradient-to-r from-emerald-400 to-teal-500 px-4 py-2 text-sm font-semibold text-white disabled:opacity-50"
-                  >
-                    {storyLoading ? "Designing..." : "Generate auto movie design"}
-                  </button>
-                </div>
-              )}
-
-              {helpAutoDesign && (
-                <div className="rounded-2xl border border-slate-800 bg-slate-950/80 p-4 text-xs text-slate-200 whitespace-pre-wrap">
-                  <div className="mb-3 flex flex-wrap gap-2">
-                    <button
-                      onClick={handleAddLocationsFromAutoDesign}
-                      disabled={helpLockAssetsOnly}
-                      className="rounded-full border border-slate-700 px-3 py-1 text-xs text-slate-200 hover:border-slate-400 disabled:opacity-40"
-                    >
-                      Add locations to list
-                    </button>
-                    <button
-                      onClick={handleAddHazardsFromAutoDesign}
-                      disabled={helpLockAssetsOnly}
-                      className="rounded-full border border-slate-700 px-3 py-1 text-xs text-slate-200 hover:border-slate-400 disabled:opacity-40"
-                    >
-                      Add hazards to list
-                    </button>
-                    <button
-                      onClick={handleAddCharactersFromAutoDesign}
-                      disabled={helpLockAssetsOnly}
-                      className="rounded-full border border-slate-700 px-3 py-1 text-xs text-slate-200 hover:border-slate-400 disabled:opacity-40"
-                    >
-                      Add characters to list
-                    </button>
-                    <button
-                      onClick={handleAddObjectsFromAutoDesign}
-                      disabled={helpLockAssetsOnly}
-                      className="rounded-full border border-slate-700 px-3 py-1 text-xs text-slate-200 hover:border-slate-400 disabled:opacity-40"
-                    >
-                      Add objects to list
-                    </button>
-                    <button
-                      onClick={handleAddScenesFromAutoDesign}
-                      disabled={helpLockAssetsOnly}
-                      className="rounded-full border border-slate-700 px-3 py-1 text-xs text-slate-200 hover:border-slate-400 disabled:opacity-40"
-                    >
-                      Add scenes to list
-                    </button>
-                  </div>
-                  {helpLockAssetsOnly && (
-                    <p className="mb-3 text-[11px] text-slate-400">
-                      Lock enabled: auto-design should not introduce new assets.
-                    </p>
-                  )}
-                  {helpAutoDesign}
-                </div>
-              )}
-              </div>
-            )}
-            {storySelected !== "help-animal" && (
-              <div className="space-y-3 text-sm text-slate-200">
-                {(storyResults.length > 0 ? storyResults : [])
-                  .slice(0, 10)
-                  .map((scene, idx) => (
-                    <div
-                      key={`${scene.title}-${idx}`}
-                      className="rounded-2xl border border-slate-800 bg-slate-950/80 px-4 py-3"
-                    >
-                      <p className="text-xs uppercase tracking-[0.2em] text-slate-400">
-                        Story title
-                      </p>
-                      <p className="mt-2 text-sm font-semibold text-white">
-                        {scene.title}
-                      </p>
-                      <p className="mt-1 text-xs text-slate-300">{scene.detail}</p>
-                    </div>
-                  ))}
-              </div>
+            {storySelected === "help-animal" ? (
+                      <HelpAnimalPanel
+                ideas={helpIdeas}
+                selectedIndex={helpSelectedIndex}
+                onSelectIdea={setHelpSelectedIndex}
+                sceneCount={helpSceneCount}
+                onSceneCountChange={setHelpSceneCount}
+                lockAssetsOnly={helpLockAssetsOnly}
+                onLockAssetsOnlyChange={setHelpLockAssetsOnly}
+                autoAddNewAssets={helpAutoAddNewAssets}
+                onAutoAddNewAssetsChange={setHelpAutoAddNewAssets}
+                onGenerateAutoDesign={handleGenerateHelpAutoDesign}
+                onRegenerateAutoDesign={handleRegenerateHelpAutoDesignBatch}
+                loading={storyLoading}
+                autoDesignText={helpAutoDesign}
+                batchStart={helpAutoDesignStartScene}
+                batchEnd={helpAutoDesignEndScene}
+                isFinished={helpAutoDesignFinished}
+                generatedCount={helpAutoDesignGeneratedCount}
+                onAddLocations={handleAddLocationsFromAutoDesign}
+                onAddHazards={handleAddHazardsFromAutoDesign}
+                onAddCharacters={handleAddCharactersFromAutoDesign}
+                onAddObjects={handleAddObjectsFromAutoDesign}
+                onAddScenes={handleAddScenesFromAutoDesign}
+              />
+            ) : (
+              <IdeaResults ideas={storyResults} />
             )}
           </div>
         </section>

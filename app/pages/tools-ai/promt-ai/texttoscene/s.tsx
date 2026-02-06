@@ -71,8 +71,6 @@ export default function StoryToScenePage() {
   const [characterSheet, setCharacterSheet] = useState<CharacterSheetItem[]>([]);
   const [scenePage, setScenePage] = useState(1);
   const scenesPerPage = 10;
-  const batchSize = 15;
-  const [currentBatchIndex, setCurrentBatchIndex] = useState(0);
   const [sceneCopyStatus, setSceneCopyStatus] = useState("");
   const [headerCopyStatus, setHeaderCopyStatus] = useState("");
   const [assetCopyStatus, setAssetCopyStatus] = useState("");
@@ -586,20 +584,7 @@ export default function StoryToScenePage() {
       }
   };
   
-  const buildPrompt = (
-    startScene: number,
-    endScene: number,
-    previousContext: string
-  ) => {
-      // 1. DEFINE CHARACTER MAPPINGS
-      // We create a list of "Forbidden Words" and their "Mandatory Replacements"
-      const characterMappings = characters
-        .map((char, idx) => {
-          const details = buildCharacterDetails(char);
-          return `ID "Character ${idx + 1}" must be replaced with -> "${details}"`;
-        })
-        .join("\n");
-
+  const buildPrompt = () => {
       const globalStyleDetail = [
         `${getStoryPresetLabel(storySelected)}`,
         STORY_PRESET_RULES[storySelected] ? STORY_PRESET_RULES[storySelected] : "",
@@ -620,38 +605,61 @@ export default function StoryToScenePage() {
         .filter(Boolean)
         .join(", ");
 
-      const objectText = objects
-        .map((obj, idx) => `Object ${idx + 1}: ${obj.name} (${obj.details})`)
+      const characterMappings = characters
+        .map((char, idx) => {
+          // We build the full visual string here
+          const details = buildCharacterDetails(char); 
+          // We create a strict rule for the AI
+          return `TARGET: "Character ${idx + 1}" -> REPLACEMENT: "${details}"`;
+        })
         .join("\n");
 
+      const objectText = objects
+        .map((obj, idx) => {
+          const name = obj.name && obj.name.toLowerCase() !== "unknown"
+            ? obj.name
+            : `Object ${idx + 1}`;
+          const header = `Object: ${name}`;
+          const detail = obj.details ? `Details: ${obj.details}` : "Details: unknown";
+          return `${header}\n${detail}`;
+        })
+        .join("\n\n");
+
       const locationText = locations
-        .map((loc, idx) => `Location ${idx + 1}: ${loc.name} (${loc.details})`)
+        .map((loc, idx) => {
+          const name = loc.name && loc.name.toLowerCase() !== "unknown"
+            ? loc.name
+            : `Location ${idx + 1}`;
+          const detail = loc.details ? `Details: ${loc.details}` : "";
+          return detail ? `${name} — ${detail}` : name;
+        })
         .join("\n");
 
       const hazardText = hazards
-        .map((haz, idx) => `Hazard ${idx + 1}: ${haz.name} (${haz.details})`)
+        .map((haz, idx) => {
+          const name = haz.name && haz.name.toLowerCase() !== "unknown"
+            ? haz.name
+            : `Hazard ${idx + 1}`;
+          const detail = haz.details ? `Details: ${haz.details}` : "";
+          return detail ? `${name} — ${detail}` : name;
+        })
         .join("\n");
 
-      const allowObjectTransform =
-        storySelected === "unreal-furniture-asmr"
-          ? "TRANSFORM OBJECTS: Yes. Reshape objects into furniture forms."
-          : "";
-      const allowEatAsmr =
-        storySelected === "eat-asmr"
-          ? "EAT ASMR: Yes. Focus on eating sounds and textures."
-          : "";
-      const allowCutAsmr =
-        storySelected === "cut-asmr"
-          ? "CUT ASMR: Yes. Focus on cutting actions."
-          : "";
-      const allowCookingAsmr =
-        storySelected === "cooking-asmr"
-          ? "COOKING ASMR: Yes. Focus on cooking steps."
-          : "";
-      const allowHelpAnimal =
-        storySelected === "help-animal"
-          ? "HELP ANIMAL: Yes. Focus on rescue actions."
-          : "";
+      const allowObjectTransform = storySelected === "unreal-furniture-asmr"
+        ? "You may reshape/transform listed objects into furniture-like forms, but do NOT introduce any new objects. Change furniture material/style each scene."
+        : "";
+      const allowEatAsmr = storySelected === "eat-asmr"
+        ? "EAT ASMR RULE: You may introduce new edible items (food only) for variety. Keep the same character(s) with identical appearance and details across all scenes. Focus on eating actions and textures."
+        : "";
+      const allowCutAsmr = storySelected === "cut-asmr"
+        ? "CUT ASMR RULE: Every scene must involve cutting or slicing. Focus on blades, clean cuts, crisp sounds, and cut textures. Keep objects consistent."
+        : "";
+      const allowCookingAsmr = storySelected === "cooking-asmr"
+        ? "COOKING ASMR RULE: Every scene must involve cooking actions (prep, chopping, mixing, sizzling, plating). Keep the same character(s) if selected. Focus on cooking sounds and textures."
+        : "";
+      const allowHelpAnimal = storySelected === "help-animal"
+        ? "HELP ANIMAL THEME: The overall story is about helping an animal. Focus on realistic actions."
+        : "";
 
       const materialRule =
         materialStyle && materialStyle !== "original"
@@ -660,7 +668,7 @@ export default function StoryToScenePage() {
 
       const continuityRule = [
         sameCharacter
-          ? "Same characters in all scenes with identical appearance."
+          ? "Same characters in all scenes with identical appearance, outfits, accessories, and colors."
           : "",
         changeCharacter ? "Change character across scenes." : "",
         sameObject ? "Same objects in all scenes." : "",
@@ -672,71 +680,67 @@ export default function StoryToScenePage() {
         .join(" ");
 
       return [
-        "You are a Video Prompt Generator API.",
-        "Generate a long-form scene outline based on the story below.",
-        `CURRENT BATCH: Generate Scene ${startScene} to Scene ${endScene}.`,
-        `TOTAL STORY LENGTH: ${sceneCount} scenes.`,
+            "You are a Video Prompt Generator API.",
+            "Generate a long-form scene outline based on the story below.",
+            `Total scenes: ${sceneCount}.`,
 
-        // 🔴 STRICT JSON OUTPUT
-        "OUTPUT FORMAT: STRICT JSON ONLY.",
-        `JSON SCHEMA: { "scenes": [ { "title": "Scene 1", "summary": "THE MASTER PROMPT", "action": "Action details", "visual": "Additional visual notes" } ] }`,
+            // 🔴 STRICT JSON OUTPUT
+            "OUTPUT FORMAT: STRICT JSON ONLY.",
+            `JSON SCHEMA: { "scenes": [ { "title": "Scene 1", "summary": "Full video prompt", "action": "Action description", "visual": "Visual details" } ] }`,
 
-        // 🔴 CRITICAL INSTRUCTION: DEFINING CHARACTERS
-        "*** CHARACTER DEFINITION RULE ***:",
-        "1. The 'summary' field is the MASTER PROMPT for the video generator.",
-        "2. START the summary by explicitly describing EVERY character present in the scene.",
-        "3. Format: '[Aspect Ratio] [Camera] [Full Visual Description of Character A] and [Full Visual Description of Character B] [Action]'.",
-        "4. If a scene has 2 characters, you MUST describe both of their outfits/appearances fully.",
-        
-        // 🔴 SEARCH & REPLACE (NO IDs ALLOWED)
-        "*** STRICT SEARCH & REPLACE ***:",
-        "1. You are FORBIDDEN from using ID labels like 'Character 1', 'Character 2' in the 'summary' field.",
-        "2. You MUST use the full visual descriptions provided below.",
-        "3. Even in the 'action' or 'visual' fields, prefer the full description to ensure continuity.",
-        
-        "   BAD SUMMARY: '16:9 Wide shot of Character 1 and Character 2 running.'",
-        "   GOOD SUMMARY: '16:9 Wide shot of a small orange tabby cat in a yellow hat (Character 1) and a toddler with cat ears in a pink dress (Character 2) running.'",
+            // 🔴 THE "NO ID" RULE (FIXED)
+            "*** CRITICAL SEARCH & REPLACE INSTRUCTION ***:",
+            "1. You are FORBIDDEN from using ID labels like: 'Character 1', 'Character 2', 'Main Character', 'The Cat'.",
+            "2. You MUST replace every reference with the FULL VISUAL REPLACEMENT string provided below.",
+            "3. CHECK EVERY SENTENCE: Does it say 'Character 1'? -> DELETE IT -> WRITE the full Replacement String.",
+            "4. Do this for the 'summary', 'action', and 'visual' fields.",
+            
+            "   BAD OUTPUT: '16:9 Medium shot of Character 1 running.'",
+            "   GOOD OUTPUT: '16:9 Medium shot of a small orange tabby cat with a yellow hat running.'",
 
-        // 🟢 LOGIC FOR OUTFITS/INJURIES
-        locked
-          ? [
-              "*** ADAPTIVE APPEARANCE LOGIC ***:",
-              "1. BIOLOGICAL LOCK: Keep Species/Fur/Face consistent.",
-              "2. OUTFIT LOGIC: Use the defined outfit (Hat/Dress/etc) unless context changes.",
-              "   - IF HOSPITAL: Change outfit to 'white bandages' or 'hospital gown'.",
-              "   - IF SWIMMING: Remove heavy items.",
-              "   - IF INJURED: Add 'limping', 'blood', or 'dirt' to the description.",
-              "3. MULTI-CHARACTER SCENES: If two characters interact, describe the outfits for BOTH."
-            ].join("\n")
-          : "Characters can evolve freely.",
+            // 🟢 LOGIC FOR OUTFITS/INJURIES
+            locked
+              ? [
+                  "*** ADAPTIVE APPEARANCE LOGIC ***:",
+                  "1. BASE APPEARANCE: Use the provided Species/Fur/Face details always.",
+                  "2. CONTEXTUAL CLOTHES: Use the listed Outfit (Hat/Diaper/etc) by default.",
+                  "   - EXCEPTION: If the scene is a HOSPITAL -> Remove outfit, add 'white bandages' or 'medical cone'.",
+                  "   - EXCEPTION: If the scene is SWIMMING -> Remove heavy clothes.",
+                  "   - EXCEPTION: If sleeping -> Remove hat.",
+                  "3. INJURY TRACKING: If they get hurt, ADD 'limping' or 'blood' to the description in all future scenes.",
+                  "4. NEVER be lazy. Always write the full description."
+                ].join("\n")
+              : "Characters can evolve freely.",
 
-        "WRITING STYLE:",
-        "- Visuals only. No narrative fluff.",
-        "- Describe lighting, texture, camera movement.",
+            // 🟢 WRITING STYLE
+            "WRITING STYLE:",
+            "- Start with the Aspect Ratio (e.g., 16:9).",
+            "- Describe lighting, texture, camera movement.",
+            "- No narrative fluff ('He felt sad'). Visuals only ('His ears drooped').",
 
-        `GLOBAL STYLE: ${globalStyleDetail}.`,
-        `Story type: ${getStoryPresetLabel(storySelected)}.`,
-        materialRule,
-        continuityRule,
+            `GLOBAL STYLE: ${globalStyleDetail}.`,
+            `Story type: ${getStoryPresetLabel(storySelected)}.`,
+            materialRule,
+            continuityRule,
 
-        "STORY INPUT DATA:",
-        `Story Idea: ${storyIdea || "None"}`,
-        `Scene Outline Ideas: ${sceneOutlineIdea || "None"}`,
-        
-        "*** VISUAL DICTIONARY (USE THESE DESCRIPTIONS) ***:",
-        characterMappings,
-        
-        "OBJECTS:", objectText,
-        "LOCATIONS:", locationText,
-        "HAZARDS:", hazardText,
-        
-        allowObjectTransform,
-        allowEatAsmr,
-        allowCutAsmr,
-        allowCookingAsmr,
-        allowHelpAnimal,
+            "STORY INPUT DATA:",
+            `Story Idea: ${storyIdea || "None"}`,
+            `Scene Outline Ideas: ${sceneOutlineIdea || "None"}`,
+            
+            "*** CHARACTER REPLACEMENT LIST (USE THIS TO SWAP IDs FOR VISUALS) ***:",
+            characterMappings, // <--- This is now strictly defined at the top
+            
+            "OBJECTS:", objectText,
+            "LOCATIONS:", locationText,
+            "HAZARDS:", hazardText,
+            
+            allowObjectTransform,
+            allowEatAsmr,
+            allowCutAsmr,
+            allowCookingAsmr,
+            allowHelpAnimal,
       ].join("\n");
-  };
+    };
 
   const handleGenerateScenes = async () => {
     setError("");

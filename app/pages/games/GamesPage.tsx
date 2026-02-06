@@ -15,6 +15,8 @@ type DbGame = {
   min_price: number | null;
   min_original_price: number | null;
   category: string;
+  stock_qty: number | null;
+  is_unlimited_stock: 0 | 1 | null;
   students: number;
   rating: number;
 };
@@ -76,6 +78,15 @@ export function GamesPage({ onOpenProductDetail }: { onOpenProductDetail: (slug:
 
   /* ================= SORT ================= */
   const sortedGames = [...searchedGames].sort((a, b) => {
+    const aOut =
+      !a.is_unlimited_stock && typeof a.stock_qty === "number"
+        ? a.stock_qty <= 0
+        : false;
+    const bOut =
+      !b.is_unlimited_stock && typeof b.stock_qty === "number"
+        ? b.stock_qty <= 0
+        : false;
+    if (aOut !== bOut) return aOut ? 1 : -1;
     switch (sortBy) {
       case "price-low":
         return (a.min_price ?? 0) - (b.min_price ?? 0);
@@ -204,6 +215,8 @@ export function GamesPage({ onOpenProductDetail }: { onOpenProductDetail: (slug:
                       price={g.min_price}
                       originalPrice={g.min_original_price}
                       category={g.category}
+                      stockQty={g.stock_qty}
+                      isUnlimitedStock={g.is_unlimited_stock}
                       onViewDetails={handleViewDetails}
                     />
                   ))}

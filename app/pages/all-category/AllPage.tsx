@@ -16,6 +16,8 @@ type DbProduct = {
   min_original_price: number | null;
   category: string;
   type: "course" | "program" | "game" | "tool";
+  stock_qty: number | null;
+  is_unlimited_stock: 0 | 1 | null;
   students: number;
   rating: number;
 };
@@ -78,6 +80,15 @@ export function AllPage({ onOpenProductDetail }: { onOpenProductDetail: (slug: s
 
   /* ================= SORT ================= */
   const sortedItems = [...filteredItems].sort((a, b) => {
+    const aOut =
+      !a.is_unlimited_stock && typeof a.stock_qty === "number"
+        ? a.stock_qty <= 0
+        : false;
+    const bOut =
+      !b.is_unlimited_stock && typeof b.stock_qty === "number"
+        ? b.stock_qty <= 0
+        : false;
+    if (aOut !== bOut) return aOut ? 1 : -1;
     switch (sortBy) {
       case "price-low":
         return (a.min_price ?? 0) - (b.min_price ?? 0);
@@ -181,6 +192,8 @@ export function AllPage({ onOpenProductDetail }: { onOpenProductDetail: (slug: s
                       price={item.min_price}
                       originalPrice={item.min_original_price}
                       category={item.category}
+                      stockQty={item.stock_qty}
+                      isUnlimitedStock={item.is_unlimited_stock}
                       onViewDetails={handleViewDetails}
                     />
                   ))}

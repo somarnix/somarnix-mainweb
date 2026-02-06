@@ -1,5 +1,5 @@
 // app/components/CourseCard.tsx
-import { Star, ShoppingCart } from "lucide-react";
+import { Star, ShoppingCart, AlertTriangle } from "lucide-react";
 import { Button } from "./ui/button";
 import { Badge } from "./ui/badge";
 import { useLanguage } from "../contexts/LanguageContext";
@@ -13,6 +13,8 @@ export interface CourseCardProps {
   price: number | null;
   originalPrice: number | null;
   category?: string;
+  stockQty?: number | null;
+  isUnlimitedStock?: 0 | 1 | boolean | null;
   onViewDetails?: (slug: string) => void;
 }
 
@@ -24,6 +26,8 @@ export function CourseCard({
   price,
   originalPrice,
   category,
+  stockQty,
+  isUnlimitedStock,
   onViewDetails,
 }: CourseCardProps) {
   const { t } = useLanguage();
@@ -33,6 +37,9 @@ export function CourseCard({
     price && originalPrice
       ? Math.round(((originalPrice - price) / originalPrice) * 100)
       : 0;
+
+  const isOutOfStock =
+    !isUnlimitedStock && typeof stockQty === "number" ? stockQty <= 0 : false;
 
   return (
     <div
@@ -44,8 +51,13 @@ export function CourseCard({
         <img
           src={image ?? "/placeholder.png"}
           alt={title}
-          className="w-full h-48 object-cover group-hover:scale-110 transition-transform duration-300"
+          className={`w-full h-48 object-cover group-hover:scale-110 transition-transform duration-300 ${
+            isOutOfStock ? "grayscale opacity-35" : ""
+          }`}
         />
+        {isOutOfStock && (
+          <div className="pointer-events-none absolute inset-0 bg-black/50" />
+        )}
 
         {/* Discount Badge */}
         {discount > 0 && (
@@ -62,6 +74,19 @@ export function CourseCard({
             <Badge variant="secondary">{category}</Badge>
           </div>
         )}
+
+        <div className="absolute bottom-3 left-3">
+          {isOutOfStock ? (
+            <span className="inline-flex items-center gap-1 rounded-md bg-amber-900/80 px-3 py-1 text-xs font-semibold text-amber-50 shadow-sm backdrop-blur-sm">
+              <AlertTriangle className="h-3.5 w-3.5" />
+              Sold out
+            </span>
+          ) : (
+            <span className="inline-flex items-center gap-1 rounded-md bg-emerald-600/90 px-3 py-1 text-xs font-semibold text-white shadow-sm backdrop-blur-sm">
+              In stock
+            </span>
+          )}
+        </div>
       </div>
 
       {/* Content */}
@@ -86,18 +111,36 @@ export function CourseCard({
               {formatPrice(originalPrice)}
             </span>
           )}
+        {isOutOfStock && (
+          <span className="ml-auto text-xs font-semibold text-rose-600 dark:text-rose-300">
+            Restocking
+          </span>
+        )}
         </div>
 
         {/* CTA */}
         <Button
-          className="w-full bg-gradient-to-r from-blue-600 to-purple-600 hover:from-blue-700 hover:to-purple-700"
+          className={`w-full ${
+            isOutOfStock
+              ? "rounded-full bg-red-600 py-3 text-white shadow-md shadow-red-500/30 hover:bg-red-700"
+              : "bg-gradient-to-r from-blue-600 to-purple-600 hover:from-blue-700 hover:to-purple-700"
+          }`}
           onClick={(e) => {
             e.stopPropagation();
             onViewDetails?.(slug);
           }}
+          disabled={isOutOfStock}
         >
-          <ShoppingCart className="w-4 h-4 mr-2" />
-          {t("course.view")}
+          {isOutOfStock ? (
+            <span className="uppercase tracking-[0.25em] text-xs font-semibold">
+              Out of stock
+            </span>
+          ) : (
+            <>
+              <ShoppingCart className="w-4 h-4 mr-2" />
+              {t("course.view")}
+            </>
+          )}
         </Button>
       </div>
     </div>

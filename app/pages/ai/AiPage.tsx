@@ -17,6 +17,8 @@ type DbCourse = {
   min_price: number | null;
   min_original_price: number | null;
   category: string;
+  stock_qty: number | null;
+  is_unlimited_stock: 0 | 1 | null;
   students: number;
   rating: number;
 };
@@ -78,6 +80,15 @@ export function AiPage({ onOpenProductDetail }: { onOpenProductDetail: (slug: st
 
   /* ================= SORT ================= */
   const sortedCourses = [...searchedCourses].sort((a, b) => {
+    const aOut =
+      !a.is_unlimited_stock && typeof a.stock_qty === "number"
+        ? a.stock_qty <= 0
+        : false;
+    const bOut =
+      !b.is_unlimited_stock && typeof b.stock_qty === "number"
+        ? b.stock_qty <= 0
+        : false;
+    if (aOut !== bOut) return aOut ? 1 : -1;
     switch (sortBy) {
       case "price-low":
         return (a.min_price ?? 0) - (b.min_price ?? 0);
@@ -210,6 +221,8 @@ export function AiPage({ onOpenProductDetail }: { onOpenProductDetail: (slug: st
                         price={c.min_price}
                         originalPrice={c.min_original_price}
                         category={c.category}
+                        stockQty={c.stock_qty}
+                        isUnlimitedStock={c.is_unlimited_stock}
                         onViewDetails={handleViewDetails}
                       />
                     ))}

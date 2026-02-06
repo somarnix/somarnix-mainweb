@@ -155,7 +155,7 @@ export async function POST(req: Request) {
             ],
           },
         ],
-        generationConfig: { temperature: 0, maxOutputTokens: 4096 },
+        generationConfig: { temperature: 0, maxOutputTokens: 11000 },
       };
 
       const res = await fetch(url, {

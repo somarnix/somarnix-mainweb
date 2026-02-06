@@ -23,6 +23,8 @@ type DbProduct = {
   image_url: string | null;
   min_price: number | null;
   min_original_price: number | null;
+  stock_qty: number | null;
+  is_unlimited_stock: 0 | 1 | null;
 };
 
 interface HomePageProps {
@@ -105,6 +107,8 @@ export default function HomePage({ onNavigate, onOpenProductDetail }: HomePagePr
                   image={p.image_url}
                   price={p.min_price}
                   originalPrice={p.min_original_price}
+                  stockQty={p.stock_qty}
+                  isUnlimitedStock={p.is_unlimited_stock}
                   onViewDetails={() => onOpenProductDetail(p.slug)}
                 />
               ))}

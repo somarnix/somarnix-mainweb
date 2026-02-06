@@ -45,7 +45,14 @@ export default function ImgToTextPage() {
       const fd = new FormData();
       if (visionFile) fd.append("image", visionFile);
       if (visionUrl.trim()) fd.append("imageUrl", visionUrl.trim());
-      const basePrompt = visionPrompt || "Describe this image.";
+      const basePrompt = visionPrompt || [
+        "Analyze this image as a pivotal scene from a movie.",
+        "1. VISUALS: Describe the characters and objects clearly.",
+        "2. THE CAUSE (The 'Why'): Invent a specific reason for this situation. (Example: Did a tire blow out? Was there a chase? Did an animal cross the road?)",
+        "3. THE CONTEXT: Explain what these characters were doing 5 minutes BEFORE this image.",
+        "4. THE OUTCOME: Explain what happens NEXT.",
+        "Combine this into a cohesive movie summary."
+      ].join(" ");
       const characterInstruction = visionCharacterMode || visionObjectMode
         ? [
             "Return STRICT JSON only.",
@@ -302,28 +309,30 @@ export default function ImgToTextPage() {
     try {
       const presetLabel = getStoryPresetLabel(ideaPreset);
 
+      const isHelpAnimal = ideaPreset === "help-animal";
+      const presetRule = isHelpAnimal
+        ? "HELP ANIMAL RULE: Every idea MUST be a clear animal rescue/care story with danger, effort, and safe resolution."
+        : `GENRE RULE: Follow the selected preset style: ${presetLabel}.`;
+
       const prompt = [
-        "You are a HELP-ANIMAL rescue story idea generator.",
+        "You are a movie idea generator.",
         `Preset: ${presetLabel}.`,
+        presetRule,
         "",
         "CRITICAL RULES:",
         "- Use ONLY the provided summary + the provided character list + the provided object list.",
         "- DO NOT invent new characters, objects, locations, tools, mentors, or backstory.",
-        "- DO NOT use words like: friendship, belonging, learns, past, backstory, mentor.",
-        "- The story MUST be physical rescue logic, not feelings.",
+        "- Keep ideas grounded in the image context.",
         "",
         "OUTPUT STRICT JSON ONLY with this shape (no markdown):",
         '{ "ideas": [ { "title": "...", "story": "..." } ] }',
         "",
         "Generate exactly 5 ideas.",
-        "Each story must be EXACTLY 4 sentences, following this forced structure:",
-        "1) Sentence 1: Who is injured/in danger + what is the clear physical problem.",
-        "2) Sentence 2: First rescue attempt fails + why it fails.",
-        "3) Sentence 3: Danger escalates + who takes the lead + what action they do.",
-        "4) Sentence 4: Rescue succeeds + animal is safe (short).",
+        "Each story must be 2-4 sentences, clear and cinematic.",
         "",
-        "Use character NAMES from the list (example: Felix, Buddy).",
-        "If a detail is not visible, keep it generic but still physical (weak, cold, trapped, smoke).",
+        "Use ONLY the exact names provided in the CHARACTERS list.",
+        "If a character has no name (e.g. 'Character 1'), refer to them by their Role (e.g. 'The Officer', 'The Dog').",
+        "DO NOT invent names like Felix, Buddy, or Lyly.",
         "",
         "IMAGE SUMMARY:",
         visionSummary.trim(),
