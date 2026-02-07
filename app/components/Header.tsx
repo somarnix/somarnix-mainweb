@@ -393,7 +393,11 @@ const mapSummary = (raw: any): HeaderChatSummary => {
         : []
       ).map(mapSummary);
       setChatWidgetConversations(normalized);
-      setHasChatActivity(normalized.length > 0);
+      const unreadTotal = normalized.reduce(
+        (sum, conv) => sum + Number(conv.unreadCount ?? 0),
+        0
+      );
+      setHasChatActivity(unreadTotal > 0);
       if (keepActive && activeId) {
         const stillExists =
           normalized.find((conv) => conv.orderId === activeId) ?? null;
@@ -408,6 +412,7 @@ const mapSummary = (raw: any): HeaderChatSummary => {
       setChatWidgetError(null);
     } catch (err) {
       setChatWidgetConversations([]);
+      setHasChatActivity(false);
       if (!keepActive) {
         setChatWidgetActive(null);
         setChatWidgetMessages([]);
@@ -1062,13 +1067,13 @@ const mapSummary = (raw: any): HeaderChatSummary => {
                 </span>
                 <span>{headerCountry.code}</span>
               </button>
-              <button
+              {/* <button
                 className="rounded-full border border-red-200 bg-red-600 px-4 py-1.5 text-xs font-semibold text-white shadow-sm hover:bg-red-700 transition-colors"
                 type="button"
                 onClick={() => onNavigate("becomeseller")}
               >
                 {t("header.becomeSeller")}
-              </button>
+              </button> */}
             </div>
 
           {/* Notification */}

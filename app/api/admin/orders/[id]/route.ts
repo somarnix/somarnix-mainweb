@@ -30,5 +30,22 @@ export async function GET(
     return Response.json({ error: "Order not found" }, { status: 404 });
   }
 
-  return Response.json({ order: rows[0] });
+  const [items] = await db.query<RowDataPacket[]>(
+    `
+    SELECT
+      oi.id,
+      oi.qty,
+      oi.unit_price,
+      oi.order_info_json,
+      p.title AS product_title,
+      p.order_fields_json
+    FROM order_items oi
+    JOIN products p ON p.id = oi.product_id
+    WHERE oi.order_id = ?
+    ORDER BY oi.id ASC
+    `,
+    [orderId]
+  );
+
+  return Response.json({ order: rows[0], items });
 }

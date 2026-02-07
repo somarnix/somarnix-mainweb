@@ -26,6 +26,7 @@ type Product = {
   is_unlimited_stock?: number | null;
 
   image_url?: string | null;
+  order_fields_json?: string | null;
 
   min_price?: number | string | null;
   variant_count?: number | null;
@@ -61,6 +62,14 @@ type QrImageOption = {
   filename: string;
   label: string;
   url: string;
+};
+
+type OrderField = {
+  key: string;
+  label: string;
+  required: boolean;
+  placeholder: string;
+  type: "text" | "number" | "email" | "tel";
 };
 
 /* ================= HELPERS ================= */
@@ -107,6 +116,57 @@ function getErrorMessage(err: unknown): string {
 const DEFAULT_KH_QR = "/paymentQR/khmer_qr.jpg";
 const USD_QR_NONE = "none";
 
+function normalizeOrderFields(raw?: string | null): OrderField[] {
+  if (!raw || typeof raw !== "string") return [];
+  try {
+    const parsed = JSON.parse(raw);
+    if (!Array.isArray(parsed)) return [];
+    return parsed
+      .map((item) => {
+        if (!item || typeof item !== "object") return null;
+        const r = item as Record<string, unknown>;
+        const key = typeof r.key === "string" ? r.key.trim() : "";
+        const label = typeof r.label === "string" ? r.label.trim() : "";
+        if (!key || !label) return null;
+        const required = r.required === true;
+        const placeholder = typeof r.placeholder === "string" ? r.placeholder : "";
+        const type =
+          r.type === "number" || r.type === "email" || r.type === "tel"
+            ? (r.type as OrderField["type"])
+            : "text";
+        return { key, label, required, placeholder, type };
+      })
+      .filter(Boolean) as OrderField[];
+  } catch {
+    return [];
+  }
+}
+
+function serializeOrderFields(fields: OrderField[]): string | null {
+  const cleaned = fields
+    .map((f) => ({
+      key: f.key.trim(),
+      label: f.label.trim(),
+      required: !!f.required,
+      placeholder: f.placeholder?.trim() ?? "",
+      type: f.type || "text",
+    }))
+    .map((f) => ({
+      ...f,
+      key: f.key || makeOrderKey(f.label),
+    }))
+    .filter((f) => f.key && f.label);
+  return cleaned.length > 0 ? JSON.stringify(cleaned) : null;
+}
+
+function makeOrderKey(label: string): string {
+  return label
+    .toLowerCase()
+    .trim()
+    .replace(/[^a-z0-9]+/g, "_")
+    .replace(/^_+|_+$/g, "");
+}
+
 /* ================= PAGE ================= */
 
 export default function AdminProductsPage() {
@@ -143,6 +203,8 @@ export default function AdminProductsPage() {
   const [fStockQty, setFStockQty] = useState<number>(0);
   const [fUnlimitedStock, setFUnlimitedStock] = useState<number>(0);
   const [fImageUrl, setFImageUrl] = useState<string>("");
+  const [fOrderFieldsJson, setFOrderFieldsJson] = useState<string>("");
+  const [fOrderFields, setFOrderFields] = useState<OrderField[]>([]);
 
   /* ================= VARIANTS (NEW) ================= */
   const [variants, setVariants] = useState<Variant[]>([]);
@@ -271,6 +333,8 @@ export default function AdminProductsPage() {
         const is_unlimited_stock = toNumberOrNull(r.is_unlimited_stock);
 
         const image_url = typeof r.image_url === "string" ? r.image_url : null;
+        const order_fields_json =
+          typeof r.order_fields_json === "string" ? r.order_fields_json : null;
 
         const min_price = r.min_price as number | string | null;
         const variant_count = toNumberOrNull(r.variant_count);
@@ -288,6 +352,7 @@ export default function AdminProductsPage() {
           stock_qty,
           is_unlimited_stock,
           image_url,
+          order_fields_json,
           min_price,
           variant_count,
           is_active,
@@ -759,6 +824,10 @@ export default function AdminProductsPage() {
     setFUnlimitedStock(p.is_unlimited_stock ? 1 : 0);
 
     setFImageUrl(typeof p.image_url === "string" ? p.image_url : "");
+    const rawOrderFields =
+      typeof p.order_fields_json === "string" ? p.order_fields_json : "";
+    setFOrderFieldsJson(rawOrderFields);
+    setFOrderFields(normalizeOrderFields(rawOrderFields));
 
     // reset variants UI state
     setVariants([]);
@@ -785,6 +854,8 @@ export default function AdminProductsPage() {
     setEditing(null);
     setSaving(false);
     setUploading(false);
+    setFOrderFieldsJson("");
+    setFOrderFields([]);
 
     // variants
     setVariants([]);
@@ -867,6 +938,7 @@ export default function AdminProductsPage() {
         stock_qty: Number(fStockQty),
         is_unlimited_stock: fUnlimitedStock ? 1 : 0,
         image_url: fImageUrl && fImageUrl.trim() ? fImageUrl.trim() : null,
+        order_fields_json: serializeOrderFields(fOrderFields),
       };
 
       const res = await fetch(`/api/admin/products/${editing.id}`, {
@@ -894,6 +966,7 @@ export default function AdminProductsPage() {
                 stock_qty: payload.stock_qty,
                 is_unlimited_stock: payload.is_unlimited_stock,
                 image_url: payload.image_url,
+                order_fields_json: payload.order_fields_json,
               }
             : x
         )
@@ -1313,6 +1386,140 @@ export default function AdminProductsPage() {
                   onChange={(e) => setFUnlimitedStock(e.target.checked ? 1 : 0)}
                 />
                 <span className="text-sm text-gray-700">Unlimited stock</span>
+              </div>
+
+              <div className="md:col-span-2 space-y-3">
+                <div>
+                  <label className="text-xs text-gray-600">Order Fields</label>
+                  <div className="mt-1 text-xs text-gray-500">
+                    Add fields customers must fill before buying. Leave empty if not needed.
+                  </div>
+                </div>
+
+                <div className="space-y-2">
+                  {fOrderFields.length === 0 && (
+                    <div className="rounded-lg border border-dashed p-3 text-xs text-gray-500">
+                      No order fields added.
+                    </div>
+                  )}
+
+                  {fOrderFields.map((field, idx) => (
+                    <div
+                      key={`${field.key}-${idx}`}
+                      className="grid grid-cols-1 md:grid-cols-5 gap-2 rounded-lg border p-3"
+                    >
+                      <input
+                        value={field.label}
+                        onChange={(e) => {
+                          const nextLabel = e.target.value;
+                          setFOrderFields((prev) =>
+                            prev.map((f, i) =>
+                              i === idx
+                                ? {
+                                    ...f,
+                                    label: nextLabel,
+                                    key: f.key.trim()
+                                      ? f.key
+                                      : makeOrderKey(nextLabel),
+                                  }
+                                : f
+                            )
+                          );
+                        }}
+                        placeholder="Label (e.g. User ID)"
+                        className="border rounded-md px-2 py-1 text-xs md:col-span-2"
+                      />
+                      <input
+                        value={field.key}
+                        onChange={(e) =>
+                          setFOrderFields((prev) =>
+                            prev.map((f, i) =>
+                              i === idx ? { ...f, key: e.target.value } : f
+                            )
+                          )
+                        }
+                        placeholder="Key (e.g. user_id)"
+                        className="border rounded-md px-2 py-1 text-xs md:col-span-1"
+                      />
+                      <select
+                        value={field.type}
+                        onChange={(e) =>
+                          setFOrderFields((prev) =>
+                            prev.map((f, i) =>
+                              i === idx
+                                ? { ...f, type: e.target.value as OrderField["type"] }
+                                : f
+                            )
+                          )
+                        }
+                        className="border rounded-md px-2 py-1 text-xs md:col-span-1"
+                      >
+                        <option value="text">text</option>
+                        <option value="number">number</option>
+                        <option value="email">email</option>
+                        <option value="tel">tel</option>
+                      </select>
+                      <div className="flex items-center gap-2 md:col-span-1">
+                        <label className="flex items-center gap-2 text-xs">
+                          <input
+                            type="checkbox"
+                            checked={field.required}
+                            onChange={(e) =>
+                              setFOrderFields((prev) =>
+                                prev.map((f, i) =>
+                                  i === idx ? { ...f, required: e.target.checked } : f
+                                )
+                              )
+                            }
+                          />
+                          Required
+                        </label>
+                        <button
+                          type="button"
+                          onClick={() =>
+                            setFOrderFields((prev) => prev.filter((_, i) => i !== idx))
+                          }
+                          className="ml-auto text-xs text-red-600 hover:text-red-700"
+                        >
+                          Remove
+                        </button>
+                      </div>
+                      <input
+                        value={field.placeholder}
+                        onChange={(e) =>
+                          setFOrderFields((prev) =>
+                            prev.map((f, i) =>
+                              i === idx ? { ...f, placeholder: e.target.value } : f
+                            )
+                          )
+                        }
+                        placeholder="Placeholder (optional)"
+                        className="border rounded-md px-2 py-1 text-xs md:col-span-5"
+                      />
+                    </div>
+                  ))}
+                </div>
+
+                <div className="flex items-center gap-2">
+                  <button
+                    type="button"
+                    onClick={() =>
+                      setFOrderFields((prev) => [
+                        ...prev,
+                        {
+                          key: "",
+                          label: "",
+                          required: false,
+                          placeholder: "",
+                          type: "text",
+                        },
+                      ])
+                    }
+                    className="text-xs px-3 py-1.5 rounded border hover:bg-gray-50"
+                  >
+                    Add field
+                  </button>
+                </div>
               </div>
 
               {/* IMAGE UPLOAD + AUTO SAVE */}

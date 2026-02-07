@@ -17,9 +17,18 @@ type Product = {
   title: string;
 };
 
+type OrderField = {
+  key: string;
+  label: string;
+  required?: boolean;
+  placeholder?: string;
+  type?: "text" | "number" | "email" | "tel";
+};
+
 interface AddToCartModalProps {
   product: Product;
   variants: ProductVariant[];
+  orderFields?: OrderField[];
   onClose: () => void;
   // optional: call when added successfully
   onAdded?: () => void;
@@ -28,6 +37,7 @@ interface AddToCartModalProps {
 export function AddToCartModal({
   product,
   variants,
+  orderFields,
   onClose,
   onAdded,
 }: AddToCartModalProps) {
@@ -40,6 +50,7 @@ export function AddToCartModal({
   const [variantId, setVariantId] = useState<number | null>(firstVariant?.id ?? null);
   const [quantity, setQuantity] = useState<number>(1);
   const [submitting, setSubmitting] = useState<boolean>(false);
+  const [orderValues, setOrderValues] = useState<Record<string, string>>({});
 
   const selectedVariant = useMemo(() => {
     if (!variantId) return null;
@@ -55,6 +66,12 @@ export function AddToCartModal({
     setQuantity((q) => Math.max(1, q + delta));
   };
 
+  const normalizedOrderFields = Array.isArray(orderFields) ? orderFields : [];
+
+  const handleOrderValueChange = (key: string, value: string) => {
+    setOrderValues((prev) => ({ ...prev, [key]: value }));
+  };
+
   const handleAddToCart = async () => {
     if (!product?.id) {
       toast.error("Missing product");
@@ -63,6 +80,16 @@ export function AddToCartModal({
 
     if (!selectedVariant?.id) {
       toast.error("Please select an option");
+      return;
+    }
+
+    const missingRequired = normalizedOrderFields.filter((f) => {
+      if (!f.required) return false;
+      const value = orderValues[f.key];
+      return !value || !value.trim();
+    });
+    if (missingRequired.length > 0) {
+      toast.error("Please fill required order information");
       return;
     }
 
@@ -78,6 +105,11 @@ export function AddToCartModal({
           productId: product.id,
           variantId: selectedVariant.id,
           qty: quantity,
+          orderInfo: normalizedOrderFields.reduce<Record<string, string>>((acc, f) => {
+            const value = orderValues[f.key];
+            if (value && value.trim()) acc[f.key] = value.trim();
+            return acc;
+          }, {}),
         }),
       });
 
@@ -168,6 +200,31 @@ export function AddToCartModal({
             <div className="font-semibold text-gray-900 dark:text-white">
               {product.title}
             </div>
+
+            {normalizedOrderFields.length > 0 && (
+              <div className="space-y-3">
+                <div className="text-sm font-semibold">
+                  {t("modal.orderInfo") || "Order Information"}
+                </div>
+                {normalizedOrderFields.map((field) => (
+                  <div key={field.key}>
+                    <label className="block text-xs text-gray-600 mb-1">
+                      {field.label}
+                      {field.required ? (
+                        <span className="text-red-500"> *</span>
+                      ) : null}
+                    </label>
+                    <input
+                      type={field.type || "text"}
+                      value={orderValues[field.key] ?? ""}
+                      onChange={(e) => handleOrderValueChange(field.key, e.target.value)}
+                      placeholder={field.placeholder}
+                      className="w-full rounded-lg border px-3 py-2 text-sm"
+                    />
+                  </div>
+                ))}
+              </div>
+            )}
 
             {/* Variant Selection */}
             <div>

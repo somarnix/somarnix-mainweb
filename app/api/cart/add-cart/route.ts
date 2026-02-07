@@ -48,6 +48,18 @@ export async function POST(req: Request) {
       return Response.json({ error: "variantId invalid" }, { status: 400 });
     }
 
+    let orderInfoJson: string | null = null;
+    if ("orderInfo" in b) {
+      const info = b.orderInfo;
+      if (info && typeof info === "object") {
+        try {
+          orderInfoJson = JSON.stringify(info);
+        } catch {
+          return Response.json({ error: "Invalid orderInfo" }, { status: 400 });
+        }
+      }
+    }
+
     // 1) find active cart
     const [cRows] = await db.query<CartIdRow[]>(
       "SELECT id FROM carts WHERE user_id = ? AND status='active' LIMIT 1",
@@ -136,16 +148,16 @@ export async function POST(req: Request) {
 
     if (exist.length > 0) {
       await db.query<ResultSetHeader>(
-        "UPDATE cart_items SET qty = qty + ? WHERE id = ?",
-        [qty, exist[0].id]
+        "UPDATE cart_items SET qty = qty + ?, order_info_json = COALESCE(?, order_info_json) WHERE id = ?",
+        [qty, orderInfoJson, exist[0].id]
       );
     } else {
       await db.query<ResultSetHeader>(
         `
-        INSERT INTO cart_items (cart_id, product_id, variant_id, qty, unit_price)
-        VALUES (?,?,?,?,?)
+        INSERT INTO cart_items (cart_id, product_id, variant_id, qty, unit_price, order_info_json)
+        VALUES (?,?,?,?,?,?)
         `,
-        [cartId, productId, variantId, qty, unitPrice]
+        [cartId, productId, variantId, qty, unitPrice, orderInfoJson]
       );
     }
 

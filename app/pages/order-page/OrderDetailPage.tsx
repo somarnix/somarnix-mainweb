@@ -46,7 +46,56 @@ type Item = {
   device_label: string | null;
   duration_days?: number | null;
   access_end?: string | null;
+  order_info_json?: string | null;
+  order_fields_json?: string | null;
 };
+
+type OrderInfoEntry = { key: string; value: string };
+
+function parseOrderInfo(raw?: string | null): OrderInfoEntry[] {
+  if (!raw || typeof raw !== "string") return [];
+  try {
+    const parsed = JSON.parse(raw);
+    if (!parsed || typeof parsed !== "object") return [];
+    if (Array.isArray(parsed)) return [];
+    return Object.entries(parsed).map(([key, value]) => ({
+      key,
+      value: typeof value === "string" ? value : String(value ?? ""),
+    }));
+  } catch {
+    return [];
+  }
+}
+
+type OrderFieldDef = { key: string; label: string };
+
+function parseOrderFields(raw?: string | null): OrderFieldDef[] {
+  if (!raw || typeof raw !== "string") return [];
+  try {
+    const parsed = JSON.parse(raw);
+    if (!Array.isArray(parsed)) return [];
+    return parsed
+      .map((item) => {
+        if (!item || typeof item !== "object") return null;
+        const r = item as Record<string, unknown>;
+        const key = typeof r.key === "string" ? r.key.trim() : "";
+        const label = typeof r.label === "string" ? r.label.trim() : "";
+        if (!key || !label) return null;
+        return { key, label };
+      })
+      .filter(Boolean) as OrderFieldDef[];
+  } catch {
+    return [];
+  }
+}
+
+function resolveLabel(
+  key: string,
+  fields: OrderFieldDef[]
+): string {
+  const found = fields.find((f) => f.key === key);
+  return found ? found.label : key;
+}
 
 type VideoItem = {
   id: number;
@@ -507,7 +556,12 @@ export function OrderDetailPage({
   const [chatMessages, setChatMessages] = useState<OrderChatMessage[]>([]);
   const [chatInput, setChatInput] = useState("");
   const [chatSending, setChatSending] = useState(false);
-  const chatEnabled = order?.status === "completed";
+  const [editingItemId, setEditingItemId] = useState<number | null>(null);
+  const [editingValues, setEditingValues] = useState<Record<string, string>>({});
+  const [editingSaving, setEditingSaving] = useState(false);
+  const chatEnabled =
+    !!order &&
+    !["cancelled", "resolution"].includes(String(order.status ?? ""));
 
   const orderIdentifier =
     typeof orderId === "number" ? String(orderId) : String(orderId ?? "");
@@ -648,6 +702,66 @@ export function OrderDetailPage({
     }
   };
 
+  const canEditOrderInfo = order?.status === "pending";
+
+  const startEditOrderInfo = (item: Item) => {
+    const values = parseOrderInfo(item.order_info_json).reduce<Record<string, string>>(
+      (acc, entry) => {
+        acc[entry.key] = entry.value;
+        return acc;
+      },
+      {}
+    );
+    setEditingValues(values);
+    setEditingItemId(item.id);
+  };
+
+  const cancelEditOrderInfo = () => {
+    setEditingItemId(null);
+    setEditingValues({});
+  };
+
+  const saveOrderInfo = async (item: Item) => {
+    if (!order) return;
+    const fields = parseOrderFields(item.order_fields_json);
+    const missingRequired = fields.filter(
+      (f) => !editingValues[f.key]?.trim() && f.label
+    );
+    if (missingRequired.length > 0) return;
+
+    setEditingSaving(true);
+    try {
+      const res = await fetch(`/api/orders/${order.id}/order-info`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        credentials: "include",
+        body: JSON.stringify({
+          itemId: item.id,
+          orderInfo: editingValues,
+        }),
+      });
+      const data = await res.json().catch(() => ({}));
+      if (!res.ok) {
+        throw new Error(data?.error || "Failed to update order info");
+      }
+      setItems((prev) =>
+        prev.map((it) =>
+          it.id === item.id
+            ? {
+                ...it,
+                order_info_json: JSON.stringify(editingValues),
+              }
+            : it
+        )
+      );
+      cancelEditOrderInfo();
+    } catch (err) {
+      console.error(err);
+    } finally {
+      setEditingSaving(false);
+    }
+  };
+
   const handleRefreshChat = () => {
     if (order?.id && order.status === "completed") {
       fetchChat(order.id);
@@ -701,7 +815,7 @@ export function OrderDetailPage({
       setChatError(
         lang === "km"
           ? "ការជជែកអាចប្រើបានក្រោយពេលការបញ្ជាទិញបានបញ្ចប់។"
-          : "Chat will unlock after this order is completed."
+          : "Chat is disabled for cancelled or resolution orders."
       );
     }
   }, [order?.id, order?.status, fetchChat, lang]);
@@ -987,7 +1101,7 @@ export function OrderDetailPage({
               <span>
                 {lang === "km"
                   ? "ការជជែកនឹងអាចប្រើបានក្រោយពេលការបញ្ជាទិញបានបញ្ចប់។"
-                  : "Chat becomes available once this order is completed."}
+                  : "Chat is disabled for cancelled or resolution orders."}
               </span>
             </div>
           )}
@@ -1003,7 +1117,7 @@ export function OrderDetailPage({
               <div className="text-sm text-gray-500">
                 {lang === "km"
                   ? "សូមរង់ចាំដល់ការបញ្ជាទិញបានបញ្ចប់ ដើម្បីទាក់ទងអ្នកលក់។"
-                  : "Wait until the order is completed to contact the seller."}
+                  : "Chat is disabled for this order."}
               </div>
             ) : chatLoading ? (
               <div className="flex items-center gap-2 text-sm text-gray-500">
@@ -1065,7 +1179,7 @@ export function OrderDetailPage({
                     : "Type your message..."
                   : lang === "km"
                   ? "ការជជែកនឹងបើកក្រោយពេលបញ្ចប់"
-                  : "Chat unlocks after completion"
+                  : "Chat is disabled for this order"
               }
             />
             <div className="flex justify-end">
@@ -1120,6 +1234,81 @@ export function OrderDetailPage({
                         {normalizeDateForDisplay(it.access_end, lang)}
                       </div>
                     ) : null}
+                    {parseOrderInfo(it.order_info_json).length > 0 && (
+                      <div className="mt-2 rounded-lg border border-gray-100 dark:border-gray-800 bg-gray-50 dark:bg-gray-800/50 p-2 text-xs text-gray-600 dark:text-gray-300">
+                        <div className="font-semibold text-gray-700 dark:text-gray-200 mb-1">
+                          {language === "km" ? "ព័ត៌មានបញ្ជាទិញ" : "Order info"}
+                        </div>
+                        <div className="space-y-1">
+                          {parseOrderInfo(it.order_info_json).map((entry) => (
+                            <div key={`${it.id}-${entry.key}`} className="flex gap-2">
+                              <span className="font-semibold">
+                                {resolveLabel(entry.key, parseOrderFields(it.order_fields_json))}:
+                              </span>
+                              <span className="break-all">{entry.value}</span>
+                            </div>
+                          ))}
+                        </div>
+                      </div>
+                    )}
+                    {canEditOrderInfo &&
+                      parseOrderFields(it.order_fields_json).length > 0 && (
+                        <div className="mt-2">
+                          {editingItemId === it.id ? (
+                            <div className="rounded-lg border border-gray-100 dark:border-gray-800 bg-white dark:bg-gray-900 p-3 space-y-2">
+                              {parseOrderFields(it.order_fields_json).map((field) => (
+                                <div key={`${it.id}-${field.key}`}>
+                                  <label className="block text-xs text-gray-600 mb-1">
+                                    {field.label}
+                                  </label>
+                                  <input
+                                    value={editingValues[field.key] ?? ""}
+                                    onChange={(e) =>
+                                      setEditingValues((prev) => ({
+                                        ...prev,
+                                        [field.key]: e.target.value,
+                                      }))
+                                    }
+                                    className="w-full rounded-lg border px-3 py-2 text-sm"
+                                  />
+                                </div>
+                              ))}
+                              <div className="flex gap-2 pt-1">
+                                <Button
+                                  variant="outline"
+                                  size="sm"
+                                  onClick={cancelEditOrderInfo}
+                                  disabled={editingSaving}
+                                >
+                                  {language === "km" ? "បោះបង់" : "Cancel"}
+                                </Button>
+                                <Button
+                                  size="sm"
+                                  onClick={() => saveOrderInfo(it)}
+                                  disabled={editingSaving}
+                                >
+                                  {editingSaving
+                                    ? language === "km"
+                                      ? "កំពុងរក្សាទុក..."
+                                      : "Saving..."
+                                    : language === "km"
+                                    ? "រក្សាទុក"
+                                    : "Save"}
+                                </Button>
+                              </div>
+                            </div>
+                          ) : (
+                            <button
+                              onClick={() => startEditOrderInfo(it)}
+                              className="text-xs text-blue-600 hover:text-blue-700"
+                            >
+                              {language === "km"
+                                ? "កែសម្រួលព័ត៌មាន"
+                                : "Edit order info"}
+                            </button>
+                          )}
+                        </div>
+                      )}
                     <div className="text-xs text-gray-400 dark:text-gray-500">
                       ID #{it.id}
                     </div>

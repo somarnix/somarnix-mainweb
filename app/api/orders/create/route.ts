@@ -17,6 +17,13 @@ type CartItemRow = RowDataPacket & {
   qty: number;
   unit_price: number; // may be string depending mysql2 settings
   original_price: number | null; // may be string depending mysql2 settings
+  order_info_json: string | null;
+};
+
+type ProductStockRow = RowDataPacket & {
+  id: number;
+  stock_qty: number | string | null;
+  is_unlimited_stock: number | string | null;
 };
 
 export async function POST(req: Request) {
@@ -59,7 +66,8 @@ export async function POST(req: Request) {
         ci.variant_id,
         ci.qty,
         ci.unit_price,
-        pv.original_price
+        pv.original_price,
+        ci.order_info_json
       FROM cart_items ci
       LEFT JOIN product_variants pv ON pv.id = ci.variant_id
       WHERE ci.cart_id = ? AND ci.id = ?
@@ -81,7 +89,53 @@ export async function POST(req: Request) {
 
     const orderNumber = makeOrderNumber();
 
-    // 4) create order
+    // 4) validate stock and reserve (for limited stock)
+    const qtyByProduct = new Map<number, number>();
+    for (const it of items) {
+      const pid = Number(it.product_id);
+      if (!Number.isFinite(pid) || pid <= 0) continue;
+      const nextQty = Number(it.qty ?? 0);
+      qtyByProduct.set(pid, (qtyByProduct.get(pid) ?? 0) + nextQty);
+    }
+
+    const productIds = Array.from(qtyByProduct.keys());
+    if (productIds.length > 0) {
+      const [stockRows] = await db.query<ProductStockRow[]>(
+        `
+        SELECT id, stock_qty, is_unlimited_stock
+        FROM products
+        WHERE id IN (${productIds.map(() => "?").join(",")})
+        `,
+        productIds
+      );
+
+      for (const row of stockRows) {
+        const isUnlimited = Number(row.is_unlimited_stock) === 1;
+        if (isUnlimited) continue;
+        const available = Number(row.stock_qty ?? 0);
+        const need = qtyByProduct.get(Number(row.id)) ?? 0;
+        if (available < need) {
+          return Response.json(
+            { error: "Not enough stock for one or more items" },
+            { status: 400 }
+          );
+        }
+      }
+
+      for (const [pid, need] of qtyByProduct.entries()) {
+        if (!Number.isFinite(need) || need <= 0) continue;
+        await db.query<ResultSetHeader>(
+          `
+          UPDATE products
+          SET stock_qty = GREATEST(0, stock_qty - ?)
+          WHERE id = ? AND is_unlimited_stock = 0
+          `,
+          [need, pid]
+        );
+      }
+    }
+
+    // 5) create order
     let orderId: number;
     let usedLegacyInsert = false;
     try {
@@ -96,9 +150,10 @@ export async function POST(req: Request) {
           tax_rate,
           tax_amount,
           total,
-          total_amount
+          total_amount,
+          stock_reserved
         )
-        VALUES (?, ?, 'pending', 'none', ?, ?, ?, ?, ?)
+        VALUES (?, ?, 'pending', 'none', ?, ?, ?, ?, ?, 1)
         `,
         [auth.userId, orderNumber, subtotal, taxRate, taxAmount, total, total]
       );
@@ -108,7 +163,8 @@ export async function POST(req: Request) {
       const needsLegacyInsert =
         message.includes("state") ||
         message.includes("total_amount") ||
-        message.includes("result");
+        message.includes("result") ||
+        message.includes("stock_reserved");
       if (!needsLegacyInsert) {
         throw err;
       }
@@ -132,10 +188,18 @@ export async function POST(req: Request) {
 
       await db.query<ResultSetHeader>(
         `
-        INSERT INTO order_items (order_id, product_id, variant_id, qty, unit_price, original_price)
-        VALUES (?,?,?,?,?,?)
+        INSERT INTO order_items (order_id, product_id, variant_id, qty, unit_price, original_price, order_info_json)
+        VALUES (?,?,?,?,?,?,?)
         `,
-        [orderId, it.product_id, it.variant_id, it.qty, unitPrice, originalPrice]
+        [
+          orderId,
+          it.product_id,
+          it.variant_id,
+          it.qty,
+          unitPrice,
+          originalPrice,
+          it.order_info_json ?? null,
+        ]
       );
     }
 

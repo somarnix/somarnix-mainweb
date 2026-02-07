@@ -14,7 +14,6 @@ import { CoursesPage } from "./pages/courses/CoursesPage";
 import { VideoDetailPage } from "./pages/courses/VideoDetailPage";
 import { ServicesPage } from "./pages/services/ServicesPage";
 import { BlogPage } from "./pages/blogs/BlogPage";
-import { Becomeseller } from "./pages/becomeseller/Becomeseller";
 
 import LoginPage from "./auth/login/LoginPage";
 import { RegisterPage } from "./auth/register/RegisterPage";
@@ -63,7 +62,6 @@ type AppPage =
   | "blog"
   | "video-courses"
   | "services"
-  | "becomeseller"
   | "profile"
   | "account"
   | "login"
@@ -104,7 +102,6 @@ const ALL_PAGES: ReadonlyArray<AppPage> = [
   "blog",
   "video-courses",
   "services",
-  "becomeseller",
   "profile",
   "account",
   "login",
@@ -134,7 +131,6 @@ const STATIC_ROUTES: Record<string, AppPage> = {
   "/courses": "video-courses",
   "/blog": "blog",
   "/services": "services",
-  "/becomeseller": "becomeseller",
   "/profile": "profile",
   "/account": "account",
   "/login": "login",
@@ -294,8 +290,6 @@ function buildPathForPage(
       return "/courses";
     case "services":
       return "/services";
-    case "becomeseller":
-      return "/becomeseller";
     case "profile":
       return "/profile";
     case "account":
@@ -585,8 +579,6 @@ export default function App() {
 
       case "services":
         return <ServicesPage onNavigate={handleNavigate} />;
-      case "becomeseller":
-        return <Becomeseller />;
 
       case "chat":
         return (

@@ -100,19 +100,45 @@ export async function GET(req: NextRequest) {
       ) AS lm ON lm.conversation_id = c.id
       LEFT JOIN (
         SELECT
-          conversation_id,
-          SUM(CASE WHEN is_admin = 1 AND seller_seen_at IS NULL AND deleted_at IS NULL THEN 1 ELSE 0 END) AS seller_unread,
-          SUM(CASE WHEN is_admin = 0 AND buyer_seen_at IS NULL AND deleted_at IS NULL THEN 1 ELSE 0 END) AS buyer_unread
-        FROM order_chat_messages
-        GROUP BY conversation_id
+          m.conversation_id,
+          SUM(
+            CASE
+              WHEN m.buyer_seen_at IS NULL AND m.deleted_at IS NULL AND m.sender_id <> o.user_id
+                THEN 1 ELSE 0
+            END
+          ) AS buyer_unread,
+          SUM(
+            CASE
+              WHEN m.seller_seen_at IS NULL AND m.deleted_at IS NULL AND m.sender_id <> seller_user.id
+                THEN 1 ELSE 0
+            END
+          ) AS seller_unread
+        FROM order_chat_messages m
+        JOIN order_conversations c2 ON c2.id = m.conversation_id
+        JOIN orders o ON o.id = c2.order_id
+        LEFT JOIN (
+          SELECT
+            oi.order_id,
+            MIN(oi.id) AS first_item_id
+          FROM order_items oi
+          GROUP BY oi.order_id
+        ) first_items2 ON first_items2.order_id = o.id
+        LEFT JOIN order_items oi_first2 ON oi_first2.id = first_items2.first_item_id
+        LEFT JOIN products seller_product2 ON seller_product2.id = oi_first2.product_id
+        LEFT JOIN users seller_user ON seller_user.id = seller_product2.posted_by
+        GROUP BY m.conversation_id
       ) unread ON unread.conversation_id = c.id
-      WHERE o.state = 'completed'
-        ${isAdmin ? "" : "AND o.user_id = ?"}
+      WHERE o.state NOT IN ('cancelled', 'resolution')
+        ${
+          isAdmin
+            ? ""
+            : "AND (o.user_id = ? OR seller_user.id = ?)"
+        }
         AND lm.id IS NOT NULL
       ORDER BY COALESCE(c.last_message_at, lm.created_at, o.created_at) DESC, c.id DESC
       LIMIT 200
       `,
-      isAdmin ? [] : [auth.userId]
+      isAdmin ? [] : [auth.userId, auth.userId]
     );
 
     const conversations = rows.map((row) => ({
@@ -154,7 +180,9 @@ export async function GET(req: NextRequest) {
       ),
       lastMessageFromAdmin: row.last_is_admin === 1,
       unreadCount: Number(
-        (isAdmin ? row.seller_unread : row.buyer_unread) ?? 0
+        (isAdmin || row.seller_id === auth.userId
+          ? row.seller_unread
+          : row.buyer_unread) ?? 0
       ),
     }));
 

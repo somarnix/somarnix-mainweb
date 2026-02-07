@@ -63,6 +63,7 @@ type ProductDetail = {
   level?: ProductLevel | null;
 
   image_url?: string | null;
+  order_fields_json?: string | null;
 
   stock_qty?: number | null;
   is_unlimited_stock?: 0 | 1 | null;
@@ -109,6 +110,41 @@ type Review = {
   comment?: string | null;
   created_at: string;
 };
+
+type OrderField = {
+  key: string;
+  label: string;
+  required?: boolean;
+  placeholder?: string;
+  type?: "text" | "number" | "email" | "tel";
+};
+
+function parseOrderFields(raw?: string | null): OrderField[] {
+  if (!raw || typeof raw !== "string") return [];
+  try {
+    const parsed = JSON.parse(raw);
+    if (!Array.isArray(parsed)) return [];
+    return parsed
+      .map((item) => {
+        if (!item || typeof item !== "object") return null;
+        const r = item as Record<string, unknown>;
+        const key = typeof r.key === "string" ? r.key.trim() : "";
+        const label = typeof r.label === "string" ? r.label.trim() : "";
+        if (!key || !label) return null;
+        const required = r.required === true;
+        const placeholder =
+          typeof r.placeholder === "string" ? r.placeholder : undefined;
+        const type =
+          r.type === "number" || r.type === "email" || r.type === "tel"
+            ? (r.type as "number" | "email" | "tel")
+            : "text";
+        return { key, label, required, placeholder, type };
+      })
+      .filter(Boolean) as OrderField[];
+  } catch {
+    return [];
+  }
+}
 
 function toArrayProducts(data: unknown): RelatedProduct[] {
   if (Array.isArray(data)) return data as RelatedProduct[];
@@ -518,6 +554,7 @@ export default function ProductDetailPage({
         <AddToCartModal
           product={{ id: product.id, title: product.title }}
           variants={modalVariants}
+          orderFields={parseOrderFields(product.order_fields_json)}
           onClose={() => setShowAddModal(false)}
           onAdded={() => {
             onCartChanged?.();           // ✅ refresh header cart badge

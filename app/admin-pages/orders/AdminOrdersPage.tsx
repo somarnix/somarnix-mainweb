@@ -29,6 +29,15 @@ type ToolProduct = {
   slug: string;
 };
 
+type OrderInfoItem = {
+  id: number;
+  product_title: string | null;
+  qty: number | string | null;
+  unit_price: number | string | null;
+  order_info_json: string | null;
+  order_fields_json?: string | null;
+};
+
 /* ================= HELPERS ================= */
 
 function formatDate(iso?: string | null): string {
@@ -43,6 +52,45 @@ function formatTotal(o: Order): number {
   return Number.isFinite(n) ? n : 0;
 }
 
+function parseOrderInfo(raw?: string | null): Array<{ key: string; value: string }> {
+  if (!raw || typeof raw !== "string") return [];
+  try {
+    const parsed = JSON.parse(raw);
+    if (!parsed || typeof parsed !== "object" || Array.isArray(parsed)) return [];
+    return Object.entries(parsed).map(([key, value]) => ({
+      key,
+      value: typeof value === "string" ? value : String(value ?? ""),
+    }));
+  } catch {
+    return [];
+  }
+}
+
+function parseOrderFields(raw?: string | null): Array<{ key: string; label: string }> {
+  if (!raw || typeof raw !== "string") return [];
+  try {
+    const parsed = JSON.parse(raw);
+    if (!Array.isArray(parsed)) return [];
+    return parsed
+      .map((item) => {
+        if (!item || typeof item !== "object") return null;
+        const r = item as Record<string, unknown>;
+        const key = typeof r.key === "string" ? r.key.trim() : "";
+        const label = typeof r.label === "string" ? r.label.trim() : "";
+        if (!key || !label) return null;
+        return { key, label };
+      })
+      .filter(Boolean) as Array<{ key: string; label: string }>;
+  } catch {
+    return [];
+  }
+}
+
+function resolveLabel(key: string, fields: Array<{ key: string; label: string }>) {
+  const found = fields.find((f) => f.key === key);
+  return found ? found.label : key;
+}
+
 /* ================= PAGE ================= */
 
 export default function AdminOrdersPage() {
@@ -51,6 +99,11 @@ export default function AdminOrdersPage() {
   const [error, setError] = useState("");
   const [tools, setTools] = useState<ToolProduct[]>([]);
   const [selectedToolSlug, setSelectedToolSlug] = useState("");
+  const [infoOpen, setInfoOpen] = useState(false);
+  const [infoItems, setInfoItems] = useState<OrderInfoItem[]>([]);
+  const [infoOrderId, setInfoOrderId] = useState<number | null>(null);
+  const [infoLoading, setInfoLoading] = useState(false);
+  const [infoError, setInfoError] = useState("");
 
   const [search, setSearch] = useState("");
   const [filterState, setFilterState] =
@@ -165,6 +218,29 @@ export default function AdminOrdersPage() {
     setEditOrder(null);
     setSelectedToolSlug("");
     load();
+  };
+
+  const openInfo = async (orderId: number) => {
+    setInfoOpen(true);
+    setInfoOrderId(orderId);
+    setInfoLoading(true);
+    setInfoError("");
+    try {
+      const res = await fetch(`/api/admin/orders/${orderId}`, {
+        credentials: "include",
+        cache: "no-store",
+      });
+      const data = await res.json().catch(() => ({}));
+      if (!res.ok) {
+        throw new Error(data?.error || "Failed to load order info");
+      }
+      setInfoItems(Array.isArray(data.items) ? data.items : []);
+    } catch (err) {
+      setInfoItems([]);
+      setInfoError(err instanceof Error ? err.message : "Failed to load order info");
+    } finally {
+      setInfoLoading(false);
+    }
   };
 
   /* ================= RENDER ================= */
@@ -289,6 +365,12 @@ export default function AdminOrdersPage() {
                         >
                           Edit
                         </button>
+                        <button
+                          onClick={() => openInfo(o.id)}
+                          className="ml-2 bg-gray-100 text-gray-700 px-3 py-1 rounded text-xs hover:bg-gray-200"
+                        >
+                          Info
+                        </button>
                       </td>
                     </tr>
                   ))}
@@ -372,6 +454,12 @@ export default function AdminOrdersPage() {
                   className="mt-3 w-full bg-blue-600 text-white px-3 py-2 rounded text-sm"
                 >
                   Edit
+                </button>
+                <button
+                  onClick={() => openInfo(o.id)}
+                  className="mt-2 w-full bg-gray-100 text-gray-700 px-3 py-2 rounded text-sm hover:bg-gray-200"
+                >
+                  Info
                 </button>
               </div>
             ))}
@@ -509,6 +597,67 @@ export default function AdminOrdersPage() {
                 Save
               </button>
             </div>
+          </div>
+        </div>
+      )}
+
+      {infoOpen && (
+        <div className="fixed inset-0 bg-black/40 flex items-center justify-center z-50">
+          <div className="bg-white rounded-xl w-full max-w-lg p-6">
+            <div className="flex items-center justify-between mb-4">
+              <h2 className="text-lg font-bold">Order Info #{infoOrderId}</h2>
+              <button
+                onClick={() => {
+                  setInfoOpen(false);
+                  setInfoItems([]);
+                  setInfoOrderId(null);
+                  setInfoError("");
+                }}
+                className="text-sm px-3 py-1.5 rounded-lg border hover:bg-gray-50"
+              >
+                Close
+              </button>
+            </div>
+
+            {infoLoading ? (
+              <div className="text-sm text-gray-500">Loading...</div>
+            ) : infoError ? (
+              <div className="text-sm text-red-600">{infoError}</div>
+            ) : infoItems.length === 0 ? (
+              <div className="text-sm text-gray-500">No order info found.</div>
+            ) : (
+              <div className="space-y-4">
+                {infoItems.map((item) => {
+                  const entries = parseOrderInfo(item.order_info_json);
+                  return (
+                    <div key={item.id} className="border rounded-lg p-3">
+                      <div className="font-semibold">
+                        {item.product_title || "Order item"}
+                      </div>
+                      <div className="text-xs text-gray-500">
+                        Qty: {item.qty ?? "-"} • Unit: {item.unit_price ?? "-"}
+                      </div>
+                      {entries.length > 0 ? (
+                        <div className="mt-2 space-y-1 text-sm">
+                          {entries.map((e) => (
+                            <div key={`${item.id}-${e.key}`} className="flex gap-2">
+                              <span className="font-semibold">
+                                {resolveLabel(e.key, parseOrderFields(item.order_fields_json))}:
+                              </span>
+                              <span className="break-all">{e.value}</span>
+                            </div>
+                          ))}
+                        </div>
+                      ) : (
+                        <div className="mt-2 text-sm text-gray-500">
+                          No order info provided.
+                        </div>
+                      )}
+                    </div>
+                  );
+                })}
+              </div>
+            )}
           </div>
         </div>
       )}

@@ -53,6 +53,8 @@ type ItemRow = RowDataPacket & {
   duration_label: string | null;
   device_label: string | null;
   duration_days: number | null;
+  order_info_json: string | null;
+  order_fields_json: string | null;
 };
 
 type PaymentRow = RowDataPacket & {
@@ -248,6 +250,8 @@ export async function GET(
         p.is_active,
         oi.qty,
         oi.unit_price,
+        oi.order_info_json,
+        p.order_fields_json,
         pv.duration_label,
         pv.device_label,
         pv.duration_days
@@ -331,17 +335,19 @@ export async function GET(
           : null;
 
       return {
-      id: item.id,
-      title: item.title,
-      image_url: item.image_url,
-      is_active: Number(item.is_active) === 1,
-      qty: Number(item.qty ?? 0),
-      unit_price: toNumber(item.unit_price),
-      duration_label: item.duration_label,
-      device_label: item.device_label,
-      duration_days: item.duration_days,
-      access_end: accessEnd,
-    };
+        id: item.id,
+        title: item.title,
+        image_url: item.image_url,
+        is_active: Number(item.is_active) === 1,
+        qty: Number(item.qty ?? 0),
+        unit_price: toNumber(item.unit_price),
+        duration_label: item.duration_label,
+        device_label: item.device_label,
+        duration_days: item.duration_days,
+        access_end: accessEnd,
+        order_info_json: item.order_info_json ?? null,
+        order_fields_json: item.order_fields_json ?? null,
+      };
     });
 
     const payment =

@@ -109,6 +109,24 @@ export async function PUT(
       values.push(imageUrl);
     }
 
+    if ("order_fields_json" in b) {
+      if (!(typeof b.order_fields_json === "string" || b.order_fields_json === null)) {
+        return Response.json({ error: "Invalid order_fields_json" }, { status: 400 });
+      }
+      const raw = b.order_fields_json === null ? "" : b.order_fields_json;
+      const trimmed = typeof raw === "string" ? raw.trim() : "";
+      if (trimmed) {
+        try {
+          JSON.parse(trimmed);
+        } catch {
+          return Response.json({ error: "order_fields_json must be valid JSON" }, { status: 400 });
+        }
+      }
+      const value = trimmed ? trimmed : null;
+      sets.push("order_fields_json = ?");
+      values.push(value);
+    }
+
     if ("is_active" in b) {
       const isActive = Number(b.is_active);
       if (![0, 1].includes(isActive)) {

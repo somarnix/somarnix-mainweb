@@ -314,16 +314,18 @@ export async function GET(
     return NextResponse.json({ error: "Order not found" }, { status: 404 });
   }
 
-  if ((order.state ?? "").toLowerCase() !== "completed") {
+  const orderState = (order.state ?? "").toLowerCase();
+  if (orderState === "cancelled" || orderState === "resolution") {
     return NextResponse.json(
-      { error: "Chat is available only after the order is completed." },
+      { error: "Chat is not available for this order." },
       { status: 403 }
     );
   }
 
   const isOwner = order.user_id === auth.userId;
+  const isSeller = Number(order.seller_id ?? 0) === auth.userId;
   const isAdmin = auth.role === "admin";
-  if (!isOwner && !isAdmin) {
+  if (!isOwner && !isAdmin && !isSeller) {
     return NextResponse.json({ error: "Forbidden" }, { status: 403 });
     }
 
@@ -363,15 +365,14 @@ export async function GET(
     const reactionMap = await loadReactionMap(conversation.id, auth.userId);
 
     const seenColumn = isOwner ? "buyer_seen_at" : "seller_seen_at";
-    const actorIsAdmin = auth.role === "admin";
-    const otherRoleCondition = actorIsAdmin ? "m.is_admin = 0" : "m.is_admin = 1";
+    const otherRoleCondition = "m.sender_id <> ?";
     await db.query(
       `
       UPDATE order_chat_messages m
       SET ${seenColumn} = NOW()
       WHERE m.conversation_id = ? AND ${seenColumn} IS NULL AND ${otherRoleCondition}
       `,
-      [conversation.id]
+      [conversation.id, auth.userId]
     );
 
     await db.query(
@@ -499,16 +500,18 @@ export async function POST(
       return NextResponse.json({ error: "Order not found" }, { status: 404 });
     }
 
-    if ((order.state ?? "").toLowerCase() !== "completed") {
+    const orderState = (order.state ?? "").toLowerCase();
+    if (orderState === "cancelled" || orderState === "resolution") {
       return NextResponse.json(
-        { error: "Chat is available only after the order is completed." },
+        { error: "Chat is not available for this order." },
         { status: 403 }
       );
     }
 
     const isOwner = order.user_id === auth.userId;
+    const isSeller = Number(order.seller_id ?? 0) === auth.userId;
     const isAdmin = auth.role === "admin";
-    if (!isOwner && !isAdmin) {
+    if (!isOwner && !isAdmin && !isSeller) {
       return NextResponse.json({ error: "Forbidden" }, { status: 403 });
     }
 

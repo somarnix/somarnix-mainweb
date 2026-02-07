@@ -16,7 +16,7 @@ function deriveResultFromState(state: State): Result {
   return "none";
 }
 
-type OrderRow = RowDataPacket & { state: State };
+type OrderRow = RowDataPacket & { state: State; stock_reserved?: number | null };
 type OrderItemRow = RowDataPacket & { product_id: number; qty: number };
 
 export async function POST(req: Request) {
@@ -54,14 +54,29 @@ export async function POST(req: Request) {
       ? body.delivery_message.trim()
       : null;
 
-  const [existingRows] = await db.query<OrderRow[]>(
-    "SELECT state FROM orders WHERE id = ? LIMIT 1",
-    [body.orderId]
-  );
+  let existingRows: OrderRow[] = [];
+  try {
+    const [rows] = await db.query<OrderRow[]>(
+      "SELECT state, stock_reserved FROM orders WHERE id = ? LIMIT 1",
+      [body.orderId]
+    );
+    existingRows = rows;
+  } catch (err) {
+    const message = err instanceof Error ? err.message : String(err);
+    if (!message.toLowerCase().includes("unknown column") || !message.includes("stock_reserved")) {
+      throw err;
+    }
+    const [rows] = await db.query<OrderRow[]>(
+      "SELECT state FROM orders WHERE id = ? LIMIT 1",
+      [body.orderId]
+    );
+    existingRows = rows;
+  }
   if (existingRows.length === 0) {
     return Response.json({ error: "Order not found" }, { status: 404 });
   }
   const previousState = existingRows[0].state;
+  const stockReserved = Number(existingRows[0].stock_reserved ?? 0) === 1;
 
   const [r] = await db.query<ResultSetHeader>(
     `
@@ -91,7 +106,7 @@ export async function POST(req: Request) {
     return Response.json({ error: "Order not found" }, { status: 404 });
   }
 
-  if (body.state === "completed" && previousState !== "completed") {
+  if (body.state === "completed" && previousState !== "completed" && !stockReserved) {
     const [items] = await db.query<OrderItemRow[]>(
       `
       SELECT oi.product_id, oi.qty
@@ -115,6 +130,11 @@ export async function POST(req: Request) {
         [qty, item.product_id]
       );
     }
+
+    await db.query<ResultSetHeader>(
+      `UPDATE orders SET stock_reserved = 1 WHERE id = ?`,
+      [body.orderId]
+    );
   }
 
   if (
@@ -153,7 +173,7 @@ export async function POST(req: Request) {
     );
   }
 
-  if (body.state === "cancelled" && previousState !== "cancelled") {
+  if (body.state === "cancelled" && previousState !== "cancelled" && stockReserved) {
     await db.query<ResultSetHeader>(
       `
       UPDATE video_course_purchases
@@ -171,7 +191,64 @@ export async function POST(req: Request) {
       `,
       [body.orderId]
     );
+
+    const [items] = await db.query<OrderItemRow[]>(
+      `
+      SELECT oi.product_id, oi.qty
+      FROM order_items oi
+      JOIN products p ON p.id = oi.product_id
+      WHERE oi.order_id = ? AND p.is_unlimited_stock = 0
+      `,
+      [body.orderId]
+    );
+
+    for (const item of items) {
+      const qty = Number(item.qty ?? 0);
+      if (!Number.isFinite(qty) || qty <= 0) continue;
+      await db.query<ResultSetHeader>(
+        `
+        UPDATE products
+        SET stock_qty = stock_qty + ?
+        WHERE id = ? AND is_unlimited_stock = 0
+        `,
+        [qty, item.product_id]
+      );
+    }
+
+    await db.query<ResultSetHeader>(
+      `UPDATE orders SET stock_reserved = 0 WHERE id = ?`,
+      [body.orderId]
+    );
   }
 
+  if (body.state === "resolution" && previousState !== "resolution" && stockReserved) {
+    const [items] = await db.query<OrderItemRow[]>(
+      `
+      SELECT oi.product_id, oi.qty
+      FROM order_items oi
+      JOIN products p ON p.id = oi.product_id
+      WHERE oi.order_id = ? AND p.is_unlimited_stock = 0
+      `,
+      [body.orderId]
+    );
+
+    for (const item of items) {
+      const qty = Number(item.qty ?? 0);
+      if (!Number.isFinite(qty) || qty <= 0) continue;
+      await db.query<ResultSetHeader>(
+        `
+        UPDATE products
+        SET stock_qty = stock_qty + ?
+        WHERE id = ? AND is_unlimited_stock = 0
+        `,
+        [qty, item.product_id]
+      );
+    }
+
+    await db.query<ResultSetHeader>(
+      `UPDATE orders SET stock_reserved = 0 WHERE id = ?`,
+      [body.orderId]
+    );
+  }
   return Response.json({ success: true });
 }

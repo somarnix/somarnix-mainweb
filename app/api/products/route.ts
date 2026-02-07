@@ -12,11 +12,13 @@ type ProductRow = RowDataPacket & {
   is_unlimited_stock: 0 | 1;
   category: string;
   posted_by_email: string;
+  posted_by_id: number;
   avg_rating: number | null; // may come as string depending mysql2 config
   rating_count: number;
   buyers_count: number;
   min_price: number | null; // may come as string depending mysql2 config
   min_original_price: number | null; // may come as string depending mysql2 config
+  variant_count: number;
 };
 
 export async function GET(req: Request) {
@@ -25,6 +27,7 @@ export async function GET(req: Request) {
     const category = url.searchParams.get("category"); // course/program/game/tools
     const q = url.searchParams.get("q"); // search title
     const limit = Math.min(Number(url.searchParams.get("limit") ?? 20), 50);
+    const postedBy = url.searchParams.get("posted_by");
 
     const params: (string | number)[] = [];
     const whereParts: string[] = ["p.is_active = 1"];
@@ -38,6 +41,10 @@ export async function GET(req: Request) {
       whereParts.push("p.title LIKE ?");
       params.push(`%${q}%`);
     }
+    if (postedBy) {
+      whereParts.push("p.posted_by = ?");
+      params.push(Number(postedBy));
+    }
 
     const where = whereParts.join(" AND ");
 
@@ -46,6 +53,7 @@ export async function GET(req: Request) {
         p.id, p.title, p.slug, p.level, p.image_url, p.stock_qty, p.is_unlimited_stock,
         c.name AS category,
         u.email AS posted_by_email,
+        u.id AS posted_by_id,
 
         -- rating
         ROUND(AVG(r.rating), 2) AS avg_rating,
@@ -61,7 +69,8 @@ export async function GET(req: Request) {
 
         -- price from variants
         (SELECT MIN(v.price) FROM product_variants v WHERE v.product_id = p.id AND v.is_active = 1) AS min_price,
-        (SELECT MIN(v.original_price) FROM product_variants v WHERE v.product_id = p.id AND v.is_active = 1) AS min_original_price
+        (SELECT MIN(v.original_price) FROM product_variants v WHERE v.product_id = p.id AND v.is_active = 1) AS min_original_price,
+        (SELECT COUNT(*) FROM product_variants v WHERE v.product_id = p.id AND v.is_active = 1) AS variant_count
 
       FROM products p
       JOIN product_categories c ON c.id = p.category_id
@@ -87,6 +96,7 @@ export async function GET(req: Request) {
       rating_count: Number(r.rating_count),
       buyers_count: Number(r.buyers_count),
       stock_qty: Number(r.stock_qty),
+      variant_count: Number(r.variant_count ?? 0),
       is_unlimited_stock: Number(r.is_unlimited_stock) as 0 | 1,
     }));
 
