@@ -32,12 +32,20 @@ export async function GET(req: Request) {
           p.is_active,
           p.created_at,
           c.name AS category_name,
-          MIN(v.price) AS min_price,
-          COUNT(v.id) AS variant_count
+          CASE
+            WHEN LOWER(c.name) = 'tools' THEN MIN(tv.price)
+            ELSE MIN(v.price)
+          END AS min_price,
+          CASE
+            WHEN LOWER(c.name) = 'tools' THEN COUNT(tv.id)
+            ELSE COUNT(v.id)
+          END AS variant_count
         FROM products p
         JOIN product_categories c ON c.id = p.category_id
         LEFT JOIN product_variants v
           ON v.product_id = p.id AND v.is_active = 1
+        LEFT JOIN tool_variants tv
+          ON tv.product_id = p.id AND tv.is_active = 1
         WHERE p.deleted_at IS NULL
         GROUP BY p.id
         ORDER BY p.created_at DESC
@@ -64,12 +72,20 @@ export async function GET(req: Request) {
           p.is_active,
           p.created_at,
           c.name AS category_name,
-          MIN(v.price) AS min_price,
-          COUNT(v.id) AS variant_count
+          CASE
+            WHEN LOWER(c.name) = 'tools' THEN MIN(tv.price)
+            ELSE MIN(v.price)
+          END AS min_price,
+          CASE
+            WHEN LOWER(c.name) = 'tools' THEN COUNT(tv.id)
+            ELSE COUNT(v.id)
+          END AS variant_count
         FROM products p
         JOIN product_categories c ON c.id = p.category_id
         LEFT JOIN product_variants v
           ON v.product_id = p.id AND v.is_active = 1
+        LEFT JOIN tool_variants tv
+          ON tv.product_id = p.id AND tv.is_active = 1
         GROUP BY p.id
         ORDER BY p.created_at DESC
         `

@@ -1,5 +1,3 @@
-// app\api\cart\add - cart\route.ts
-
 import { db } from "@/lib/db";
 import { getAuthUser } from "@/lib/auth";
 import type { RowDataPacket, ResultSetHeader } from "mysql2";
@@ -9,13 +7,32 @@ type CartIdRow = RowDataPacket & { id: number };
 type VariantRow = RowDataPacket & {
   id: number;
   product_id: number;
-  price: number; // can be string depending mysql2 config
+  price: number;
+};
+
+type ProductCategoryRow = RowDataPacket & {
+  category_name: string;
 };
 
 type CartItemExistRow = RowDataPacket & {
   id: number;
   qty: number;
 };
+
+async function hasColumn(tableName: string, columnName: string): Promise<boolean> {
+  const [rows] = await db.query<RowDataPacket[]>(
+    `
+    SELECT 1
+    FROM information_schema.columns
+    WHERE table_schema = DATABASE()
+      AND table_name = ?
+      AND column_name = ?
+    LIMIT 1
+    `,
+    [tableName, columnName]
+  );
+  return rows.length > 0;
+}
 
 export async function POST(req: Request) {
   try {
@@ -60,7 +77,6 @@ export async function POST(req: Request) {
       }
     }
 
-    // 1) find active cart
     const [cRows] = await db.query<CartIdRow[]>(
       "SELECT id FROM carts WHERE user_id = ? AND status='active' LIMIT 1",
       [auth.userId]
@@ -78,15 +94,41 @@ export async function POST(req: Request) {
       cartId = Number(cRows[0].id);
     }
 
-    // 2) resolve variant
+    const [productRows] = await db.query<ProductCategoryRow[]>(
+      `
+      SELECT c.name AS category_name
+      FROM products p
+      JOIN product_categories c ON c.id = p.category_id
+      WHERE p.id = ?
+      LIMIT 1
+      `,
+      [productId]
+    );
+    if (productRows.length === 0) {
+      return Response.json({ error: "Product not found" }, { status: 404 });
+    }
+
+    const isTool = String(productRows[0].category_name || "").toLowerCase() === "tools";
+    const variantTable = isTool ? "tool_variants" : "product_variants";
+    const hasToolVariantIdColumn = await hasColumn("cart_items", "tool_variant_id");
+
+    if (isTool && !hasToolVariantIdColumn) {
+      return Response.json(
+        {
+          error: "Tool cart schema is missing",
+          detail: "Please add cart_items.tool_variant_id column",
+        },
+        { status: 500 }
+      );
+    }
+
     let variant: VariantRow | null = null;
 
     if (variantId === null) {
-      // Auto-pick cheapest active variant for this product
       const [vPick] = await db.query<VariantRow[]>(
         `
         SELECT id, product_id, price
-        FROM product_variants
+        FROM ${variantTable}
         WHERE product_id = ? AND is_active = 1
         ORDER BY price ASC
         LIMIT 1
@@ -104,11 +146,10 @@ export async function POST(req: Request) {
       variant = vPick[0];
       variantId = Number(variant.id);
     } else {
-      // Validate requested variant
       const [vRows] = await db.query<VariantRow[]>(
         `
         SELECT id, product_id, price
-        FROM product_variants
+        FROM ${variantTable}
         WHERE id = ? AND is_active = 1
         LIMIT 1
         `,
@@ -134,16 +175,24 @@ export async function POST(req: Request) {
     }
 
     const unitPrice = Number(variant.price);
+    const productVariantIdForCart = isTool ? null : variantId;
+    const toolVariantIdForCart = isTool ? variantId : null;
 
-    // 3) If same item exists → increase qty
     const [exist] = await db.query<CartItemExistRow[]>(
-      `
-      SELECT id, qty
-      FROM cart_items
-      WHERE cart_id=? AND product_id=? AND variant_id=?
-      LIMIT 1
-      `,
-      [cartId, productId, variantId]
+      isTool
+        ? `
+          SELECT id, qty
+          FROM cart_items
+          WHERE cart_id=? AND product_id=? AND tool_variant_id=? AND variant_id IS NULL
+          LIMIT 1
+          `
+        : `
+          SELECT id, qty
+          FROM cart_items
+          WHERE cart_id=? AND product_id=? AND variant_id=?
+          LIMIT 1
+          `,
+      [cartId, productId, isTool ? toolVariantIdForCart : productVariantIdForCart]
     );
 
     if (exist.length > 0) {
@@ -151,13 +200,21 @@ export async function POST(req: Request) {
         "UPDATE cart_items SET qty = qty + ?, order_info_json = COALESCE(?, order_info_json) WHERE id = ?",
         [qty, orderInfoJson, exist[0].id]
       );
+    } else if (isTool) {
+      await db.query<ResultSetHeader>(
+        `
+        INSERT INTO cart_items (cart_id, product_id, variant_id, tool_variant_id, qty, unit_price, order_info_json)
+        VALUES (?, ?, NULL, ?, ?, ?, ?)
+        `,
+        [cartId, productId, toolVariantIdForCart, qty, unitPrice, orderInfoJson]
+      );
     } else {
       await db.query<ResultSetHeader>(
         `
         INSERT INTO cart_items (cart_id, product_id, variant_id, qty, unit_price, order_info_json)
         VALUES (?,?,?,?,?,?)
         `,
-        [cartId, productId, variantId, qty, unitPrice, orderInfoJson]
+        [cartId, productId, productVariantIdForCart, qty, unitPrice, orderInfoJson]
       );
     }
 

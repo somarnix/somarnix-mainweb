@@ -8,18 +8,19 @@ export const dynamic = "force-dynamic";
 
 const DEFAULT_KH_QR = "/paymentQR/khmer_qr.jpg";
 const USD_QR_NONE = "none";
-const DEVICE_TYPE_COLUMN = "device_type";
 
-function isUnknownColumnError(err: unknown, column: string): boolean {
-  const msg = err instanceof Error ? err.message : String(err);
-  return msg.includes(`Unknown column '${column}'`);
-}
+const DEVICE_COLUMNS = [
+  "device_label",
+  "device_type",
+  "device_limit",
+  "is_unlimited_device",
+] as const;
 
 /** Next 15 uses Promise params, Next 14 uses object params */
 type RouteCtx = { params: { id: string } | Promise<{ id: string }> };
 
 async function readId(ctx: RouteCtx): Promise<string> {
-  const params = await Promise.resolve(ctx.params); // ✅ unwrap object OR promise
+  const params = await Promise.resolve(ctx.params);
   return typeof params.id === "string" ? params.id : "";
 }
 
@@ -33,6 +34,34 @@ function toNumOrNull(v: unknown): number | null {
   if (v === null || v === undefined || v === "") return null;
   const n = Number(v);
   return Number.isFinite(n) ? n : null;
+}
+
+async function hasAllDeviceColumns(): Promise<boolean> {
+  const [rows] = await db.query<RowDataPacket[]>(
+    `
+    SELECT column_name
+    FROM information_schema.columns
+    WHERE table_schema = DATABASE()
+      AND table_name = 'product_variants'
+      AND column_name IN ('device_label','device_type','device_limit','is_unlimited_device')
+    `
+  );
+  const present = new Set(rows.map((r) => String(r.column_name)));
+  return DEVICE_COLUMNS.every((column) => present.has(column));
+}
+
+async function isToolsProduct(productId: number): Promise<boolean> {
+  const [rows] = await db.query<RowDataPacket[]>(
+    `
+    SELECT 1
+    FROM products p
+    JOIN product_categories c ON c.id = p.category_id
+    WHERE p.id = ? AND LOWER(c.name) = 'tools'
+    LIMIT 1
+    `,
+    [productId]
+  );
+  return rows.length > 0;
 }
 
 /* =========================
@@ -52,62 +81,56 @@ export async function GET(req: Request, ctx: RouteCtx) {
       return Response.json({ variants: [], error: "Invalid product id" }, { status: 400 });
     }
 
-    let rows: RowDataPacket[] = [];
-    try {
-      const [full] = await db.query<RowDataPacket[]>(
+    const toolsProduct = await isToolsProduct(productId);
+    const tableName = toolsProduct ? "tool_variants" : "product_variants";
+    const withDeviceColumns = toolsProduct ? true : await hasAllDeviceColumns();
+
+    const [rows] = await db.query<RowDataPacket[]>(
+      withDeviceColumns
+        ? `
+          SELECT
+            CAST(v.id AS UNSIGNED) AS id,
+            CAST(v.product_id AS UNSIGNED) AS product_id,
+            v.duration_label,
+            v.duration_note,
+            v.duration_days,
+            v.device_label,
+            v.device_type,
+            v.device_limit,
+            v.is_unlimited_device,
+            v.original_price,
+            v.price,
+            v.khqr,
+            v.usdqr,
+            v.is_active,
+            v.created_at
+          FROM ${tableName} v
+          WHERE v.product_id = ?
+          ORDER BY v.id DESC
         `
-        SELECT
-          CAST(v.id AS UNSIGNED) AS id,
-          CAST(v.product_id AS UNSIGNED) AS product_id,
-          v.duration_label,
-          v.duration_note,
-          v.duration_days,
-          v.device_label,
-          v.device_type,
-          v.device_limit,
-          v.is_unlimited_device,
-          v.original_price,
-          v.price,
-          v.khqr,
-          v.usdqr,
-          v.is_active,
-          v.created_at
-        FROM product_variants v
-        WHERE v.product_id = ?
-        ORDER BY v.id DESC
+        : `
+          SELECT
+            CAST(v.id AS UNSIGNED) AS id,
+            CAST(v.product_id AS UNSIGNED) AS product_id,
+            v.duration_label,
+            v.duration_note,
+            v.duration_days,
+            NULL AS device_label,
+            'any' AS device_type,
+            NULL AS device_limit,
+            0 AS is_unlimited_device,
+            v.original_price,
+            v.price,
+            v.khqr,
+            v.usdqr,
+            v.is_active,
+            v.created_at
+          FROM ${tableName} v
+          WHERE v.product_id = ?
+          ORDER BY v.id DESC
         `,
-        [productId]
-      );
-      rows = full ?? [];
-    } catch (err) {
-      if (!isUnknownColumnError(err, DEVICE_TYPE_COLUMN)) {
-        throw err;
-      }
-      const [fallback] = await db.query<RowDataPacket[]>(
-        `
-        SELECT
-          CAST(v.id AS UNSIGNED) AS id,
-          CAST(v.product_id AS UNSIGNED) AS product_id,
-          v.duration_label,
-          v.duration_note,
-          v.duration_days,
-          v.device_label,
-          v.device_limit,
-          v.is_unlimited_device,
-          v.original_price,
-          v.price,
-          v.khqr,
-          v.usdqr,
-          v.is_active,
-          v.created_at
-        FROM product_variants v
-        WHERE v.product_id = ?
-        ORDER BY v.id DESC
-        `,
-        [productId]
-      );
-      rows = (fallback ?? []).map((row) => ({ ...row, device_type: "any" }));
-    }
+      [productId]
+    );
 
     return Response.json({ variants: rows ?? [] });
   } catch (err) {
@@ -161,7 +184,6 @@ export async function POST(req: Request, ctx: RouteCtx) {
         : "any";
 
     const device_limit = toIntOrNull(b.device_limit);
-
     const is_unlimited_device = Number(b.is_unlimited_device) ? 1 : 0;
 
     const original_price = toNumOrNull(b.original_price);
@@ -171,12 +193,8 @@ export async function POST(req: Request, ctx: RouteCtx) {
     const usdqr =
       typeof b.usdqr === "string" && b.usdqr.trim() ? b.usdqr.trim() : USD_QR_NONE;
 
-    // must have duration_label OR device_label
-    if (!duration_label && !device_label) {
-      return Response.json(
-        { error: "Variant must have duration_label or device_label" },
-        { status: 400 }
-      );
+    if (!duration_label) {
+      return Response.json({ error: "Variant must have duration_label" }, { status: 400 });
     }
 
     if (original_price === null || original_price < 0) {
@@ -196,71 +214,61 @@ export async function POST(req: Request, ctx: RouteCtx) {
     }
 
     const finalDeviceLimit = is_unlimited_device ? null : device_limit;
+    const toolsProduct = await isToolsProduct(productId);
+    const tableName = toolsProduct ? "tool_variants" : "product_variants";
+    const withDeviceColumns = toolsProduct ? true : await hasAllDeviceColumns();
 
-    let result: ResultSetHeader;
-    try {
-      const [full] = await db.query<ResultSetHeader>(
+    const [result] = await db.query<ResultSetHeader>(
+      withDeviceColumns
+        ? `
+          INSERT INTO ${tableName}
+            (
+              product_id,
+              duration_label, duration_note, duration_days,
+              device_label, device_type, device_limit, is_unlimited_device,
+              original_price, price,
+              khqr, usdqr,
+              is_active
+            )
+          VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 1)
         `
-        INSERT INTO product_variants
-          (
-            product_id,
-            duration_label, duration_note, duration_days,
-            device_label, device_type, device_limit, is_unlimited_device,
-            original_price, price,
-            khqr, usdqr,
-            is_active
-          )
-        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 1)
+        : `
+          INSERT INTO ${tableName}
+            (
+              product_id,
+              duration_label, duration_note, duration_days,
+              original_price, price,
+              khqr, usdqr,
+              is_active
+            )
+          VALUES (?, ?, ?, ?, ?, ?, ?, ?, 1)
         `,
-        [
-          productId,
-          duration_label,
-          duration_note,
-          duration_days,
-          device_label,
-          device_type,
-          finalDeviceLimit,
-          is_unlimited_device,
-          original_price,
-          price,
-          khqr,
-          usdqr,
-        ]
-      );
-      result = full;
-    } catch (err) {
-      if (!isUnknownColumnError(err, DEVICE_TYPE_COLUMN)) {
-        throw err;
-      }
-      const [fallback] = await db.query<ResultSetHeader>(
-        `
-        INSERT INTO product_variants
-          (
-            product_id,
-            duration_label, duration_note, duration_days,
-            device_label, device_limit, is_unlimited_device,
-            original_price, price,
-            khqr, usdqr,
-            is_active
-          )
-        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 1)
-        `,
-        [
-          productId,
-          duration_label,
-          duration_note,
-          duration_days,
-          device_label,
-          finalDeviceLimit,
-          is_unlimited_device,
-          original_price,
-          price,
-          khqr,
-          usdqr,
-        ]
-      );
-      result = fallback;
-    }
+      withDeviceColumns
+        ? [
+            productId,
+            duration_label,
+            duration_note,
+            duration_days,
+            device_label,
+            device_type,
+            finalDeviceLimit,
+            is_unlimited_device,
+            original_price,
+            price,
+            khqr,
+            usdqr,
+          ]
+        : [
+            productId,
+            duration_label,
+            duration_note,
+            duration_days,
+            original_price,
+            price,
+            khqr,
+            usdqr,
+          ]
+    );
 
     return Response.json({ success: true, variantId: result.insertId });
   } catch (err) {

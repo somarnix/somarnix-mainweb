@@ -1,4 +1,5 @@
 import { useEffect, useState } from "react";
+import KeyLicence, { type KeyLicenceState } from "@/app/components/KeyLicence";
 
 type AccessResponse = {
   hasAccess: boolean;
@@ -25,13 +26,18 @@ function getDeviceId(): string {
 }
 
 export default function Veo3() {
-  const [deviceId, setDeviceId] = useState("");
+  const [deviceId] = useState(() => getDeviceId());
   const [status, setStatus] = useState<"loading" | "ready" | "blocked">("loading");
   const [info, setInfo] = useState<AccessResponse | null>(null);
-
-  useEffect(() => {
-    setDeviceId(getDeviceId());
-  }, []);
+  const [licenseState, setLicenseState] = useState<KeyLicenceState>({
+    status: "checking",
+    token: "",
+    deviceId: "",
+    expiresAt: null,
+    maxDevices: null,
+    deviceCount: null,
+    error: null,
+  });
 
   useEffect(() => {
     if (!deviceId) return;
@@ -104,9 +110,16 @@ export default function Veo3() {
   return (
     <div className="p-6 space-y-4">
       <h1 className="text-2xl font-semibold">Veo3 Tool</h1>
-      <div className="rounded-xl border border-gray-200 bg-white p-4 text-sm text-gray-600">
-        Access granted. Put your Veo3 tool UI here.
-      </div>
+      <KeyLicence toolSlug={TOOL_PRODUCT_SLUG} title="Tool license" onChange={setLicenseState} />
+      {licenseState.status === "ready" ? (
+        <div className="rounded-xl border border-gray-200 bg-white p-4 text-sm text-gray-600">
+          Access granted. Put your Veo3 tool UI here.
+        </div>
+      ) : (
+        <div className="rounded-xl border border-amber-200 bg-amber-50 p-4 text-sm text-amber-700">
+          Enter and activate your license key before using this tool.
+        </div>
+      )}
     </div>
   );
 }

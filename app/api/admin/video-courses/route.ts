@@ -20,6 +20,7 @@ type CourseRow = RowDataPacket & {
   upload_date: string | Date | null;
   thumbnail_url: string | null;
   hero_url: string | null;
+  learning_outcomes: string | null;
   min_price: number | string | null;
   plan_count: number | null;
   preview_mode: string;
@@ -35,6 +36,18 @@ export async function GET(req: Request) {
   }
 
   try {
+    const [learningOutcomesColumnRows] = await db.query<RowDataPacket[]>(
+      `
+      SELECT 1 AS ok
+      FROM information_schema.columns
+      WHERE table_schema = DATABASE()
+        AND table_name = 'video_courses'
+        AND column_name = 'learning_outcomes'
+      LIMIT 1
+      `
+    );
+    const hasLearningOutcomesColumn = learningOutcomesColumnRows.length > 0;
+
     let rows: CourseRow[] = [];
     try {
       const [data] = await db.query<CourseRow[]>(
@@ -55,6 +68,7 @@ export async function GET(req: Request) {
           vc.upload_date,
           vc.thumbnail_url,
           vc.hero_url,
+          ${hasLearningOutcomesColumn ? "vc.learning_outcomes," : "NULL AS learning_outcomes,"}
           (
             SELECT MIN(price)
             FROM video_course_plans vcp
@@ -98,6 +112,7 @@ export async function GET(req: Request) {
           vc.upload_date,
           vc.thumbnail_url,
           vc.hero_url,
+          ${hasLearningOutcomesColumn ? "vc.learning_outcomes," : "NULL AS learning_outcomes,"}
           (
             SELECT MIN(price)
             FROM video_course_plans vcp
@@ -148,13 +163,33 @@ export async function POST(req: Request) {
     if (!title) return Response.json({ error: "Title is required" }, { status: 400 });
     if (!slug) return Response.json({ error: "Slug is required" }, { status: 400 });
 
-    const [result] = await db.query<ResultSetHeader>(
+    const [postedByColumnRows] = await db.query<RowDataPacket[]>(
       `
-      INSERT INTO video_courses (title, slug, level)
-      VALUES (?,?,?)
-      `,
-      [title, slug, level]
+      SELECT 1 AS ok
+      FROM information_schema.columns
+      WHERE table_schema = DATABASE()
+        AND table_name = 'video_courses'
+        AND column_name = 'posted_by'
+      LIMIT 1
+      `
     );
+    const hasPostedByColumn = postedByColumnRows.length > 0;
+
+    const [result] = hasPostedByColumn
+      ? await db.query<ResultSetHeader>(
+          `
+          INSERT INTO video_courses (title, slug, level, posted_by)
+          VALUES (?,?,?,?)
+          `,
+          [title, slug, level, auth.userId]
+        )
+      : await db.query<ResultSetHeader>(
+          `
+          INSERT INTO video_courses (title, slug, level)
+          VALUES (?,?,?)
+          `,
+          [title, slug, level]
+        );
 
     return Response.json({ success: true, id: result.insertId });
   } catch (err: unknown) {

@@ -22,6 +22,7 @@ type VideoCourse = {
   upload_date?: string | null;
   thumbnail_url?: string | null;
   hero_url?: string | null;
+  learning_outcomes?: string | null;
   preview_mode?: "count" | "manual";
   preview_count?: number;
   min_price?: number | string | null;
@@ -1134,6 +1135,16 @@ export default function AdminVideoCoursesPage({
                       )
                     }
                     placeholder="Description"
+                  />
+                  <textarea
+                    className="border rounded-lg px-3 py-2 text-sm md:col-span-2"
+                    value={editCourse?.learning_outcomes ?? ""}
+                    onChange={(e) =>
+                      setEditCourse((prev) =>
+                        prev ? { ...prev, learning_outcomes: e.target.value } : prev
+                      )
+                    }
+                    placeholder={`What you'll learn (one line per outcome)`}
                   />
                 </div>
               </div>

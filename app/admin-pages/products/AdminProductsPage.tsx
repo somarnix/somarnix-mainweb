@@ -167,9 +167,18 @@ function makeOrderKey(label: string): string {
     .replace(/^_+|_+$/g, "");
 }
 
+function isToolsCategoryName(name: string | null | undefined): boolean {
+  return (name ?? "").trim().toLowerCase() === "tools";
+}
+
 /* ================= PAGE ================= */
 
-export default function AdminProductsPage() {
+export default function AdminProductsPage({
+  mode = "products",
+}: {
+  mode?: "products" | "tools";
+} = {}) {
+  const isToolsMode = mode === "tools";
   const [products, setProducts] = useState<Product[]>([]);
   const [categories, setCategories] = useState<Category[]>([]);
 
@@ -500,14 +509,14 @@ export default function AdminProductsPage() {
   /* ================= CREATE PRODUCT ================= */
 
   const openCreate = () => {
-    if (categories.length === 0) {
+    if (scopedCategories.length === 0) {
       alert("No categories loaded. Check admin login or database.");
       return;
     }
 
     setCTitle("");
     setCSlug("");
-    setCCategoryId(categories[0].id); // ✅ always valid
+    setCCategoryId(scopedCategories[0].id);
     setCreating(false);
     setCreateOpen(true);
   };
@@ -674,11 +683,15 @@ export default function AdminProductsPage() {
   };
 
   const createVariant = async (productId: number) => {
-    // must have at least duration_label or device_label (API requirement)
+    // Products require duration; tools can use duration or device label.
     const hasDuration = !!vDurationLabel.trim();
-    const hasDevice = !!vDeviceLabel.trim();
+    const hasDevice = isToolsMode && !!vDeviceLabel.trim();
     if (!hasDuration && !hasDevice) {
-      alert("Variant must have duration label or device label.");
+      alert(
+        isToolsMode
+          ? "Variant must have duration label or device label."
+          : "Variant must have duration label."
+      );
       return;
     }
 
@@ -713,10 +726,10 @@ export default function AdminProductsPage() {
         duration_label: hasDuration ? vDurationLabel.trim() : null,
         duration_note: vDurationNote.trim() ? vDurationNote.trim() : null,
         duration_days: dDays,
-        device_label: hasDevice ? vDeviceLabel.trim() : null,
-        device_type: vDeviceType,
-        device_limit: dLimit,
-        is_unlimited_device: vUnlimitedDevice ? 1 : 0,
+        device_label: isToolsMode && hasDevice ? vDeviceLabel.trim() : null,
+        device_type: isToolsMode ? vDeviceType : "any",
+        device_limit: isToolsMode ? dLimit : null,
+        is_unlimited_device: isToolsMode && vUnlimitedDevice ? 1 : 0,
         original_price: origNum,
         price: priceNum,
         khqr: vKhQr && vKhQr.trim() ? vKhQr : DEFAULT_KH_QR,
@@ -813,8 +826,8 @@ export default function AdminProductsPage() {
     const safeCategoryId =
       Number.isFinite(Number(p.category_id)) && Number(p.category_id) > 0
         ? Number(p.category_id)
-        : categories.length > 0
-          ? categories[0].id
+        : scopedCategories.length > 0
+          ? scopedCategories[0].id
           : 0;
 
     setFCategoryId(safeCategoryId);
@@ -981,11 +994,27 @@ export default function AdminProductsPage() {
 
   const [showVariants, setShowVariants] = useState(false);
   const [editingVariant, setEditingVariant] = useState<Variant | null>(null);
+  const scopedCategories = useMemo(
+    () =>
+      categories.filter((c) =>
+        isToolsMode ? isToolsCategoryName(c.name) : !isToolsCategoryName(c.name)
+      ),
+    [categories, isToolsMode]
+  );
+  const scopedProducts = useMemo(
+    () =>
+      products.filter((p) =>
+        isToolsMode
+          ? isToolsCategoryName(p.category_name)
+          : !isToolsCategoryName(p.category_name)
+      ),
+    [products, isToolsMode]
+  );
   /* ================= FILTER + SORT ================= */
 
   const filtered = useMemo(() => {
     const needle = q.trim().toLowerCase();
-    let arr = products.slice();
+    let arr = scopedProducts.slice();
 
     if (status !== "all") {
       arr = arr.filter((p) => (status === "active" ? !!p.is_active : !p.is_active));
@@ -1022,7 +1051,7 @@ export default function AdminProductsPage() {
     });
 
     return arr;
-  }, [products, q, status, sort]);
+  }, [scopedProducts, q, status, sort]);
 
   /* ================= RENDER ================= */
 
@@ -1034,9 +1063,9 @@ export default function AdminProductsPage() {
       {/* Header */}
       <div className="flex flex-col gap-3 md:flex-row md:items-center md:justify-between mb-5">
         <div>
-          <h1 className="text-2xl font-bold">Products</h1>
+          <h1 className="text-2xl font-bold">{isToolsMode ? "Tools" : "Products"}</h1>
           <div className="text-sm text-gray-500">
-            Total: <span className="font-medium text-gray-700">{products.length}</span>
+            Total: <span className="font-medium text-gray-700">{scopedProducts.length}</span>
             {refreshing ? <span className="ml-2">Refreshing…</span> : null}
           </div>
         </div>
@@ -1089,7 +1118,7 @@ export default function AdminProductsPage() {
             onClick={openCreate}
             className="rounded-lg px-3 py-2 text-sm bg-black text-black hover:opacity-90"
           >
-            + New Product
+            {isToolsMode ? "+ New Tool" : "+ New Product"}
           </button>
         </div>
       </div>
@@ -1225,7 +1254,9 @@ export default function AdminProductsPage() {
           <div className="w-full max-w-xl bg-white rounded-2xl shadow-lg overflow-hidden max-h-[90vh] flex flex-col">
             <div className="p-4 border-b flex items-center justify-between">
               <div>
-                <div className="text-lg font-semibold">Create Product</div>
+                <div className="text-lg font-semibold">
+                  {isToolsMode ? "Create Tool" : "Create Product"}
+                </div>
                 <div className="text-xs text-gray-500">Title + slug + category</div>
               </div>
               <button
@@ -1262,10 +1293,10 @@ export default function AdminProductsPage() {
                   onChange={(e) => setCCategoryId(Number(e.target.value))}
                   className="mt-1 w-full border rounded-lg px-3 py-2 text-sm"
                 >
-                  {categories.length === 0 ? (
+                  {scopedCategories.length === 0 ? (
                     <option value="0">No categories (insert product_categories first)</option>
                   ) : (
-                    categories.map((c) => (
+                    scopedCategories.map((c) => (
                       <option key={c.id} value={String(c.id)}>
                         {c.name}
                       </option>
@@ -1288,7 +1319,7 @@ export default function AdminProductsPage() {
                 onClick={createProduct}
                 disabled={
                   creating ||
-                  categories.length === 0 ||
+                  scopedCategories.length === 0 ||
                   !cTitle.trim() ||
                   !cSlug.trim() ||
                   cCategoryId <= 0
@@ -1346,7 +1377,7 @@ export default function AdminProductsPage() {
                   onChange={(e) => setFCategoryId(Number(e.target.value))}
                   className="mt-1 w-full border rounded-lg px-3 py-2 text-sm"
                 >
-                  {categories.map((c) => (
+                  {scopedCategories.map((c) => (
                     <option key={c.id} value={String(c.id)}>
                       {c.name}
                     </option>
@@ -1615,14 +1646,16 @@ export default function AdminProductsPage() {
                   onClick={() => setShowVariants(v => !v)}
                   className="w-full flex items-center justify-between px-4 py-3 rounded-xl border bg-gray-50 hover:bg-gray-100 transition"
                 >
-                  <div>
-                    <div className="text-sm font-semibold text-gray-900">
-                      Variants
+                    <div>
+                      <div className="text-sm font-semibold text-gray-900">
+                        Variants
+                      </div>
+                      <div className="text-xs text-gray-500">
+                        {isToolsMode
+                          ? "Manage prices, duration & device options"
+                          : "Manage prices and duration"}
+                      </div>
                     </div>
-                    <div className="text-xs text-gray-500">
-                      Manage prices, duration & device options
-                    </div>
-                  </div>
 
                   <div className="text-sm font-medium text-gray-700">
                     {showVariants ? "Hide ▲" : "Manage ▼"}
@@ -1668,52 +1701,56 @@ export default function AdminProductsPage() {
                           />
                         </div>
 
-                        <div>
-                          <label className="text-xs text-gray-600">Device Label</label>
-                          <input
-                            value={vDeviceLabel}
-                            onChange={(e) => setVDeviceLabel(e.target.value)}
-                            className="mt-1 w-full border rounded-lg px-3 py-2 text-sm"
-                          />
-                        </div>
+                        {isToolsMode ? (
+                          <>
+                            <div>
+                              <label className="text-xs text-gray-600">Device Label</label>
+                              <input
+                                value={vDeviceLabel}
+                                onChange={(e) => setVDeviceLabel(e.target.value)}
+                                className="mt-1 w-full border rounded-lg px-3 py-2 text-sm"
+                              />
+                            </div>
 
-                        <div>
-                          <label className="text-xs text-gray-600">Device Type</label>
-                          <select
-                            value={vDeviceType}
-                            onChange={(e) =>
-                              setVDeviceType(
-                                e.target.value as "any" | "pc" | "phone" | "both"
-                              )
-                            }
-                            className="mt-1 w-full border rounded-lg px-3 py-2 text-sm"
-                          >
-                            <option value="any">Any device</option>
-                            <option value="pc">PC only</option>
-                            <option value="phone">Phone only</option>
-                            <option value="both">PC + Phone</option>
-                          </select>
-                        </div>
+                            <div>
+                              <label className="text-xs text-gray-600">Device Type</label>
+                              <select
+                                value={vDeviceType}
+                                onChange={(e) =>
+                                  setVDeviceType(
+                                    e.target.value as "any" | "pc" | "phone" | "both"
+                                  )
+                                }
+                                className="mt-1 w-full border rounded-lg px-3 py-2 text-sm"
+                              >
+                                <option value="any">Any device</option>
+                                <option value="pc">PC only</option>
+                                <option value="phone">Phone only</option>
+                                <option value="both">PC + Phone</option>
+                              </select>
+                            </div>
 
-                        <div>
-                          <label className="text-xs text-gray-600">Device Limit</label>
-                          <input
-                            type="number"
-                            value={vDeviceLimit}
-                            onChange={(e) => setVDeviceLimit(e.target.value)}
-                            disabled={!!vUnlimitedDevice}
-                            className="mt-1 w-full border rounded-lg px-3 py-2 text-sm"
-                          />
-                        </div>
+                            <div>
+                              <label className="text-xs text-gray-600">Device Limit</label>
+                              <input
+                                type="number"
+                                value={vDeviceLimit}
+                                onChange={(e) => setVDeviceLimit(e.target.value)}
+                                disabled={!!vUnlimitedDevice}
+                                className="mt-1 w-full border rounded-lg px-3 py-2 text-sm"
+                              />
+                            </div>
 
-                        <div className="flex items-center gap-2 mt-6">
-                          <input
-                            type="checkbox"
-                            checked={!!vUnlimitedDevice}
-                            onChange={(e) => setVUnlimitedDevice(e.target.checked ? 1 : 0)}
-                          />
-                          <span className="text-sm">Unlimited device</span>
-                        </div>
+                            <div className="flex items-center gap-2 mt-6">
+                              <input
+                                type="checkbox"
+                                checked={!!vUnlimitedDevice}
+                                onChange={(e) => setVUnlimitedDevice(e.target.checked ? 1 : 0)}
+                              />
+                              <span className="text-sm">Unlimited device</span>
+                            </div>
+                          </>
+                        ) : null}
 
                         <div>
                           <label className="text-xs text-gray-600">Original Price</label>
@@ -1856,10 +1893,12 @@ export default function AdminProductsPage() {
                             duration_label: vDurationLabel.trim() || null,
                             duration_note: vDurationNote.trim() || null,
                             duration_days: vDurationDays ? Number(vDurationDays) : null,
-                            device_label: vDeviceLabel.trim() || null,
-                            device_type: vDeviceType,
-                            device_limit: vDeviceLimit ? Number(vDeviceLimit) : null,
-                            is_unlimited_device: vUnlimitedDevice ? 1 : 0,
+                            device_label:
+                              isToolsMode && vDeviceLabel.trim() ? vDeviceLabel.trim() : null,
+                            device_type: isToolsMode ? vDeviceType : "any",
+                            device_limit:
+                              isToolsMode && vDeviceLimit ? Number(vDeviceLimit) : null,
+                            is_unlimited_device: isToolsMode && vUnlimitedDevice ? 1 : 0,
                             original_price: Number(vOriginalPrice),
                             price: Number(vPrice),
                             khqr: vKhQr && vKhQr.trim() ? vKhQr : DEFAULT_KH_QR,
@@ -1942,7 +1981,7 @@ export default function AdminProductsPage() {
                               <tr key={v.id} className="border-b last:border-b-0">
                                 <td className="p-2">
                                   <div className="font-medium">
-                                    {v.duration_label || v.device_label}
+                                    {v.duration_label || (isToolsMode ? v.device_label : null) || `Variant #${v.id}`}
                                   </div>
                                 </td>
 
@@ -2075,3 +2114,5 @@ export default function AdminProductsPage() {
     </div>
   );
 }
+
+

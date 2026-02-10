@@ -114,7 +114,6 @@ const PRESENCE_WINDOW_MS = 5 * 60 * 1000;
 
 const isPresenceOnline = (presence?: PresenceInfo) => {
   if (!presence) return false;
-  if (presence.status === "online") return true;
   if (presence.status === "offline") return false;
   if (presence.lastActiveAt) {
     const last = new Date(presence.lastActiveAt).getTime();

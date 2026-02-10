@@ -17,12 +17,12 @@ import {
   Wrench,
   Play,
   MessageCircle,
+  LifeBuoy,
 } from "lucide-react";
 import Image from "next/image";
 import { Button } from "./ui/button";
 import { useLanguage } from "../contexts/LanguageContext";
 import { useAuth } from "../contexts/AuthContext";
-import { useRouter } from "next/navigation";
 
 interface SidebarProps {
   isOpen: boolean;
@@ -39,7 +39,6 @@ export function Sidebar({
 }: SidebarProps) {
   const { language } = useLanguage();
   const { user, isAuthenticated } = useAuth();
-  const router = useRouter();
 
   /* ================= MOBILE NAV ================= */
   const navigationLinks = [
@@ -100,12 +99,23 @@ export function Sidebar({
         if (isMobile && onClose) onClose();
       },
     },
+    {
+      id: "support-center",
+      icon: LifeBuoy,
+      label: language === "km" ? "មជ្ឈមណ្ឌលជំនួយ" : "Support Center",
+      onClick: () => {
+        onNavigate("support-center");
+        if (isMobile && onClose) onClose();
+      },
+    },
   ];
 
   /* ================= ADMIN MENU (ROUTER) ================= */
   const adminMenuItems = [
     { id: "admin-dashboard", label: "Dashboard", page: "admin-dashboard" },
     { id: "admin-products", label: "Products", page: "admin-products" },
+    { id: "admin-tools", label: "Tools", page: "admin-tools" },
+    { id: "admin-tool-licenses", label: "License Tool", page: "admin-tool-licenses" },
     { id: "admin-video-courses", label: "Video Courses", page: "admin-video-courses" },
     { id: "admin-orders", label: "Orders", page: "admin-orders" },
     { id: "admin-users", label: "Users", page: "admin-users" },

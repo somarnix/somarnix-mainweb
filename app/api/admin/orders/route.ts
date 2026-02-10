@@ -13,6 +13,8 @@ export async function GET(req: NextRequest) {
     `
     SELECT
       o.id,
+      o.order_number,
+      o.user_id,
       o.state,
       o.result,
       o.total,

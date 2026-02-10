@@ -58,6 +58,7 @@ type ProductDetail = {
   title: string;
   slug: string;
   category?: string | null;
+  posted_by?: number | null;
 
   description?: string | null;
   level?: ProductLevel | null;
@@ -174,11 +175,13 @@ export default function ProductDetailPage({
   slug,
   onBack,
   onOpenProduct,
+  onOpenSellerBlog,
   onCartChanged,
 }: {
   slug: string;
   onBack: () => void;
   onOpenProduct?: (slug: string) => void;
+  onOpenSellerBlog?: (sellerId: number | string) => void;
   onCartChanged?: () => void;
 }) {
   const { t, language } = useLanguage();
@@ -487,6 +490,15 @@ export default function ProductDetailPage({
     window.location.href = `/product/${encodeURIComponent(s)}`;
   };
 
+  const openSellerBlog = (id: number | null | undefined) => {
+    if (!id || id <= 0) return;
+    if (onOpenSellerBlog) {
+      onOpenSellerBlog(id);
+      return;
+    }
+    window.location.href = `/blog/${encodeURIComponent(String(id))}`;
+  };
+
   const handleSubmitReview = async (event: React.FormEvent<HTMLFormElement>) => {
     event.preventDefault();
     if (!user) {
@@ -641,7 +653,12 @@ export default function ProductDetailPage({
               </div>
 
               {postedByName && (
-                <div className="mt-4 flex items-center gap-3 rounded-xl border bg-white dark:bg-gray-900 p-3">
+                <button
+                  type="button"
+                  onClick={() => openSellerBlog(Number(product.posted_by ?? 0))}
+                  disabled={!product.posted_by}
+                  className="mt-4 flex w-full items-center gap-3 rounded-xl border bg-white p-3 text-left transition hover:border-blue-300 hover:bg-blue-50/40 disabled:cursor-default disabled:hover:border-inherit disabled:hover:bg-white dark:bg-gray-900 dark:disabled:hover:bg-gray-900"
+                >
                   {product.posted_by_avatar ? (
                     <img
                       src={product.posted_by_avatar}
@@ -662,7 +679,7 @@ export default function ProductDetailPage({
                       </div>
                     )}
                   </div>
-                </div>
+                </button>
               )}
 
               <div className="flex flex-wrap items-center gap-4 mt-3 text-sm">

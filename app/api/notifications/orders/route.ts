@@ -16,6 +16,27 @@ export async function GET(req: NextRequest) {
   }
 
   try {
+    const [cancelledRows] = await db.query<NotificationRow[]>(
+      `
+      SELECT
+        o.id,
+        o.order_number,
+        (
+          SELECT p.title
+          FROM order_items oi
+          JOIN products p ON p.id = oi.product_id
+          WHERE oi.order_id = o.id
+          ORDER BY oi.id ASC
+          LIMIT 1
+        ) AS product_title
+      FROM orders o
+      WHERE o.user_id = ? AND o.state = 'cancelled'
+      ORDER BY o.created_at DESC
+      LIMIT 2
+      `,
+      [auth.userId]
+    );
+
     const [purchaseRows] = await db.query<NotificationRow[]>(
       `
       SELECT
@@ -62,6 +83,11 @@ export async function GET(req: NextRequest) {
     );
 
     return NextResponse.json({
+      cancelledOrders: cancelledRows.map((row) => ({
+        id: Number(row.id),
+        order_number: String(row.order_number),
+        product_title: row.product_title ? String(row.product_title) : null,
+      })),
       purchaseOrders: purchaseRows.map((row) => ({
         id: Number(row.id),
         order_number: String(row.order_number),

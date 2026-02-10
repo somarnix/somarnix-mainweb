@@ -7,6 +7,7 @@ type PurchaseRow = RowDataPacket & {
   product_id: number;
   title: string;
   slug: string;
+  category_name: string | null;
   image_url: string | null;
   is_active: number;
   order_number: string;
@@ -72,8 +73,10 @@ export async function GET(req: NextRequest) {
     const hasReviewedAt = orderColSet.has("reviewed_at");
     const hasUpdatedAt = orderColSet.has("updated_at");
 
+    const hasDeviceLabel = variantColSet.has("device_label");
     const hasDeviceType = variantColSet.has("device_type");
     const hasDeviceLimit = variantColSet.has("device_limit");
+    const hasUnlimitedDevice = variantColSet.has("is_unlimited_device");
 
     const completedAtExpr = hasDeliveredAt
       ? "o.delivered_at"
@@ -95,8 +98,10 @@ export async function GET(req: NextRequest) {
       stateFilter = "1=0";
     }
 
+    const deviceLabelExpr = hasDeviceLabel ? "pv.device_label" : "NULL";
     const deviceTypeExpr = hasDeviceType ? "pv.device_type" : "NULL";
     const deviceLimitExpr = hasDeviceLimit ? "pv.device_limit" : "NULL";
+    const unlimitedDeviceExpr = hasUnlimitedDevice ? "pv.is_unlimited_device" : "0";
 
     const [data] = await db.query<PurchaseRow[]>(
       `
@@ -104,6 +109,7 @@ export async function GET(req: NextRequest) {
         p.id AS product_id,
         p.title,
         p.slug,
+        pc.name AS category_name,
         p.image_url,
         p.is_active,
         o.order_number,
@@ -111,14 +117,15 @@ export async function GET(req: NextRequest) {
         ${completedAtExpr} AS completed_at,
         oi.qty,
         oi.unit_price,
-        COALESCE(pv.duration_label, pv.device_label) AS variant_label,
+        COALESCE(pv.duration_label, ${deviceLabelExpr}) AS variant_label,
         pv.duration_days,
         ${deviceTypeExpr} AS device_type,
         ${deviceLimitExpr} AS device_limit,
-        pv.is_unlimited_device
+        ${unlimitedDeviceExpr} AS is_unlimited_device
       FROM order_items oi
       JOIN orders o ON o.id = oi.order_id
       JOIN products p ON p.id = oi.product_id
+      LEFT JOIN product_categories pc ON pc.id = p.category_id
       LEFT JOIN product_variants pv ON pv.id = oi.variant_id
       WHERE o.user_id = ? AND ${stateFilter}
       ORDER BY o.created_at DESC, oi.id DESC
@@ -131,6 +138,7 @@ export async function GET(req: NextRequest) {
       productId: row.product_id,
       title: row.title,
       slug: row.slug,
+      categoryName: row.category_name,
       imageUrl: row.image_url,
       orderNumber: row.order_number,
       orderedAt: toDate(row.ordered_at),

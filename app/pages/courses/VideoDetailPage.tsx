@@ -3,15 +3,11 @@
 import { useEffect, useMemo, useState } from "react";
 import {
   ArrowLeft,
-  Award,
   Calendar,
-  Code,
-  Download,
   PlayCircle,
-  Smartphone,
   Star,
-  BookOpen,
   Clock,
+  BookOpen,
   Users,
   ChevronDown,
   ShieldCheck,
@@ -27,6 +23,7 @@ interface VideoDetailPageProps {
   onNavigate: (page: string) => void;
   onBack?: () => void;
   onOpenOrderDetail?: (orderId: number | string) => void;
+  onOpenSellerBlog?: (sellerId: number | string) => void;
 }
 
 type ApiLesson = {
@@ -74,6 +71,7 @@ type ApiCourse = {
   id: number;
   title: string;
   slug: string;
+  posted_by?: number | null;
   description: string | null;
   level: string;
   category: string | null;
@@ -86,6 +84,7 @@ type ApiCourse = {
   upload_date: string | null;
   thumbnail_url: string | null;
   hero_url: string | null;
+  learning_outcomes?: string | null;
   preview_mode: "count" | "manual";
   preview_count: number;
 };
@@ -114,7 +113,50 @@ export function VideoDetailPage({
   onNavigate,
   onBack,
   onOpenOrderDetail,
+  onOpenSellerBlog,
 }: VideoDetailPageProps) {
+  const parseDurationLabelToSeconds = (raw: string | null | undefined): number => {
+    if (!raw) return 0;
+    const label = raw.trim().toLowerCase();
+    if (!label) return 0;
+
+    // Supports hh:mm:ss and mm:ss
+    if (label.includes(":")) {
+      const parts = label.split(":").map((part) => Number(part.trim()));
+      if (parts.length >= 2 && parts.length <= 3 && parts.every((value) => Number.isFinite(value))) {
+        if (parts.length === 3) {
+          return parts[0] * 3600 + parts[1] * 60 + parts[2];
+        }
+        return parts[0] * 60 + parts[1];
+      }
+    }
+
+    // Supports "1h 20m", "20 min", "45 sec", etc.
+    let matched = false;
+    let total = 0;
+    const regex =
+      /(\d+(?:\.\d+)?)\s*(h|hr|hrs|hour|hours|m|min|mins|minute|minutes|s|sec|secs|second|seconds)\b/g;
+    let token: RegExpExecArray | null;
+    while ((token = regex.exec(label)) !== null) {
+      matched = true;
+      const value = Number(token[1]);
+      const unit = token[2];
+      if (!Number.isFinite(value)) continue;
+      if (unit.startsWith("h")) total += value * 3600;
+      else if (unit.startsWith("m")) total += value * 60;
+      else total += value;
+    }
+    if (matched) return Math.round(total);
+
+    // Bare number is assumed to be minutes (admin commonly inputs "5", "20")
+    const onlyNumber = Number(label);
+    if (Number.isFinite(onlyNumber) && onlyNumber > 0) {
+      return Math.round(onlyNumber * 60);
+    }
+
+    return 0;
+  };
+
   const { user } = useAuth();
   const { formatPrice } = useCurrency();
   const [course, setCourse] = useState<ApiCourse | null>(null);
@@ -155,15 +197,6 @@ export function VideoDetailPage({
     setPreviewLessonId(lessonId ?? previewLessons[0]?.id ?? null);
     setOpenPreview(true);
   };
-
-  const courseIncludes = [
-    { icon: PlayCircle, label: "29.5 hours on-demand video" },
-    { icon: Download, label: "143 downloadable resources" },
-    { icon: Code, label: "107 coding exercises" },
-    { icon: Smartphone, label: "Access on mobile and TV" },
-    { icon: BookOpen, label: "22 articles" },
-    { icon: Award, label: "Certificate of completion" },
-  ];
 
   const courseSections = useMemo(() => {
     const orderedSections = [...sections].sort((a, b) => a.position - b.position);
@@ -233,20 +266,7 @@ export function VideoDetailPage({
 
   const totalDurationText = useMemo(() => {
     const seconds = lessons.reduce((sum, lesson) => {
-      const label = lesson.duration_label;
-      if (!label) return sum;
-      const parts = label.split(":").map((part) => Number(part));
-      if (parts.some((value) => Number.isNaN(value))) return sum;
-      if (parts.length === 3) {
-        return sum + parts[0] * 3600 + parts[1] * 60 + parts[2];
-      }
-      if (parts.length === 2) {
-        return sum + parts[0] * 60 + parts[1];
-      }
-      if (parts.length === 1) {
-        return sum + parts[0];
-      }
-      return sum;
+      return sum + parseDurationLabelToSeconds(lesson.duration_label);
     }, 0);
 
     if (!seconds) return "0m";
@@ -282,6 +302,14 @@ export function VideoDetailPage({
       .map((tag) => tag.trim())
       .filter((tag) => tag.length > 0);
   }, [course?.tags]);
+
+  const learningOutcomes = useMemo(() => {
+    const raw = typeof course?.learning_outcomes === "string" ? course.learning_outcomes : "";
+    return raw
+      .split(/\r?\n/)
+      .map((line) => line.trim())
+      .filter(Boolean);
+  }, [course?.learning_outcomes]);
 
   const ratingValue = Number(course?.rating ?? 0);
   const ratingCount = Number(course?.rating_count ?? 0);
@@ -351,6 +379,15 @@ export function VideoDetailPage({
     if (plan.access_type === "lifetime") return "Lifetime access";
     const duration = formatPlanDuration(plan.duration_days);
     return duration ? `${duration} access` : "Limited access";
+  };
+
+  const openSellerBlog = (sellerId: number | null | undefined) => {
+    if (!sellerId || sellerId <= 0) return;
+    if (onOpenSellerBlog) {
+      onOpenSellerBlog(sellerId);
+      return;
+    }
+    window.location.href = `/blog/${encodeURIComponent(String(sellerId))}`;
   };
 
   const handlePurchase = async (
@@ -513,7 +550,7 @@ export function VideoDetailPage({
 
   return (
     <div className="video-blog-page min-h-screen bg-gray-50">
-      <div className="w-full px-4 lg:px-8 py-10">
+      <div className="w-full max-w-7xl mx-auto px-4 lg:px-8 py-10">
         <div className="grid grid-cols-1 lg:grid-cols-12 gap-8 items-start">
           {/* LEFT */}
           <section className="lg:col-span-8 min-w-0 space-y-6">
@@ -558,9 +595,14 @@ export function VideoDetailPage({
 
                 <div className="mt-4 text-xs text-slate-300">
                   Created by{" "}
-                  <span className="text-white font-semibold">
+                  <button
+                    type="button"
+                    onClick={() => openSellerBlog(Number(course.posted_by ?? 0))}
+                    disabled={!course.posted_by}
+                    className="text-white font-semibold underline-offset-2 hover:underline disabled:no-underline"
+                  >
                     {course.author_name || "Instructor"}
-                  </span>
+                  </button>
                 </div>
 
                 <div className="mt-2 flex flex-wrap items-center gap-4 text-[11px] text-slate-300/80">
@@ -617,17 +659,15 @@ export function VideoDetailPage({
               </div>
 
               <div className="grid gap-3 md:grid-cols-2 text-sm text-gray-700">
-                {[
-                  "Build a complete AI workflow from data to deployment.",
-                  "Understand core ML and deep learning concepts.",
-                  "Apply transformers, LLMs, and prompt strategies.",
-                  "Build real-world projects with APIs and tools.",
-                ].map((t) => (
+                {learningOutcomes.map((t) => (
                   <div key={t} className="flex items-start gap-2 rounded-xl bg-gray-50 p-3">
                     <PlayCircle className="w-4 h-4 text-blue-600 mt-0.5" />
                     <span>{t}</span>
                   </div>
                 ))}
+                {learningOutcomes.length === 0 ? (
+                  <div className="text-sm text-gray-500">No key outcomes yet.</div>
+                ) : null}
               </div>
             </div>
 
@@ -647,19 +687,6 @@ export function VideoDetailPage({
                 ) : (
                   <span className="text-xs text-gray-500">No tags</span>
                 )}
-              </div>
-            </div>
-
-            {/* INCLUDES */}
-            <div className="rounded-2xl border border-gray-200 bg-white p-6 shadow-sm">
-              <h2 className="text-lg font-semibold text-gray-900 mb-4">This course includes</h2>
-              <div className="grid gap-3 sm:grid-cols-2 text-sm text-gray-700">
-                {courseIncludes.map((item) => (
-                  <div key={item.label} className="flex items-center gap-2 rounded-xl bg-gray-50 p-3">
-                    <item.icon className="w-4 h-4 text-blue-600" />
-                    <span>{item.label}</span>
-                  </div>
-                ))}
               </div>
             </div>
 

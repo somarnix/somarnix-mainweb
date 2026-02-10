@@ -12,7 +12,6 @@ const isPresenceOnline = (
   status?: string | null,
   lastActive?: string | null
 ) => {
-  if (status === "online") return true;
   if (status === "offline") return false;
   if (lastActive) {
     const parsed = new Date(lastActive).getTime();
@@ -122,6 +121,9 @@ export function Header({
   const [notificationOpen, setNotificationOpen] = useState(false);
   const [notificationLoading, setNotificationLoading] = useState(false);
   const [purchaseNotifications, setPurchaseNotifications] = useState<
+    HeaderNotificationOrder[]
+  >([]);
+  const [cancelledNotifications, setCancelledNotifications] = useState<
     HeaderNotificationOrder[]
   >([]);
   const [soldNotifications, setSoldNotifications] = useState<
@@ -478,6 +480,9 @@ const mapSummary = (raw: any): HeaderChatSummary => {
           );
         }
         if (!active) return;
+        setCancelledNotifications(
+          Array.isArray(data.cancelledOrders) ? data.cancelledOrders : []
+        );
         setPurchaseNotifications(
           Array.isArray(data.purchaseOrders) ? data.purchaseOrders : []
         );
@@ -485,6 +490,7 @@ const mapSummary = (raw: any): HeaderChatSummary => {
       } catch (err) {
         if (!active) return;
         setNotificationError(err instanceof Error ? err.message : "Failed to load");
+        setCancelledNotifications([]);
         setPurchaseNotifications([]);
         setSoldNotifications([]);
       } finally {
@@ -1089,8 +1095,53 @@ const mapSummary = (raw: any): HeaderChatSummary => {
 
             {notificationOpen && (
               <div className="absolute right-0 mt-3 w-80 rounded-2xl border border-gray-100 dark:border-gray-700 bg-white dark:bg-gray-900 shadow-2xl overflow-hidden z-40">
-                <div className="px-4 py-3 border-b border-gray-100 dark:border-gray-800 text-sm text-gray-500 dark:text-gray-400">
-                  No order cancellation
+                <div className="bg-gray-50 dark:bg-gray-800/50 px-4 py-2 text-[11px] font-semibold tracking-[0.12em] text-gray-500 dark:text-gray-400 flex items-center justify-between">
+                  <span>Cancelled Orders</span>
+                  <button
+                    onClick={() => {
+                      setNotificationOpen(false);
+                      onNavigate("orders");
+                    }}
+                    className="text-red-500 hover:text-red-600 flex items-center gap-1"
+                  >
+                    View all
+                    <ChevronRight className="w-3 h-3" />
+                  </button>
+                </div>
+
+                <div className="divide-y divide-gray-100 dark:divide-gray-800">
+                  {notificationLoading ? (
+                    <div className="px-4 py-4 text-sm text-gray-500">
+                      Loading...
+                    </div>
+                  ) : notificationError ? (
+                    <div className="px-4 py-4 text-sm text-red-500">
+                      {notificationError}
+                    </div>
+                  ) : cancelledNotifications.length === 0 ? (
+                    <div className="px-4 py-4 text-sm text-gray-500 dark:text-gray-400">
+                      No cancelled orders
+                    </div>
+                  ) : (
+                    cancelledNotifications.map((item) => (
+                      <div
+                        key={`cancelled-${item.order_number}`}
+                        className="flex items-start gap-3 px-4 py-3"
+                      >
+                        <div className="mt-1 h-9 w-9 rounded-full bg-red-50 dark:bg-red-900/20 flex items-center justify-center text-red-500">
+                          <X className="w-4 h-4" />
+                        </div>
+                        <div className="min-w-0">
+                          <div className="text-sm font-semibold text-gray-900 dark:text-white truncate">
+                            {item.product_title || "Order item"}
+                          </div>
+                          <div className="text-xs text-gray-500">
+                            #{item.order_number}
+                          </div>
+                        </div>
+                      </div>
+                    ))
+                  )}
                 </div>
 
                 <div className="bg-gray-50 dark:bg-gray-800/50 px-4 py-2 text-[11px] font-semibold tracking-[0.12em] text-gray-500 dark:text-gray-400 flex items-center justify-between">

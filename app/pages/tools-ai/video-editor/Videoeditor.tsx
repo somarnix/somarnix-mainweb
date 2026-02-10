@@ -1,9 +1,12 @@
 "use client";
 
 import { useMemo, useState } from "react";
+import KeyLicence, { type KeyLicenceState } from "@/app/components/KeyLicence";
 
 type Mode = "merge" | "split" | "edit";
 type EditAction = "compress" | "trim" | "convert" | "watermark-text";
+const TOOL_PRODUCT_SLUG =
+  process.env.NEXT_PUBLIC_VIDEO_EDITOR_TOOL_SLUG || "videoeditor";
 
 export default function VideoEditorPage() {
   const [mode, setMode] = useState<Mode>("edit");
@@ -11,6 +14,15 @@ export default function VideoEditorPage() {
   const [error, setError] = useState<string | null>(null);
   const [downloadUrl, setDownloadUrl] = useState("");
   const [downloadUrls, setDownloadUrls] = useState<string[]>([]);
+  const [licenseState, setLicenseState] = useState<KeyLicenceState>({
+    status: "checking",
+    token: "",
+    deviceId: "",
+    expiresAt: null,
+    maxDevices: null,
+    deviceCount: null,
+    error: null,
+  });
 
   const [editFile, setEditFile] = useState<File | null>(null);
   const [editAction, setEditAction] = useState<EditAction>("compress");
@@ -47,6 +59,10 @@ export default function VideoEditorPage() {
 
   const handleSubmit = async () => {
     resetOutputs();
+    if (licenseState.status !== "ready" || !licenseState.token) {
+      setError("License required. Please activate your license key first.");
+      return;
+    }
     setLoading(true);
 
     try {
@@ -83,6 +99,10 @@ export default function VideoEditorPage() {
 
       const res = await fetch("/api/tools/access/video/edit", {
         method: "POST",
+        headers: {
+          Authorization: `Bearer ${licenseState.token}`,
+          "x-tool-slug": TOOL_PRODUCT_SLUG,
+        },
         body: fd,
       });
       const data = await res.json().catch(() => null);
@@ -101,6 +121,21 @@ export default function VideoEditorPage() {
     } finally {
       setLoading(false);
     }
+  };
+
+  const handleDeactivateFromHeader = () => {
+    if (typeof window !== "undefined") {
+      window.localStorage.removeItem(`gstech_tool_license_${TOOL_PRODUCT_SLUG}`);
+    }
+    setLicenseState({
+      status: "missing",
+      token: "",
+      deviceId: licenseState.deviceId,
+      expiresAt: null,
+      maxDevices: null,
+      deviceCount: null,
+      error: null,
+    });
   };
 
   return (
@@ -123,13 +158,51 @@ export default function VideoEditorPage() {
                   Merge, split, trim, convert, and watermark with a clean workflow.
                 </p>
               </div>
-              <div className="flex items-center gap-2 text-xs text-slate-500 dark:text-slate-400">
-                <span className="rounded-full bg-slate-100 px-3 py-1 dark:bg-gray-800">
-                  FFmpeg powered
-                </span>
-                <span className="rounded-full bg-slate-100 px-3 py-1 dark:bg-gray-800">
-                  No license
-                </span>
+              <div className="flex flex-col items-start gap-2 text-xs text-slate-500 dark:text-slate-400 sm:items-end">
+                <div className="flex flex-wrap items-center gap-2">
+                  <span className="rounded-full border border-slate-200 bg-white px-3 py-1 text-slate-600 dark:border-gray-700 dark:bg-gray-800 dark:text-slate-300">
+                    FFmpeg powered
+                  </span>
+                  {licenseState.status === "ready" ? (
+                    <span className="rounded-full border border-emerald-200 bg-emerald-100 px-3 py-1 font-semibold text-emerald-700 dark:border-emerald-800 dark:bg-emerald-900/40 dark:text-emerald-300">
+                      License Active
+                    </span>
+                  ) : (
+                    <span className="rounded-full border border-amber-200 bg-amber-100 px-3 py-1 font-semibold text-amber-700 dark:border-amber-800 dark:bg-amber-900/40 dark:text-amber-300">
+                      License required
+                    </span>
+                  )}
+                  {licenseState.status === "ready" ? (
+                    <button
+                      type="button"
+                      onClick={handleDeactivateFromHeader}
+                      className="rounded-full border border-red-600 bg-red-600 px-3 py-1 font-semibold text-white transition hover:bg-red-700 dark:border-red-500 dark:bg-red-600 dark:hover:bg-red-500"
+                    >
+                      Deactivate key
+                    </button>
+                  ) : null}
+                </div>
+                {licenseState.status === "ready" ? (
+                  <div className="flex flex-wrap items-center gap-2 rounded-xl border border-emerald-200 bg-emerald-50/70 px-3 py-2 text-[11px] text-emerald-800 dark:border-emerald-900 dark:bg-emerald-900/20 dark:text-emerald-200">
+                    <span className="rounded-md bg-white/70 px-2 py-1 dark:bg-gray-900/50">
+                      Device: <strong>{licenseState.deviceId || "--"}</strong>
+                    </span>
+                    <span className="rounded-md bg-white/70 px-2 py-1 dark:bg-gray-900/50">
+                      Max: <strong>{licenseState.maxDevices ?? "--"}</strong>
+                    </span>
+                    <span className="rounded-md bg-white/70 px-2 py-1 dark:bg-gray-900/50">
+                      Used: <strong>{licenseState.deviceCount ?? "--"}</strong>
+                    </span>
+                    <span className="rounded-md bg-white/70 px-2 py-1 dark:bg-gray-900/50">
+                      Expires:{" "}
+                      <strong>
+                        {licenseState.expiresAt
+                          ? new Date(licenseState.expiresAt).toLocaleString()
+                          : "No expiry"}
+                      </strong>
+                    </span>
+                  </div>
+                ) : null}
               </div>
             </div>
           </div>
@@ -164,6 +237,16 @@ export default function VideoEditorPage() {
             </aside>
 
             <section className="space-y-6">
+              {licenseState.status !== "ready" ? (
+                <KeyLicence
+                  toolSlug={TOOL_PRODUCT_SLUG}
+                  title="License"
+                  showStatusInCard={false}
+                  onChange={setLicenseState}
+                />
+              ) : null}
+
+              <div className="relative">
               <div className="rounded-2xl border border-slate-200/70 bg-slate-50/70 p-4 text-sm text-slate-600 dark:border-gray-800 dark:bg-gray-800/50 dark:text-slate-300">
                 {mode === "edit" && "Upload a file, pick an action, then export."}
                 {mode === "merge" && "Select multiple files to merge into one output."}
@@ -434,7 +517,7 @@ export default function VideoEditorPage() {
 
                 <button
                   onClick={handleSubmit}
-                  disabled={!canSubmit || loading}
+                  disabled={!canSubmit || loading || licenseState.status !== "ready"}
                   className="rounded-xl bg-gradient-to-r from-blue-600 to-purple-600 py-3 text-sm font-semibold text-white shadow-lg shadow-blue-600/20 hover:opacity-90 disabled:opacity-50"
                 >
                   {loading ? "Processing..." : "Start"}
@@ -458,6 +541,24 @@ export default function VideoEditorPage() {
                     </div>
                   </div>
                 )}
+              </div>
+
+              {licenseState.status !== "ready" && (
+                <div className="absolute inset-0 z-20 flex items-center justify-center rounded-2xl bg-white/75 backdrop-blur-sm dark:bg-gray-950/70">
+                  <div className="w-full max-w-md rounded-2xl border border-slate-200 bg-white p-8 text-center shadow-xl dark:border-gray-800 dark:bg-gray-900">
+                    <div className="mx-auto mb-4 flex h-12 w-12 items-center justify-center rounded-full bg-blue-50 text-blue-600">
+                      <svg viewBox="0 0 24 24" className="h-7 w-7" fill="none" stroke="currentColor" strokeWidth="2">
+                        <path d="M12 3l7 3v6c0 5-3.5 8-7 9-3.5-1-7-4-7-9V6l7-3z" />
+                        <path d="M9.5 12.5l1.5 1.5 3.5-3.5" />
+                      </svg>
+                    </div>
+                    <h3 className="text-2xl font-semibold text-slate-900 dark:text-white">Editor Locked</h3>
+                    <p className="mt-2 text-sm text-slate-500 dark:text-slate-400">
+                      Activation is required to use the processing tools. Enter your license key above.
+                    </p>
+                  </div>
+                </div>
+              )}
               </div>
             </section>
           </div>

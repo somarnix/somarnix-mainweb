@@ -58,12 +58,28 @@ type ReviewRow = RowDataPacket & {
   avatar_url: string | null;
 };
 
+async function hasAllDeviceColumns(): Promise<boolean> {
+  const [rows] = await db.query<RowDataPacket[]>(
+    `
+    SELECT column_name
+    FROM information_schema.columns
+    WHERE table_schema = DATABASE()
+      AND table_name = 'product_variants'
+      AND column_name IN ('device_label','device_type','device_limit','is_unlimited_device')
+    `
+  );
+  const present = new Set(rows.map((r) => String(r.column_name)));
+  return ["device_label", "device_type", "device_limit", "is_unlimited_device"].every((column) =>
+    present.has(column)
+  );
+}
+
 export async function GET(
   req: Request,
   ctx: { params: Promise<{ slug: string }> }
 ) {
   try {
-    const { slug } = await ctx.params; // ✅ FIX: await params
+    const { slug } = await ctx.params;
 
     const [pRows] = await db.query<ProductDetailRow[]>(
       `
@@ -96,20 +112,63 @@ export async function GET(
     }
 
     const product = pRows[0];
+    const isTools = String(product.category || "").toLowerCase() === "tools";
+    const withDeviceColumns = isTools ? true : await hasAllDeviceColumns();
+    let vRows: VariantRow[] = [];
 
-    const [vRows] = await db.query<VariantRow[]>(
-      `
-      SELECT
-        id, duration_label, duration_note, duration_days,
-        device_label, device_limit, is_unlimited_device,
-        original_price, price,
-        khqr, usdqr
-      FROM product_variants
-      WHERE product_id = ? AND is_active = 1
-      ORDER BY price ASC
-      `,
-      [product.id]
-    );
+    if (isTools) {
+      try {
+        const [rows] = await db.query<VariantRow[]>(
+          `
+          SELECT
+            id, duration_label, duration_note, duration_days,
+            device_label, device_limit, is_unlimited_device,
+            original_price, price,
+            khqr, usdqr
+          FROM tool_variants
+          WHERE product_id = ? AND is_active = 1
+          ORDER BY price ASC
+          `,
+          [product.id]
+        );
+        vRows = rows;
+      } catch (err) {
+        const message = err instanceof Error ? err.message.toLowerCase() : String(err).toLowerCase();
+        if (!message.includes("tool_variants")) {
+          throw err;
+        }
+      }
+    }
+
+    if (!isTools || vRows.length === 0) {
+      const [rows] = await db.query<VariantRow[]>(
+        withDeviceColumns
+          ? `
+            SELECT
+              id, duration_label, duration_note, duration_days,
+              device_label, device_limit, is_unlimited_device,
+              original_price, price,
+              khqr, usdqr
+            FROM product_variants
+            WHERE product_id = ? AND is_active = 1
+            ORDER BY price ASC
+          `
+          : `
+            SELECT
+              id, duration_label, duration_note, duration_days,
+              NULL AS device_label,
+              NULL AS device_limit,
+              0 AS is_unlimited_device,
+              original_price, price,
+              khqr, usdqr
+            FROM product_variants
+            WHERE product_id = ? AND is_active = 1
+            ORDER BY price ASC
+          `,
+        [product.id]
+      );
+      vRows = rows;
+    }
 
     const normalizedProduct = {
       ...product,

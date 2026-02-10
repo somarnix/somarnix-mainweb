@@ -3,7 +3,7 @@ import type { RowDataPacket } from "mysql2";
 import { db } from "@/lib/db";
 import { getAuthUser } from "@/lib/auth";
 import type { OrderStatus } from "@/lib/order-status";
-import { normalizeStatusKeyword, resolveOrderStatus } from "@/lib/order-status";
+import { resolveOrderStatus } from "@/lib/order-status";
 
 const UNKNOWN_COLUMN_MARKERS = [
   "Unknown column 'state'",
@@ -218,6 +218,29 @@ export async function GET(
   }
 
   try {
+    const [variantCols] = await db.query<RowDataPacket[]>(
+      `
+      SELECT COLUMN_NAME
+      FROM information_schema.columns
+      WHERE table_schema = DATABASE() AND table_name = 'product_variants'
+      `
+    );
+    const variantColSet = new Set(variantCols.map((c) => String(c.COLUMN_NAME)));
+    const hasDeviceLabel = variantColSet.has("device_label");
+    const deviceLabelExpr = hasDeviceLabel ? "pv.device_label" : "NULL";
+    const [toolVariantColumnRows] = await db.query<RowDataPacket[]>(
+      `
+      SELECT 1
+      FROM information_schema.columns
+      WHERE table_schema = DATABASE()
+        AND table_name = 'order_items'
+        AND column_name = 'tool_variant_id'
+      LIMIT 1
+      `
+    );
+    const hasToolVariantId = toolVariantColumnRows.length > 0;
+    const toolVariantRef = hasToolVariantId ? "oi.tool_variant_id" : "oi.variant_id";
+
     let fetchResult:
       | { mode: "state" | "legacy"; order: OrderStateRow | OrderLegacyRow | null }
       | null = null;
@@ -252,12 +275,14 @@ export async function GET(
         oi.unit_price,
         oi.order_info_json,
         p.order_fields_json,
-        pv.duration_label,
-        pv.device_label,
-        pv.duration_days
+        CASE WHEN LOWER(pc.name) = 'tools' THEN tv.duration_label ELSE pv.duration_label END AS duration_label,
+        CASE WHEN LOWER(pc.name) = 'tools' THEN tv.device_label ELSE ${deviceLabelExpr} END AS device_label,
+        CASE WHEN LOWER(pc.name) = 'tools' THEN tv.duration_days ELSE pv.duration_days END AS duration_days
       FROM order_items oi
       JOIN products p ON p.id = oi.product_id
+      JOIN product_categories pc ON pc.id = p.category_id
       LEFT JOIN product_variants pv ON pv.id = oi.variant_id
+      LEFT JOIN tool_variants tv ON tv.id = ${toolVariantRef}
       WHERE oi.order_id = ?
       ORDER BY oi.id ASC
       `,

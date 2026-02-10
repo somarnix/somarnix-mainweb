@@ -34,13 +34,17 @@ export async function GET(
     `
     SELECT
       oi.id,
+      oi.product_id,
       oi.qty,
       oi.unit_price,
       oi.order_info_json,
+      p.slug AS product_slug,
       p.title AS product_title,
-      p.order_fields_json
+      p.order_fields_json,
+      c.name AS category_name
     FROM order_items oi
     JOIN products p ON p.id = oi.product_id
+    JOIN product_categories c ON c.id = p.category_id
     WHERE oi.order_id = ?
     ORDER BY oi.id ASC
     `,

@@ -1,124 +1,176 @@
-import { Facebook, Twitter, Instagram, Linkedin, Youtube, Mail, Phone, MapPin } from 'lucide-react';
-import { Input } from './ui/input';
-import { Button } from './ui/button';
-import { useLanguage } from '../contexts/LanguageContext';
+import {
+  Facebook,
+  Twitter,
+  Instagram,
+  Linkedin,
+  Youtube,
+  Mail,
+  Phone,
+  MapPin,
+  ArrowRight,
+} from "lucide-react";
+import { Input } from "./ui/input";
+import { Button } from "./ui/button";
+import { useLanguage } from "../contexts/LanguageContext";
 
 export function Footer() {
   const currentYear = new Date().getFullYear();
   const { t } = useLanguage();
 
+  const quickLinks = [
+    t("footer.aboutUs"),
+    t("footer.allCourses"),
+    t("footer.becomeInstructor"),
+    t("footer.partnerships"),
+    t("footer.careers"),
+    t("footer.blog"),
+  ];
+
+  const supportLinks = [
+    t("footer.helpCenter"),
+    t("footer.faqs"),
+    t("footer.terms"),
+    t("footer.privacy"),
+    t("footer.cookies"),
+    t("footer.accessibility"),
+  ];
+
+  const socialLinks = [
+    { icon: Facebook, color: "hover:text-blue-400" },
+    { icon: Twitter, color: "hover:text-sky-400" },
+    { icon: Instagram, color: "hover:text-pink-400" },
+    { icon: Linkedin, color: "hover:text-blue-300" },
+    { icon: Youtube, color: "hover:text-red-400" },
+  ];
+
   return (
-    <footer className="bg-gray-900 dark:bg-gray-950 text-gray-300">
-      {/* Main Footer */}
-      <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-12">
-        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-8">
-          {/* Company Info */}
-          <div className="space-y-4">
-            <div className="flex items-center space-x-2">
-              <div className="w-10 h-10 bg-gradient-to-br from-blue-600 to-purple-600 rounded-lg flex items-center justify-center">
-                <span className="text-white font-bold text-xl">E</span>
+    <footer className="relative overflow-hidden border-t border-slate-800 bg-slate-950 text-slate-300">
+      <div className="pointer-events-none absolute inset-0 bg-[radial-gradient(ellipse_at_top_left,_rgba(14,165,233,0.14),_transparent_45%),radial-gradient(ellipse_at_top_right,_rgba(59,130,246,0.12),_transparent_42%)]" />
+
+      <div className="relative mx-auto max-w-7xl px-4 py-14 sm:px-6 lg:px-8">
+        <div className="grid grid-cols-1 gap-8 md:grid-cols-2 xl:grid-cols-4">
+          <div className="space-y-5">
+            <div className="flex items-center gap-3">
+              <div className="flex h-11 w-11 items-center justify-center rounded-xl bg-gradient-to-br from-blue-500 to-indigo-600 shadow-lg shadow-blue-900/40">
+                <span className="text-lg font-bold text-white">E</span>
               </div>
-              <span className="text-2xl font-bold text-white">Edugroit</span>
+              <div>
+                <p className="text-2xl font-semibold tracking-tight text-white">
+                  Edugroit
+                </p>
+                <p className="text-[11px] uppercase tracking-[0.18em] text-sky-300">
+                  Learn Faster
+                </p>
+              </div>
             </div>
-            <p className="text-sm text-gray-400">
-              {t('footer.description')}
+            <p className="max-w-sm text-sm leading-6 text-slate-400">
+              {t("footer.description")}
             </p>
-            
-            {/* Social Links */}
-            <div className="flex space-x-4">
-              <a href="#" className="w-8 h-8 bg-gray-800 dark:bg-gray-900 rounded-full flex items-center justify-center hover:bg-blue-600 transition-colors">
-                <Facebook className="w-4 h-4" />
-              </a>
-              <a href="#" className="w-8 h-8 bg-gray-800 dark:bg-gray-900 rounded-full flex items-center justify-center hover:bg-blue-400 transition-colors">
-                <Twitter className="w-4 h-4" />
-              </a>
-              <a href="#" className="w-8 h-8 bg-gray-800 dark:bg-gray-900 rounded-full flex items-center justify-center hover:bg-pink-600 transition-colors">
-                <Instagram className="w-4 h-4" />
-              </a>
-              <a href="#" className="w-8 h-8 bg-gray-800 dark:bg-gray-900 rounded-full flex items-center justify-center hover:bg-blue-700 transition-colors">
-                <Linkedin className="w-4 h-4" />
-              </a>
-              <a href="#" className="w-8 h-8 bg-gray-800 dark:bg-gray-900 rounded-full flex items-center justify-center hover:bg-red-600 transition-colors">
-                <Youtube className="w-4 h-4" />
-              </a>
+            <div className="flex flex-wrap gap-2">
+              {socialLinks.map((item, index) => (
+                <a
+                  key={index}
+                  href="#"
+                  className={`flex h-9 w-9 items-center justify-center rounded-full border border-slate-700 bg-slate-900/70 text-slate-400 transition-all duration-200 hover:-translate-y-0.5 hover:border-slate-500 ${item.color}`}
+                >
+                  <item.icon className="h-4 w-4" />
+                </a>
+              ))}
             </div>
           </div>
 
-          {/* Quick Links */}
           <div>
-            <h3 className="text-white font-semibold mb-4">{t('footer.quickLinks')}</h3>
-            <ul className="space-y-2">
-              <li><a href="#" className="text-sm hover:text-blue-400 transition-colors">{t('footer.aboutUs')}</a></li>
-              <li><a href="#" className="text-sm hover:text-blue-400 transition-colors">{t('footer.allCourses')}</a></li>
-              <li><a href="#" className="text-sm hover:text-blue-400 transition-colors">{t('footer.becomeInstructor')}</a></li>
-              <li><a href="#" className="text-sm hover:text-blue-400 transition-colors">{t('footer.partnerships')}</a></li>
-              <li><a href="#" className="text-sm hover:text-blue-400 transition-colors">{t('footer.careers')}</a></li>
-              <li><a href="#" className="text-sm hover:text-blue-400 transition-colors">{t('footer.blog')}</a></li>
+            <h3 className="mb-4 text-sm font-semibold uppercase tracking-[0.14em] text-white">
+              {t("footer.quickLinks")}
+            </h3>
+            <ul className="space-y-2.5">
+              {quickLinks.map((label) => (
+                <li key={label}>
+                  <a
+                    href="#"
+                    className="group inline-flex items-center gap-1 text-sm text-slate-400 transition-colors hover:text-sky-300"
+                  >
+                    <ArrowRight className="h-3.5 w-3.5 opacity-0 transition-opacity group-hover:opacity-100" />
+                    <span>{label}</span>
+                  </a>
+                </li>
+              ))}
             </ul>
           </div>
 
-          {/* Support */}
           <div>
-            <h3 className="text-white font-semibold mb-4">{t('footer.support')}</h3>
-            <ul className="space-y-2">
-              <li><a href="#" className="text-sm hover:text-blue-400 transition-colors">{t('footer.helpCenter')}</a></li>
-              <li><a href="#" className="text-sm hover:text-blue-400 transition-colors">{t('footer.faqs')}</a></li>
-              <li><a href="#" className="text-sm hover:text-blue-400 transition-colors">{t('footer.terms')}</a></li>
-              <li><a href="#" className="text-sm hover:text-blue-400 transition-colors">{t('footer.privacy')}</a></li>
-              <li><a href="#" className="text-sm hover:text-blue-400 transition-colors">{t('footer.cookies')}</a></li>
-              <li><a href="#" className="text-sm hover:text-blue-400 transition-colors">{t('footer.accessibility')}</a></li>
+            <h3 className="mb-4 text-sm font-semibold uppercase tracking-[0.14em] text-white">
+              {t("footer.support")}
+            </h3>
+            <ul className="space-y-2.5">
+              {supportLinks.map((label) => (
+                <li key={label}>
+                  <a
+                    href="#"
+                    className="text-sm text-slate-400 transition-colors hover:text-sky-300"
+                  >
+                    {label}
+                  </a>
+                </li>
+              ))}
             </ul>
           </div>
 
-          {/* Newsletter */}
           <div>
-            <h3 className="text-white font-semibold mb-4">{t('footer.newsletter')}</h3>
-            <p className="text-sm text-gray-400 mb-4">
-              {t('footer.newsletterDesc')}
-            </p>
-            <div className="space-y-3">
-              <Input
-                type="email"
-                placeholder={t('footer.emailPlaceholder')}
-                className="bg-gray-800 dark:bg-gray-900 border-gray-700 dark:border-gray-800 text-white placeholder:text-gray-500"
-              />
-              <Button className="w-full bg-gradient-to-r from-blue-600 to-purple-600 hover:from-blue-700 hover:to-purple-700">
-                {t('footer.subscribe')}
-              </Button>
-            </div>
-            
-            {/* Contact Info */}
-            <div className="mt-6 space-y-2">
-              <div className="flex items-center gap-2 text-sm">
-                <Mail className="w-4 h-4 text-blue-400" />
-                <span>support@edugroit.com</span>
+            <div className="rounded-2xl border border-slate-800 bg-slate-900/80 p-5 shadow-lg shadow-black/20 backdrop-blur-sm">
+              <h3 className="mb-3 text-sm font-semibold uppercase tracking-[0.14em] text-white">
+                {t("footer.newsletter")}
+              </h3>
+              <p className="mb-4 text-sm text-slate-400">
+                {t("footer.newsletterDesc")}
+              </p>
+              <div className="space-y-3">
+                <Input
+                  type="email"
+                  placeholder={t("footer.emailPlaceholder")}
+                  className="border-slate-700 bg-slate-950 text-white placeholder:text-slate-500"
+                />
+                <Button className="w-full bg-gradient-to-r from-blue-600 to-indigo-600 text-white hover:from-blue-500 hover:to-indigo-500">
+                  {t("footer.subscribe")}
+                </Button>
               </div>
-              <div className="flex items-center gap-2 text-sm">
-                <Phone className="w-4 h-4 text-blue-400" />
-                <span>+1 (555) 123-4567</span>
-              </div>
-              <div className="flex items-start gap-2 text-sm">
-                <MapPin className="w-4 h-4 text-blue-400 mt-0.5" />
-                <span>123 Learning St, Education City, EC 12345</span>
+              <div className="mt-5 space-y-2.5 border-t border-slate-800 pt-4">
+                <div className="flex items-center gap-2 text-sm text-slate-300">
+                  <Mail className="h-4 w-4 text-sky-400" />
+                  <span>support@edugroit.com</span>
+                </div>
+                <div className="flex items-center gap-2 text-sm text-slate-300">
+                  <Phone className="h-4 w-4 text-sky-400" />
+                  <span>+1 (555) 123-4567</span>
+                </div>
+                <div className="flex items-start gap-2 text-sm text-slate-300">
+                  <MapPin className="mt-0.5 h-4 w-4 text-sky-400" />
+                  <span>123 Learning St, Education City, EC 12345</span>
+                </div>
               </div>
             </div>
           </div>
         </div>
       </div>
 
-      {/* Bottom Bar */}
-      <div className="border-t border-gray-800 dark:border-gray-900">
-        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-6">
-          <div className="flex flex-col md:flex-row justify-between items-center gap-4">
-            <p className="text-sm text-gray-400">
-              © {currentYear} Edugroit. {t('footer.rights')}
-            </p>
-            <div className="flex flex-wrap gap-6 text-sm text-gray-400">
-              <a href="#" className="hover:text-blue-400 transition-colors">{t('footer.terms')}</a>
-              <a href="#" className="hover:text-blue-400 transition-colors">{t('footer.privacy')}</a>
-              <a href="#" className="hover:text-blue-400 transition-colors">{t('footer.cookies')}</a>
-              <a href="#" className="hover:text-blue-400 transition-colors">Sitemap</a>
-            </div>
+      <div className="relative border-t border-slate-800">
+        <div className="mx-auto flex max-w-7xl flex-col items-center justify-between gap-4 px-4 py-6 sm:px-6 md:flex-row lg:px-8">
+          <p className="text-sm text-slate-400">
+            &copy; {currentYear} Edugroit. {t("footer.rights")}
+          </p>
+          <div className="flex flex-wrap items-center gap-5 text-sm text-slate-400">
+            <a href="#" className="transition-colors hover:text-sky-300">
+              {t("footer.terms")}
+            </a>
+            <a href="#" className="transition-colors hover:text-sky-300">
+              {t("footer.privacy")}
+            </a>
+            <a href="#" className="transition-colors hover:text-sky-300">
+              {t("footer.cookies")}
+            </a>
+            <a href="#" className="transition-colors hover:text-sky-300">
+              Sitemap
+            </a>
           </div>
         </div>
       </div>

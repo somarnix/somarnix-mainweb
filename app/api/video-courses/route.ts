@@ -25,8 +25,29 @@ type CourseRow = RowDataPacket & {
   is_active: number;
 };
 
-export async function GET() {
+export async function GET(req: Request) {
   try {
+    const url = new URL(req.url);
+    const postedByRaw = Number(url.searchParams.get("posted_by") ?? 0);
+    const postedBy = Number.isFinite(postedByRaw) && postedByRaw > 0 ? postedByRaw : null;
+
+    const [postedByColumnRows] = await db.query<RowDataPacket[]>(
+      `
+      SELECT 1 AS ok
+      FROM information_schema.columns
+      WHERE table_schema = DATABASE()
+        AND table_name = 'video_courses'
+        AND column_name = 'posted_by'
+      LIMIT 1
+      `
+    );
+    const hasPostedByColumn = postedByColumnRows.length > 0;
+
+    const whereClause =
+      hasPostedByColumn && postedBy
+        ? "WHERE is_active = 1 AND posted_by = ?"
+        : "WHERE is_active = 1";
+
     const [rows] = await db.query<CourseRow[]>(
       `
       SELECT
@@ -58,9 +79,10 @@ export async function GET() {
         preview_count,
         is_active
       FROM video_courses
-      WHERE is_active = 1
+      ${whereClause}
       ORDER BY id DESC
-      `
+      `,
+      hasPostedByColumn && postedBy ? [postedBy] : []
     );
 
     return Response.json({ courses: rows });

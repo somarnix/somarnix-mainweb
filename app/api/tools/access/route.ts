@@ -25,15 +25,25 @@ type DeviceRow = RowDataPacket & { device_id: string };
 
 function detectDeviceType(ua: string): "pc" | "phone" {
   const lower = ua.toLowerCase();
-  if (
-    lower.includes("mobi") ||
-    lower.includes("android") ||
-    lower.includes("iphone") ||
-    lower.includes("ipad")
-  ) {
+  if (lower.includes("mobi") || lower.includes("android") || lower.includes("iphone") || lower.includes("ipad")) {
     return "phone";
   }
   return "pc";
+}
+
+async function hasColumn(tableName: string, columnName: string): Promise<boolean> {
+  const [rows] = await db.query<RowDataPacket[]>(
+    `
+    SELECT 1
+    FROM information_schema.columns
+    WHERE table_schema = DATABASE()
+      AND table_name = ?
+      AND column_name = ?
+    LIMIT 1
+    `,
+    [tableName, columnName]
+  );
+  return rows.length > 0;
 }
 
 export async function GET(req: Request) {
@@ -73,28 +83,64 @@ export async function GET(req: Request) {
     return Response.json({ hasAccess: false, reason: "tool_disabled" }, { status: 403 });
   }
 
-  const [orders] = await db.query<OrderRow[]>(
-    `
-    SELECT
-      o.id AS order_id,
-      COALESCE(o.delivered_at, o.reviewed_at, o.updated_at, o.created_at) AS created_at,
-      v.id AS variant_id,
-      v.duration_days,
-      v.device_limit,
-      v.is_unlimited_device,
-      v.device_type
-    FROM orders o
-    JOIN order_items oi ON oi.order_id = o.id
-    JOIN product_variants v ON v.id = oi.variant_id
-    WHERE o.user_id = ?
-      AND oi.product_id = ?
-      AND o.state IN ('approved','completed')
-      AND o.result <> 'failed'
-    ORDER BY o.created_at DESC
-    LIMIT 1
-    `,
-    [auth.userId, product.id]
-  );
+  const hasOrderToolVariantId = await hasColumn("order_items", "tool_variant_id");
+  const toolVariantJoinRef = hasOrderToolVariantId ? "oi.tool_variant_id" : "oi.variant_id";
+
+  let orders: OrderRow[] = [];
+  try {
+    const [rows] = await db.query<OrderRow[]>(
+      `
+      SELECT
+        o.id AS order_id,
+        COALESCE(o.delivered_at, o.reviewed_at, o.updated_at, o.created_at) AS created_at,
+        v.id AS variant_id,
+        v.duration_days,
+        v.device_limit AS device_limit,
+        v.is_unlimited_device AS is_unlimited_device,
+        v.device_type AS device_type
+      FROM orders o
+      JOIN order_items oi ON oi.order_id = o.id
+      JOIN tool_variants v ON v.id = ${toolVariantJoinRef}
+      WHERE o.user_id = ?
+        AND oi.product_id = ?
+        AND o.state IN ('approved','completed')
+        AND o.result <> 'failed'
+      ORDER BY o.created_at DESC
+      LIMIT 1
+      `,
+      [auth.userId, product.id]
+    );
+    orders = rows;
+  } catch (err) {
+    const message = err instanceof Error ? err.message.toLowerCase() : String(err).toLowerCase();
+    if (!message.includes("tool_variants")) {
+      throw err;
+    }
+
+    const [rows] = await db.query<OrderRow[]>(
+      `
+      SELECT
+        o.id AS order_id,
+        COALESCE(o.delivered_at, o.reviewed_at, o.updated_at, o.created_at) AS created_at,
+        v.id AS variant_id,
+        v.duration_days,
+        NULL AS device_limit,
+        1 AS is_unlimited_device,
+        'any' AS device_type
+      FROM orders o
+      JOIN order_items oi ON oi.order_id = o.id
+      JOIN product_variants v ON v.id = oi.variant_id
+      WHERE o.user_id = ?
+        AND oi.product_id = ?
+        AND o.state IN ('approved','completed')
+        AND o.result <> 'failed'
+      ORDER BY o.created_at DESC
+      LIMIT 1
+      `,
+      [auth.userId, product.id]
+    );
+    orders = rows;
+  }
 
   if (orders.length === 0) {
     return Response.json({ hasAccess: false, reason: "not_purchased" }, { status: 200 });
@@ -103,10 +149,9 @@ export async function GET(req: Request) {
   const order = orders[0];
   const start = new Date(order.created_at);
   const durationDays = order.duration_days;
-  const accessEnd =
-    durationDays && Number.isFinite(durationDays)
-      ? new Date(start.getTime() + Number(durationDays) * 24 * 60 * 60 * 1000)
-      : null;
+  const accessEnd = durationDays && Number.isFinite(durationDays)
+    ? new Date(start.getTime() + Number(durationDays) * 24 * 60 * 60 * 1000)
+    : null;
 
   if (accessEnd && accessEnd.getTime() < Date.now()) {
     return Response.json({ hasAccess: false, reason: "expired", accessEnd }, { status: 200 });
@@ -116,14 +161,8 @@ export async function GET(req: Request) {
   const clientDevice = detectDeviceType(userAgent);
   const deviceType = order.device_type || "any";
 
-  if (
-    (deviceType === "pc" && clientDevice !== "pc") ||
-    (deviceType === "phone" && clientDevice !== "phone")
-  ) {
-    return Response.json(
-      { hasAccess: false, reason: "device_not_allowed", deviceType },
-      { status: 200 }
-    );
+  if ((deviceType === "pc" && clientDevice !== "pc") || (deviceType === "phone" && clientDevice !== "phone")) {
+    return Response.json({ hasAccess: false, reason: "device_not_allowed", deviceType }, { status: 200 });
   }
 
   const isUnlimited = Number(order.is_unlimited_device) === 1;
@@ -151,10 +190,7 @@ export async function GET(req: Request) {
       );
       const total = Number(countRows[0]?.total ?? 0);
       if (Number.isFinite(deviceLimit) && total >= deviceLimit) {
-        return Response.json(
-          { hasAccess: false, reason: "device_limit", deviceLimit },
-          { status: 200 }
-        );
+        return Response.json({ hasAccess: false, reason: "device_limit", deviceLimit }, { status: 200 });
       }
 
       await db.query<ResultSetHeader>(

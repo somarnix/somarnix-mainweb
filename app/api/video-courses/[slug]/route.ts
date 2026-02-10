@@ -8,6 +8,7 @@ type CourseRow = RowDataPacket & {
   id: number;
   title: string;
   slug: string;
+  posted_by?: number | null;
   category: string | null;
   tags: string | null;
   description: string | null;
@@ -20,6 +21,7 @@ type CourseRow = RowDataPacket & {
   upload_date: string | Date | null;
   thumbnail_url: string | null;
   hero_url: string | null;
+  learning_outcomes: string | null;
   preview_mode: string;
   preview_count: number;
 };
@@ -70,6 +72,72 @@ type SubscriptionPlanRow = RowDataPacket & {
   usdqr: string | null;
 };
 
+function getYouTubeId(url: string): string | null {
+  try {
+    const u = new URL(url);
+    if (u.hostname.includes("youtu.be")) {
+      const id = u.pathname.replace("/", "").trim();
+      return id || null;
+    }
+    const v = u.searchParams.get("v");
+    if (v) return v.trim();
+    const parts = u.pathname.split("/").filter(Boolean);
+    const embedIndex = parts.indexOf("embed");
+    if (embedIndex >= 0 && parts[embedIndex + 1]) return parts[embedIndex + 1].trim();
+    return null;
+  } catch {
+    return null;
+  }
+}
+
+function formatDurationLabel(totalSeconds: number): string {
+  const s = Math.max(0, Math.floor(totalSeconds));
+  const h = Math.floor(s / 3600);
+  const m = Math.floor((s % 3600) / 60);
+  const sec = s % 60;
+  if (h > 0) {
+    return `${h}:${String(m).padStart(2, "0")}:${String(sec).padStart(2, "0")}`;
+  }
+  return `${m}:${String(sec).padStart(2, "0")}`;
+}
+
+async function fetchYouTubeDurationLabel(videoUrl: string): Promise<string | null> {
+  const id = getYouTubeId(videoUrl);
+  if (!id) return null;
+  try {
+    const controller = new AbortController();
+    const timeout = setTimeout(() => controller.abort(), 5000);
+    const response = await fetch(`https://www.youtube.com/watch?v=${encodeURIComponent(id)}`, {
+      cache: "no-store",
+      signal: controller.signal,
+      headers: {
+        "user-agent":
+          "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0.0.0 Safari/537.36",
+      },
+    });
+    clearTimeout(timeout);
+    if (!response.ok) return null;
+    const html = await response.text();
+    const lengthMatch = html.match(/"lengthSeconds":"(\d+)"/);
+    if (lengthMatch?.[1]) {
+      const seconds = Number(lengthMatch[1]);
+      if (Number.isFinite(seconds) && seconds > 0) {
+        return formatDurationLabel(seconds);
+      }
+    }
+    const approxMatch = html.match(/"approxDurationMs":"(\d+)"/);
+    if (approxMatch?.[1]) {
+      const seconds = Math.floor(Number(approxMatch[1]) / 1000);
+      if (Number.isFinite(seconds) && seconds > 0) {
+        return formatDurationLabel(seconds);
+      }
+    }
+  } catch {
+    return null;
+  }
+  return null;
+}
+
 export async function GET(
   req: Request,
   ctx: { params: Promise<{ slug?: string }> }
@@ -80,12 +148,36 @@ export async function GET(
     return Response.json({ error: "Invalid slug" }, { status: 400 });
   }
 
+  const [postedByColumnRows] = await db.query<RowDataPacket[]>(
+    `
+    SELECT COUNT(*) AS cnt
+    FROM INFORMATION_SCHEMA.COLUMNS
+    WHERE TABLE_SCHEMA = DATABASE()
+      AND TABLE_NAME = 'video_courses'
+      AND COLUMN_NAME = 'posted_by'
+    `
+  );
+  const hasPostedByColumn = Number(postedByColumnRows[0]?.cnt ?? 0) > 0;
+
+  const [learningOutcomesColumnRows] = await db.query<RowDataPacket[]>(
+    `
+    SELECT 1 AS ok
+    FROM information_schema.columns
+    WHERE table_schema = DATABASE()
+      AND table_name = 'video_courses'
+      AND column_name = 'learning_outcomes'
+    LIMIT 1
+    `
+  );
+  const hasLearningOutcomesColumn = learningOutcomesColumnRows.length > 0;
+
   const [courseRows] = await db.query<CourseRow[]>(
     `
     SELECT
       id,
       title,
       slug,
+      ${hasPostedByColumn ? "posted_by," : ""}
       category,
       tags,
       description,
@@ -98,6 +190,7 @@ export async function GET(
       upload_date,
       thumbnail_url,
       hero_url,
+      ${hasLearningOutcomesColumn ? "learning_outcomes," : "NULL AS learning_outcomes,"}
       preview_mode,
       preview_count
     FROM video_courses
@@ -220,6 +313,7 @@ export async function GET(
   }
 
   const mappedLessons = lessons.map((lesson) => {
+    const durationLabel = lesson.duration_label;
     const isPreview =
       hasAccess ||
       (previewMode === "manual" && !!lesson.is_free_preview) ||
@@ -230,17 +324,31 @@ export async function GET(
       section_id: lesson.section_id,
       title: lesson.title,
       video_url: isPreview ? lesson.video_url : null,
-      duration_label: lesson.duration_label,
+      duration_label: durationLabel,
       position: lesson.position,
       is_free_preview: !!lesson.is_free_preview,
       is_locked: !isPreview,
     };
   });
 
+  const durationCache = new Map<string, string | null>();
+  const mappedLessonsWithDuration = await Promise.all(
+    mappedLessons.map(async (lesson) => {
+      if (lesson.duration_label || !lesson.video_url) return lesson;
+      const cacheKey = lesson.video_url;
+      if (durationCache.has(cacheKey)) {
+        return { ...lesson, duration_label: durationCache.get(cacheKey) };
+      }
+      const detected = await fetchYouTubeDurationLabel(lesson.video_url);
+      durationCache.set(cacheKey, detected);
+      return { ...lesson, duration_label: detected };
+    })
+  );
+
   return Response.json({
     course,
     sections,
-    lessons: mappedLessons,
+    lessons: mappedLessonsWithDuration,
     plans,
     subscription_plans: subscriptionPlans,
     access: {

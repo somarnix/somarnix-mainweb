@@ -8,18 +8,26 @@ export const dynamic = "force-dynamic";
 
 const DEFAULT_KH_QR = "/paymentQR/khmer_qr.jpg";
 const USD_QR_NONE = "none";
-const DEVICE_TYPE_COLUMN = "device_type";
 
-function isUnknownColumnError(err: unknown, column: string): boolean {
-  const msg = err instanceof Error ? err.message : String(err);
-  return msg.includes(`Unknown column '${column}'`);
-}
+const DEVICE_FIELDS = [
+  "device_label",
+  "device_type",
+  "device_limit",
+  "is_unlimited_device",
+];
 
-type RouteCtx = { params: { variantId: string } | Promise<{ variantId: string }> };
+type RouteCtx = {
+  params:
+    | { id: string; variantId: string }
+    | Promise<{ id: string; variantId: string }>;
+};
 
-async function readVariantId(ctx: RouteCtx): Promise<string> {
-  const params = await Promise.resolve(ctx.params); // ✅ FIX
-  return typeof params.variantId === "string" ? params.variantId : "";
+async function readIds(ctx: RouteCtx): Promise<{ productId: string; variantId: string }> {
+  const params = await Promise.resolve(ctx.params);
+  return {
+    productId: typeof params.id === "string" ? params.id : "",
+    variantId: typeof params.variantId === "string" ? params.variantId : "",
+  };
 }
 
 function toIntOrNull(v: unknown): number | null {
@@ -34,6 +42,34 @@ function toNumOrNull(v: unknown): number | null {
   return Number.isFinite(n) ? n : null;
 }
 
+async function hasAllDeviceColumns(): Promise<boolean> {
+  const [rows] = await db.query<RowDataPacket[]>(
+    `
+    SELECT column_name
+    FROM information_schema.columns
+    WHERE table_schema = DATABASE()
+      AND table_name = 'product_variants'
+      AND column_name IN ('device_label','device_type','device_limit','is_unlimited_device')
+    `
+  );
+  const present = new Set(rows.map((r) => String(r.column_name)));
+  return DEVICE_FIELDS.every((field) => present.has(field));
+}
+
+async function isToolsProduct(productId: number): Promise<boolean> {
+  const [rows] = await db.query<RowDataPacket[]>(
+    `
+    SELECT 1
+    FROM products p
+    JOIN product_categories c ON c.id = p.category_id
+    WHERE p.id = ? AND LOWER(c.name) = 'tools'
+    LIMIT 1
+    `,
+    [productId]
+  );
+  return rows.length > 0;
+}
+
 /* =========================
    PUT: UPDATE VARIANT (ADMIN)
 ========================= */
@@ -44,9 +80,13 @@ export async function PUT(req: Request, ctx: RouteCtx) {
       return Response.json({ error: "Forbidden" }, { status: 403 });
     }
 
-    const idStr = await readVariantId(ctx);
-    const variantId = Number(idStr);
+    const ids = await readIds(ctx);
+    const productId = Number(ids.productId);
+    const variantId = Number(ids.variantId);
 
+    if (!Number.isFinite(productId) || productId <= 0) {
+      return Response.json({ error: "Invalid product id" }, { status: 400 });
+    }
     if (!Number.isFinite(variantId) || variantId <= 0) {
       return Response.json({ error: "Invalid variant id" }, { status: 400 });
     }
@@ -56,6 +96,10 @@ export async function PUT(req: Request, ctx: RouteCtx) {
       return Response.json({ error: "Invalid body" }, { status: 400 });
     }
     const b = body as Record<string, unknown>;
+
+    const toolsProduct = await isToolsProduct(productId);
+    const tableName = toolsProduct ? "tool_variants" : "product_variants";
+    const withDeviceColumns = toolsProduct ? true : await hasAllDeviceColumns();
 
     const sets: string[] = [];
     const values: Array<string | number | null> = [];
@@ -87,46 +131,48 @@ export async function PUT(req: Request, ctx: RouteCtx) {
       values.push(v);
     }
 
-    if ("device_label" in b) {
-      if (!(typeof b.device_label === "string" || b.device_label === null)) {
-        return Response.json({ error: "Invalid device_label" }, { status: 400 });
+    if (withDeviceColumns) {
+      if ("device_label" in b) {
+        if (!(typeof b.device_label === "string" || b.device_label === null)) {
+          return Response.json({ error: "Invalid device_label" }, { status: 400 });
+        }
+        const v = b.device_label === null ? null : b.device_label.trim() || null;
+        sets.push("device_label = ?");
+        values.push(v);
       }
-      const v = b.device_label === null ? null : b.device_label.trim() || null;
-      sets.push("device_label = ?");
-      values.push(v);
-    }
 
-    if ("device_type" in b) {
-      if (!(typeof b.device_type === "string" || b.device_type === null)) {
-        return Response.json({ error: "Invalid device_type" }, { status: 400 });
+      if ("device_type" in b) {
+        if (!(typeof b.device_type === "string" || b.device_type === null)) {
+          return Response.json({ error: "Invalid device_type" }, { status: 400 });
+        }
+        const raw = typeof b.device_type === "string" ? b.device_type : "";
+        const v = ["any", "pc", "phone", "both"].includes(raw) ? raw : "any";
+        sets.push("device_type = ?");
+        values.push(v);
       }
-      const raw = typeof b.device_type === "string" ? b.device_type : "";
-      const v = ["any", "pc", "phone", "both"].includes(raw) ? raw : "any";
-      sets.push("device_type = ?");
-      values.push(v);
-    }
 
-    if ("is_unlimited_device" in b) {
-      const v = Number(b.is_unlimited_device);
-      if (![0, 1].includes(v)) {
-        return Response.json({ error: "Invalid is_unlimited_device" }, { status: 400 });
+      if ("is_unlimited_device" in b) {
+        const v = Number(b.is_unlimited_device);
+        if (![0, 1].includes(v)) {
+          return Response.json({ error: "Invalid is_unlimited_device" }, { status: 400 });
+        }
+        sets.push("is_unlimited_device = ?");
+        values.push(v);
+
+        if (v === 1) {
+          sets.push("device_limit = ?");
+          values.push(null);
+        }
       }
-      sets.push("is_unlimited_device = ?");
-      values.push(v);
 
-      if (v === 1) {
+      if ("device_limit" in b) {
+        const v = b.device_limit === null ? null : toIntOrNull(b.device_limit);
+        if (v !== null && v < 0) {
+          return Response.json({ error: "Invalid device_limit" }, { status: 400 });
+        }
         sets.push("device_limit = ?");
-        values.push(null);
+        values.push(v);
       }
-    }
-
-    if ("device_limit" in b) {
-      const v = b.device_limit === null ? null : toIntOrNull(b.device_limit);
-      if (v !== null && v < 0) {
-        return Response.json({ error: "Invalid device_limit" }, { status: 400 });
-      }
-      sets.push("device_limit = ?");
-      values.push(v);
     }
 
     if ("original_price" in b) {
@@ -181,43 +227,20 @@ export async function PUT(req: Request, ctx: RouteCtx) {
     }
 
     const [check] = await db.query<RowDataPacket[]>(
-      `SELECT id FROM product_variants WHERE id = ? LIMIT 1`,
-      [variantId]
+      `SELECT id FROM ${tableName} WHERE id = ? AND product_id = ? LIMIT 1`,
+      [variantId, productId]
     );
     if (!check.length) {
       return Response.json({ error: "Variant not found" }, { status: 404 });
     }
 
     values.push(variantId);
+    values.push(productId);
 
-    let result: ResultSetHeader;
-    try {
-      const [full] = await db.query<ResultSetHeader>(
-        `UPDATE product_variants SET ${sets.join(", ")} WHERE id = ?`,
-        values
-      );
-      result = full;
-    } catch (err) {
-      if (!isUnknownColumnError(err, DEVICE_TYPE_COLUMN)) {
-        throw err;
-      }
-      const filteredSets: string[] = [];
-      const filteredValues: Array<string | number | null> = [];
-      sets.forEach((set, idx) => {
-        if (set.startsWith("device_type")) return;
-        filteredSets.push(set);
-        filteredValues.push(values[idx]);
-      });
-      if (filteredSets.length === 0) {
-        return Response.json({ error: "No fields to update" }, { status: 400 });
-      }
-      filteredValues.push(variantId);
-      const [fallback] = await db.query<ResultSetHeader>(
-        `UPDATE product_variants SET ${filteredSets.join(", ")} WHERE id = ?`,
-        filteredValues
-      );
-      result = fallback;
-    }
+    const [result] = await db.query<ResultSetHeader>(
+      `UPDATE ${tableName} SET ${sets.join(", ")} WHERE id = ? AND product_id = ?`,
+      values
+    );
 
     if (result.affectedRows === 0) {
       return Response.json({ error: "Variant not found" }, { status: 404 });
@@ -240,16 +263,22 @@ export async function DELETE(req: Request, ctx: RouteCtx) {
       return Response.json({ error: "Forbidden" }, { status: 403 });
     }
 
-    const idStr = await readVariantId(ctx);
-    const variantId = Number(idStr);
+    const ids = await readIds(ctx);
+    const productId = Number(ids.productId);
+    const variantId = Number(ids.variantId);
 
+    if (!Number.isFinite(productId) || productId <= 0) {
+      return Response.json({ error: "Invalid product id" }, { status: 400 });
+    }
     if (!Number.isFinite(variantId) || variantId <= 0) {
       return Response.json({ error: "Invalid variant id" }, { status: 400 });
     }
 
+    const toolsProduct = await isToolsProduct(productId);
+    const tableName = toolsProduct ? "tool_variants" : "product_variants";
     const [result] = await db.query<ResultSetHeader>(
-      `UPDATE product_variants SET is_active = 0 WHERE id = ?`,
-      [variantId]
+      `UPDATE ${tableName} SET is_active = 0 WHERE id = ? AND product_id = ?`,
+      [variantId, productId]
     );
 
     if (result.affectedRows === 0) {

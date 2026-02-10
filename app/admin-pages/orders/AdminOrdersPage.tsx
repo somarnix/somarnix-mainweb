@@ -11,6 +11,8 @@ type OrderResult = "none" | "done" | "failed";
 
 type Order = {
   id: number;
+  order_number?: string | null;
+  user_id: number;
   state: OrderState;
   result: OrderResult;
   total?: number | string | null;
@@ -31,11 +33,20 @@ type ToolProduct = {
 
 type OrderInfoItem = {
   id: number;
+  product_id?: number | null;
+  product_slug?: string | null;
+  category_name?: string | null;
   product_title: string | null;
   qty: number | string | null;
   unit_price: number | string | null;
   order_info_json: string | null;
   order_fields_json?: string | null;
+};
+
+type OrderToolItem = {
+  productId: number;
+  slug: string;
+  title: string;
 };
 
 /* ================= HELPERS ================= */
@@ -91,6 +102,15 @@ function resolveLabel(key: string, fields: Array<{ key: string; label: string }>
   return found ? found.label : key;
 }
 
+function parseToolSlugFromText(value?: string | null): string {
+  if (!value) return "";
+  const fromTitle = value.match(/tool access:\s*([^\s]+)/i);
+  if (fromTitle?.[1]) return String(fromTitle[1]).trim();
+  const fromMessage = value.match(/\(([a-z0-9-]+)\)/i);
+  if (fromMessage?.[1]) return String(fromMessage[1]).trim();
+  return "";
+}
+
 /* ================= PAGE ================= */
 
 export default function AdminOrdersPage() {
@@ -104,6 +124,17 @@ export default function AdminOrdersPage() {
   const [infoOrderId, setInfoOrderId] = useState<number | null>(null);
   const [infoLoading, setInfoLoading] = useState(false);
   const [infoError, setInfoError] = useState("");
+  const [licenseOpen, setLicenseOpen] = useState(false);
+  const [licenseOrder, setLicenseOrder] = useState<Order | null>(null);
+  const [licenseTools, setLicenseTools] = useState<OrderToolItem[]>([]);
+  const [licenseToolId, setLicenseToolId] = useState("");
+  const [licenseKeyInput, setLicenseKeyInput] = useState("");
+  const [licenseMaxDevices, setLicenseMaxDevices] = useState("");
+  const [licenseExpiresAt, setLicenseExpiresAt] = useState("");
+  const [licenseLoading, setLicenseLoading] = useState(false);
+  const [licenseSaving, setLicenseSaving] = useState(false);
+  const [licenseError, setLicenseError] = useState("");
+  const [licenseSuccess, setLicenseSuccess] = useState("");
 
   const [search, setSearch] = useState("");
   const [filterState, setFilterState] =
@@ -167,6 +198,23 @@ export default function AdminOrdersPage() {
       .catch(() => setTools([]));
   }, []);
 
+  useEffect(() => {
+    const onFocus = () => {
+      void load();
+    };
+    const onVisibility = () => {
+      if (document.visibilityState === "visible") {
+        void load();
+      }
+    };
+    window.addEventListener("focus", onFocus);
+    document.addEventListener("visibilitychange", onVisibility);
+    return () => {
+      window.removeEventListener("focus", onFocus);
+      document.removeEventListener("visibilitychange", onVisibility);
+    };
+  }, []);
+
   /* ================= FILTER ================= */
 
   const filteredOrders = useMemo(() => {
@@ -220,6 +268,58 @@ export default function AdminOrdersPage() {
     load();
   };
 
+  const openEdit = async (order: Order) => {
+    try {
+      const res = await fetch(`/api/admin/orders/${order.id}`, {
+        credentials: "include",
+        cache: "no-store",
+      });
+      const data = await res.json().catch(() => ({}));
+      if (res.ok && data?.order) {
+        const fresh = data.order as Partial<Order>;
+        const merged: Order = {
+          ...order,
+          state: (fresh.state as OrderState) || order.state,
+          result: (fresh.result as OrderResult) || order.result,
+          delivery_title:
+            typeof fresh.delivery_title === "string" || fresh.delivery_title === null
+              ? fresh.delivery_title
+              : order.delivery_title,
+          delivery_message:
+            typeof fresh.delivery_message === "string" || fresh.delivery_message === null
+              ? fresh.delivery_message
+              : order.delivery_message,
+          delivered_at:
+            typeof fresh.delivered_at === "string" || fresh.delivered_at === null
+              ? fresh.delivered_at
+              : order.delivered_at,
+        };
+        setEditOrder(merged);
+        setEditState(merged.state);
+        setEditResult((merged.result as OrderResult) ?? deriveResult(merged.state));
+        setEditDeliveryTitle(merged.delivery_title ?? "");
+        setEditDeliveryMessage(merged.delivery_message ?? "");
+        setSelectedToolSlug(
+          parseToolSlugFromText(merged.delivery_title) ||
+            parseToolSlugFromText(merged.delivery_message)
+        );
+        return;
+      }
+    } catch {
+      // fallback to current row snapshot
+    }
+
+    setEditOrder(order);
+    setEditState(order.state);
+    setEditResult((order.result as OrderResult) ?? deriveResult(order.state));
+    setEditDeliveryTitle(order.delivery_title ?? "");
+    setEditDeliveryMessage(order.delivery_message ?? "");
+    setSelectedToolSlug(
+      parseToolSlugFromText(order.delivery_title) ||
+        parseToolSlugFromText(order.delivery_message)
+    );
+  };
+
   const openInfo = async (orderId: number) => {
     setInfoOpen(true);
     setInfoOrderId(orderId);
@@ -240,6 +340,115 @@ export default function AdminOrdersPage() {
       setInfoError(err instanceof Error ? err.message : "Failed to load order info");
     } finally {
       setInfoLoading(false);
+    }
+  };
+
+  const applyToolDelivery = async (slugArg?: string) => {
+    const slug = slugArg ?? selectedToolSlug;
+    if (!editOrder || !slug) return;
+    const fallbackTitle = `Tool access: ${slug}`;
+    setEditDeliveryTitle(fallbackTitle);
+
+    try {
+      const res = await fetch(`/api/admin/orders/${editOrder.id}`, {
+        credentials: "include",
+        cache: "no-store",
+      });
+      const data = await res.json().catch(() => ({}));
+      if (!res.ok || !data?.order) {
+        setEditDeliveryMessage("");
+        return;
+      }
+
+      const serverOrder = data.order as Partial<Order>;
+      const serverTitle =
+        typeof serverOrder.delivery_title === "string" ? serverOrder.delivery_title : null;
+      const serverMessage =
+        typeof serverOrder.delivery_message === "string" ? serverOrder.delivery_message : "";
+
+      if (serverMessage.toLowerCase().includes(slug.toLowerCase())) {
+        setEditDeliveryTitle(serverTitle || "Tool license key");
+        setEditDeliveryMessage(serverMessage);
+      } else {
+        setEditDeliveryMessage("");
+      }
+    } catch {
+      setEditDeliveryMessage("");
+    }
+  };
+
+  const openLicense = async (order: Order) => {
+    setLicenseOpen(true);
+    setLicenseOrder(order);
+    setLicenseTools([]);
+    setLicenseToolId("");
+    setLicenseError("");
+    setLicenseSuccess("");
+    setLicenseLoading(true);
+    try {
+      const res = await fetch(`/api/admin/orders/${order.id}`, {
+        credentials: "include",
+        cache: "no-store",
+      });
+      const data = await res.json().catch(() => ({}));
+      if (!res.ok) {
+        throw new Error(data?.error || "Failed to load order tools");
+      }
+      const parsed = (Array.isArray(data.items) ? data.items : [])
+        .filter((it: OrderInfoItem) => (it.category_name || "").toLowerCase() === "tools")
+        .map((it: OrderInfoItem) => ({
+          productId: Number(it.product_id || 0),
+          slug: String(it.product_slug || ""),
+          title: String(it.product_title || ""),
+        }))
+        .filter((it: OrderToolItem) => it.productId > 0 && it.slug);
+      const unique = Array.from(
+        new Map(parsed.map((it: OrderToolItem) => [it.productId, it])).values()
+      );
+      setLicenseTools(unique);
+      if (unique[0]) {
+        setLicenseToolId(String(unique[0].productId));
+      }
+      if (unique.length === 0) {
+        setLicenseError("No tool item found in this order.");
+      }
+    } catch (e) {
+      setLicenseError(e instanceof Error ? e.message : "Failed to load tool items");
+    } finally {
+      setLicenseLoading(false);
+    }
+  };
+
+  const createLicenseFromOrder = async () => {
+    if (!licenseOrder || !licenseToolId) return;
+    setLicenseSaving(true);
+    setLicenseError("");
+    setLicenseSuccess("");
+    try {
+      const res = await fetch("/api/admin/tool-licenses", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        credentials: "include",
+        body: JSON.stringify({
+          productId: Number(licenseToolId),
+          userId: Number(licenseOrder.user_id),
+          orderId: Number(licenseOrder.id),
+          licenseKey: licenseKeyInput.trim() || undefined,
+          maxDevices: licenseMaxDevices.trim() ? Number(licenseMaxDevices) : undefined,
+          expiresAt: licenseExpiresAt || undefined,
+        }),
+      });
+      const data = await res.json().catch(() => ({}));
+      if (!res.ok || !data?.ok) {
+        throw new Error(data?.error || "Create license failed");
+      }
+      setLicenseSuccess(`License created: ${data.licenseKey}`);
+      setLicenseKeyInput("");
+      setLicenseExpiresAt("");
+    } catch (e) {
+      setLicenseError(e instanceof Error ? e.message : "Create license failed");
+    } finally {
+      setLicenseSaving(false);
     }
   };
 
@@ -304,6 +513,7 @@ export default function AdminOrdersPage() {
                 <thead className="bg-gray-50">
                   <tr>
                     <th className="p-3 text-left">Order</th>
+                    <th className="p-3 text-left">Order ID</th>
                     <th className="p-3 text-left">User</th>
                     <th className="p-3 text-left">State</th>
                     <th className="p-3 text-left">Result</th>
@@ -318,6 +528,7 @@ export default function AdminOrdersPage() {
                   {filteredOrders.map(o => (
                     <tr key={o.id}>
                       <td className="p-3 font-medium">#{o.id}</td>
+                      <td className="p-3">{o.order_number || "-"}</td>
                       <td className="p-3">{o.user_email ?? "-"}</td>
                       <td className="p-3">
                         {getStatusLabel(o.state, "en")}
@@ -351,16 +562,7 @@ export default function AdminOrdersPage() {
 
                       <td className="p-3 text-right">
                         <button
-                          onClick={() => {
-                            setEditOrder(o);
-                            setEditState(o.state);
-                            setEditResult(
-                              (o.result as OrderResult) ??
-                                deriveResult(o.state)
-                            );
-                            setEditDeliveryTitle(o.delivery_title ?? "");
-                            setEditDeliveryMessage(o.delivery_message ?? "");
-                          }}
+                          onClick={() => void openEdit(o)}
                           className="bg-blue-600 text-white px-3 py-1 rounded text-xs"
                         >
                           Edit
@@ -371,13 +573,21 @@ export default function AdminOrdersPage() {
                         >
                           Info
                         </button>
+                        {(o.state === "completed" || o.result === "done") && (
+                          <button
+                            onClick={() => openLicense(o)}
+                            className="ml-2 bg-emerald-600 text-white px-3 py-1 rounded text-xs"
+                          >
+                            License
+                          </button>
+                        )}
                       </td>
                     </tr>
                   ))}
 
                   {filteredOrders.length === 0 && (
                     <tr>
-                      <td colSpan={8} className="p-6 text-center text-gray-500">
+                      <td colSpan={9} className="p-6 text-center text-gray-500">
                         No orders found
                       </td>
                     </tr>
@@ -394,6 +604,9 @@ export default function AdminOrdersPage() {
                 <div className="flex items-start justify-between gap-3">
                   <div>
                     <div className="font-semibold">Order #{o.id}</div>
+                    <div className="text-xs text-gray-500">
+                      Order ID: {o.order_number || "-"}
+                    </div>
                     <div className="text-xs text-gray-500">
                       {o.user_email ?? "-"}
                     </div>
@@ -441,16 +654,7 @@ export default function AdminOrdersPage() {
                 </div>
 
                 <button
-                  onClick={() => {
-                    setEditOrder(o);
-                    setEditState(o.state);
-                    setEditResult(
-                      (o.result as OrderResult) ??
-                        deriveResult(o.state)
-                    );
-                    setEditDeliveryTitle(o.delivery_title ?? "");
-                    setEditDeliveryMessage(o.delivery_message ?? "");
-                  }}
+                  onClick={() => void openEdit(o)}
                   className="mt-3 w-full bg-blue-600 text-white px-3 py-2 rounded text-sm"
                 >
                   Edit
@@ -461,6 +665,14 @@ export default function AdminOrdersPage() {
                 >
                   Info
                 </button>
+                {(o.state === "completed" || o.result === "done") && (
+                  <button
+                    onClick={() => openLicense(o)}
+                    className="mt-2 w-full bg-emerald-600 text-white px-3 py-2 rounded text-sm"
+                  >
+                    License
+                  </button>
+                )}
               </div>
             ))}
 
@@ -534,11 +746,16 @@ export default function AdminOrdersPage() {
                   <label className="text-sm text-gray-500">
                     Tool access
                   </label>
-                  <div className="flex gap-2 mt-1">
+                  <div className="mt-1">
                     <select
                       value={selectedToolSlug}
-                      onChange={e => setSelectedToolSlug(e.target.value)}
-                      className="flex-1 border rounded-lg px-3 py-2"
+                      onChange={e => {
+                        const slug = e.target.value;
+                        setSelectedToolSlug(slug);
+                        if (!slug) return;
+                        void applyToolDelivery(slug);
+                      }}
+                      className="w-full border rounded-lg px-3 py-2"
                     >
                       <option value="">Select tool</option>
                       {tools.map(tool => (
@@ -547,18 +764,6 @@ export default function AdminOrdersPage() {
                         </option>
                       ))}
                     </select>
-                    <button
-                      type="button"
-                      className="px-3 py-2 border rounded-lg text-sm"
-                      onClick={() => {
-                        if (!selectedToolSlug) return;
-                        const title = `Tool access: ${selectedToolSlug}`;
-                        setEditDeliveryTitle(title);
-                        setEditDeliveryMessage("");
-                      }}
-                    >
-                      Set tool
-                    </button>
                   </div>
                 </div>
 
@@ -585,7 +790,10 @@ export default function AdminOrdersPage() {
 
             <div className="flex justify-end gap-3 mt-6">
               <button
-                onClick={() => setEditOrder(null)}
+                onClick={() => {
+                  setEditOrder(null);
+                  setSelectedToolSlug("");
+                }}
                 className="px-4 py-2 border rounded-lg"
               >
                 Cancel
@@ -597,6 +805,105 @@ export default function AdminOrdersPage() {
                 Save
               </button>
             </div>
+          </div>
+        </div>
+      )}
+
+      {licenseOpen && (
+        <div className="fixed inset-0 bg-black/40 flex items-center justify-center z-50">
+          <div className="bg-white rounded-xl w-full max-w-lg p-6">
+            <div className="flex items-center justify-between mb-4">
+              <h2 className="text-lg font-bold">
+                License for Order #{licenseOrder?.id}
+              </h2>
+              <button
+                onClick={() => {
+                  setLicenseOpen(false);
+                  setLicenseOrder(null);
+                  setLicenseTools([]);
+                  setLicenseToolId("");
+                  setLicenseError("");
+                  setLicenseSuccess("");
+                }}
+                className="text-sm px-3 py-1.5 rounded-lg border hover:bg-gray-50"
+              >
+                Close
+              </button>
+            </div>
+
+            <div className="text-sm text-gray-600 mb-3">
+              Buyer: <span className="font-semibold">{licenseOrder?.user_email || "-"}</span>{" "}
+              (ID #{licenseOrder?.user_id || "-"})
+            </div>
+
+            {licenseError ? (
+              <div className="mb-3 text-sm text-red-600">{licenseError}</div>
+            ) : null}
+            {licenseSuccess ? (
+              <div className="mb-3 text-sm text-green-600">{licenseSuccess}</div>
+            ) : null}
+
+            {licenseLoading ? (
+              <div className="text-sm text-gray-500">Loading tool items...</div>
+            ) : (
+              <div className="space-y-3">
+                <div>
+                  <label className="text-sm text-gray-500">Tool in this order</label>
+                  <select
+                    value={licenseToolId}
+                    onChange={(e) => setLicenseToolId(e.target.value)}
+                    className="w-full border rounded-lg px-3 py-2 mt-1"
+                  >
+                    <option value="">Select tool</option>
+                    {licenseTools.map((t) => (
+                      <option key={t.productId} value={String(t.productId)}>
+                        {t.title} ({t.slug})
+                      </option>
+                    ))}
+                  </select>
+                </div>
+
+                <div>
+                  <label className="text-sm text-gray-500">License key (optional)</label>
+                  <input
+                    value={licenseKeyInput}
+                    onChange={(e) => setLicenseKeyInput(e.target.value)}
+                    placeholder="Auto-generate if empty"
+                    className="w-full border rounded-lg px-3 py-2 mt-1"
+                  />
+                </div>
+
+                <div className="grid grid-cols-2 gap-3">
+                  <div>
+                    <label className="text-sm text-gray-500">Max devices (auto if empty)</label>
+                    <input
+                      type="number"
+                      min={1}
+                      value={licenseMaxDevices}
+                      onChange={(e) => setLicenseMaxDevices(e.target.value)}
+                      className="w-full border rounded-lg px-3 py-2 mt-1"
+                    />
+                  </div>
+                  <div>
+                    <label className="text-sm text-gray-500">Expires at (optional)</label>
+                    <input
+                      type="datetime-local"
+                      value={licenseExpiresAt}
+                      onChange={(e) => setLicenseExpiresAt(e.target.value)}
+                      className="w-full border rounded-lg px-3 py-2 mt-1"
+                    />
+                  </div>
+                </div>
+
+                <button
+                  onClick={createLicenseFromOrder}
+                  disabled={!licenseOrder || !licenseToolId || licenseSaving}
+                  className="w-full bg-emerald-600 text-white px-4 py-2 rounded-lg disabled:opacity-50"
+                >
+                  {licenseSaving ? "Creating..." : "Create License Key"}
+                </button>
+              </div>
+            )}
           </div>
         </div>
       )}

@@ -16,6 +16,7 @@ type ProductRow = RowDataPacket & {
   is_unlimited_stock: number;
   image_url: string | null;
   is_active: number;
+  category_name?: string;
 };
 
 type VariantRow = RowDataPacket & {
@@ -49,22 +50,37 @@ export async function POST(
   }
 
   try {
+    const [variantCols] = await db.query<RowDataPacket[]>(
+      `
+      SELECT COLUMN_NAME
+      FROM information_schema.columns
+      WHERE table_schema = DATABASE() AND table_name = 'product_variants'
+      `
+    );
+    const variantColSet = new Set(variantCols.map((c) => String(c.COLUMN_NAME)));
+    const hasDeviceLabel = variantColSet.has("device_label");
+    const hasDeviceType = variantColSet.has("device_type");
+    const hasDeviceLimit = variantColSet.has("device_limit");
+    const hasUnlimitedDevice = variantColSet.has("is_unlimited_device");
+
     const [rows] = await db.query<ProductRow[]>(
       `
       SELECT
-        id,
-        title,
-        slug,
-        category_id,
-        posted_by,
-        description,
-        level,
-        stock_qty,
-        is_unlimited_stock,
-        image_url,
-        is_active
-      FROM products
-      WHERE id = ?
+        p.id,
+        p.title,
+        p.slug,
+        p.category_id,
+        p.posted_by,
+        p.description,
+        p.level,
+        p.stock_qty,
+        p.is_unlimited_stock,
+        p.image_url,
+        p.is_active,
+        c.name AS category_name
+      FROM products p
+      JOIN product_categories c ON c.id = p.category_id
+      WHERE p.id = ?
       LIMIT 1
       `,
       [productId]
@@ -75,6 +91,7 @@ export async function POST(
     }
 
     const product = rows[0];
+    const isTools = String(product.category_name || "").toLowerCase() === "tools";
     const suffix = `copy-${Date.now()}`;
     const newSlug = `${product.slug}-${suffix}`;
     const newTitle = `${product.title} (Copy)`;
@@ -114,7 +131,8 @@ export async function POST(
     const newProductId = insertRes.insertId;
 
     const [variantRows] = await db.query<VariantRow[]>(
-      `
+      isTools
+        ? `
       SELECT
         duration_label,
         duration_note,
@@ -123,6 +141,43 @@ export async function POST(
         device_type,
         device_limit,
         is_unlimited_device,
+        original_price,
+        price,
+        khqr,
+        usdqr,
+        is_active
+      FROM tool_variants
+      WHERE product_id = ?
+      ORDER BY id ASC
+      `
+        : hasDeviceLabel || hasDeviceType || hasDeviceLimit || hasUnlimitedDevice
+        ? `
+      SELECT
+        duration_label,
+        duration_note,
+        duration_days,
+        ${hasDeviceLabel ? "device_label" : "NULL AS device_label"},
+        ${hasDeviceType ? "device_type" : "NULL AS device_type"},
+        ${hasDeviceLimit ? "device_limit" : "NULL AS device_limit"},
+        ${hasUnlimitedDevice ? "is_unlimited_device" : "0 AS is_unlimited_device"},
+        original_price,
+        price,
+        khqr,
+        usdqr,
+        is_active
+      FROM product_variants
+      WHERE product_id = ?
+      ORDER BY id ASC
+      `
+        : `
+      SELECT
+        duration_label,
+        duration_note,
+        duration_days,
+        NULL AS device_label,
+        NULL AS device_type,
+        NULL AS device_limit,
+        0 AS is_unlimited_device,
         original_price,
         price,
         khqr,
@@ -137,20 +192,38 @@ export async function POST(
 
     if (variantRows.length > 0) {
       const values: Array<unknown> = [];
-      const placeholders = variantRows.map(() => {
-        return "(?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)";
-      });
+      const withDeviceColumns =
+        isTools || (hasDeviceLabel && hasDeviceType && hasDeviceLimit && hasUnlimitedDevice);
+      const placeholders = variantRows.map(() =>
+        withDeviceColumns
+          ? "(?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)"
+          : "(?, ?, ?, ?, ?, ?, ?, ?, ?)"
+      );
 
       variantRows.forEach((variant) => {
+        if (withDeviceColumns) {
+          values.push(
+            newProductId,
+            variant.duration_label,
+            variant.duration_note,
+            variant.duration_days,
+            variant.device_label,
+            variant.device_type ?? "any",
+            variant.device_limit,
+            variant.is_unlimited_device ?? 0,
+            variant.original_price ?? 0,
+            variant.price ?? 0,
+            variant.khqr ?? "/paymentQR/khmer_qr.jpg",
+            variant.usdqr ?? "none",
+            variant.is_active ?? 1
+          );
+          return;
+        }
         values.push(
           newProductId,
           variant.duration_label,
           variant.duration_note,
           variant.duration_days,
-          variant.device_label,
-          variant.device_type ?? "any",
-          variant.device_limit,
-          variant.is_unlimited_device ?? 0,
           variant.original_price ?? 0,
           variant.price ?? 0,
           variant.khqr ?? "/paymentQR/khmer_qr.jpg",
@@ -160,8 +233,9 @@ export async function POST(
       });
 
       await db.query(
-        `
-        INSERT INTO product_variants (
+        withDeviceColumns
+          ? `
+        INSERT INTO ${isTools ? "tool_variants" : "product_variants"} (
           product_id,
           duration_label,
           duration_note,
@@ -170,6 +244,20 @@ export async function POST(
           device_type,
           device_limit,
           is_unlimited_device,
+          original_price,
+          price,
+          khqr,
+          usdqr,
+          is_active
+        )
+        VALUES ${placeholders.join(", ")}
+        `
+          : `
+        INSERT INTO product_variants (
+          product_id,
+          duration_label,
+          duration_note,
+          duration_days,
           original_price,
           price,
           khqr,

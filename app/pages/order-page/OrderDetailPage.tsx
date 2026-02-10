@@ -379,7 +379,7 @@ function buildActivity(order: Order, payment: Payment, lang: LanguageCode): Acti
   }
 
   if (order.delivery_message && order.status !== "cancelled") {
-    const toolSlug = parseToolSlugFromTitle(order.delivery_title);
+    const toolSlug = parseToolSlugFromDelivery(order.delivery_title, order.delivery_message);
     if (toolSlug) {
       items.push({
         key: "tool-access",
@@ -436,10 +436,15 @@ function parseDeliveryEntries(
   }));
 }
 
-function parseToolSlugFromTitle(title?: string | null): string | null {
-  if (!title) return null;
-  const match = title.match(/tool access:\s*([^\s]+)/i);
-  return match ? match[1] : null;
+function parseToolSlugFromDelivery(
+  title?: string | null,
+  message?: string | null
+): string | null {
+  const titleMatch = String(title || "").match(/tool access:\s*([^\s]+)/i);
+  if (titleMatch?.[1]) return titleMatch[1].trim();
+  const messageMatch = String(message || "").match(/\(([a-z0-9-]+)\)/i);
+  if (messageMatch?.[1]) return messageMatch[1].trim();
+  return null;
 }
 
 function formatChatDate(value: string | null | undefined, lang: LanguageCode) {
@@ -452,6 +457,21 @@ function formatChatDate(value: string | null | undefined, lang: LanguageCode) {
     hour: "2-digit",
     minute: "2-digit",
   });
+}
+
+function isAccessExpired(accessEnd?: string | null): boolean {
+  if (!accessEnd) return false;
+  const parsed = new Date(accessEnd);
+  if (Number.isNaN(parsed.getTime())) return false;
+  return parsed.getTime() <= Date.now();
+}
+
+function normalizeSlug(value: string): string {
+  return value
+    .toLowerCase()
+    .trim()
+    .replace(/[^a-z0-9]+/g, "-")
+    .replace(/^-+|-+$/g, "");
 }
 
 function Timeline({ steps, lang }: { steps: TimelineStep[]; lang: LanguageCode }) {
@@ -574,6 +594,38 @@ export function OrderDetailPage({
         lang
       ),
     [order?.delivery_title, order?.delivery_message, lang]
+  );
+  const expiredItemIds = useMemo(() => {
+    const ids = new Set<number>();
+    for (const item of items) {
+      if (isAccessExpired(item.access_end)) {
+        ids.add(item.id);
+      }
+    }
+    return ids;
+  }, [items]);
+  const isEntryExpired = useCallback(
+    (entry: DeliveryEntry, index: number) => {
+      const directItem = items[index];
+      if (directItem && expiredItemIds.has(directItem.id)) return true;
+
+      const toolSlug = parseToolSlugFromDelivery(entry.title, entry.content);
+      if (toolSlug) {
+        const normalizedToolSlug = normalizeSlug(toolSlug);
+        const matchedTool = items.find((item) => {
+          const titleSlug = normalizeSlug(item.title || "");
+          return titleSlug === normalizedToolSlug || titleSlug.includes(normalizedToolSlug);
+        });
+        if (matchedTool) return expiredItemIds.has(matchedTool.id);
+      }
+
+      if (items.length === 1) {
+        return expiredItemIds.has(items[0].id);
+      }
+
+      return false;
+    },
+    [items, expiredItemIds]
   );
 
   const handleDownloadDelivery = () => {
@@ -953,8 +1005,9 @@ export function OrderDetailPage({
             </div>
 
             <div className="space-y-3">
-              {deliveryEntries.map((entry) => {
-                const toolSlug = parseToolSlugFromTitle(entry.title);
+              {deliveryEntries.map((entry, index) => {
+                const toolSlug = parseToolSlugFromDelivery(entry.title, entry.content);
+                const entryExpired = isEntryExpired(entry, index);
                 if (toolSlug) {
                   return (
                     <div
@@ -966,22 +1019,40 @@ export function OrderDetailPage({
                           <p className="font-semibold text-gray-900 dark:text-gray-100">
                             {entry.title}
                           </p>
+                          {entryExpired ? (
+                            <p className="text-xs text-red-500">Expired</p>
+                          ) : null}
                           <p className="text-xs text-gray-500 dark:text-gray-400">
                             {lang === "km"
                               ? "ចូលប្រើឧបករណ៍បានបើកស្រាប់"
                               : "Tool access granted"}
                           </p>
                         </div>
-                        <Button
-                          variant="outline"
-                          size="sm"
-                          onClick={() => {
-                            window.location.href = `/tools-ai/${toolSlug}`;
-                          }}
-                        >
-                          {lang === "km" ? "បើកឧបករណ៍" : "Open tool"}
-                        </Button>
+                        <div className="flex items-center gap-2">
+                          <Button
+                            variant="ghost"
+                            size="sm"
+                            onClick={() => handleCopyDelivery(entry.content)}
+                          >
+                            <Copy className="w-4 h-4 mr-1" />
+                            {lang === "km" ? "ចម្លង" : "Copy"}
+                          </Button>
+                          <Button
+                            variant="outline"
+                            size="sm"
+                            disabled={entryExpired}
+                            onClick={() => {
+                              if (entryExpired) return;
+                              window.location.href = `/tools-ai/${toolSlug}`;
+                            }}
+                          >
+                            {lang === "km" ? "បើកឧបករណ៍" : "Open tool"}
+                          </Button>
+                        </div>
                       </div>
+                      <pre className="mt-3 whitespace-pre-wrap text-sm text-gray-700 dark:text-gray-200 bg-gray-50 dark:bg-gray-800/50 rounded-lg p-3 overflow-x-auto">
+                        {entry.content}
+                      </pre>
                     </div>
                   );
                 }
@@ -995,6 +1066,9 @@ export function OrderDetailPage({
                         <p className="font-semibold text-gray-900 dark:text-gray-100">
                           {entry.title}
                         </p>
+                        {entryExpired ? (
+                          <p className="text-xs text-red-500">Expired</p>
+                        ) : null}
                         <p className="text-xs text-gray-500 dark:text-gray-400">
                           {lang === "km" ? "ចុចដើម្បីចម្លង" : "Copy to share safely"}
                         </p>
@@ -1218,7 +1292,7 @@ export function OrderDetailPage({
                   />
                   <div>
                     <div className="font-semibold text-gray-900 dark:text-gray-100">{it.title}</div>
-                    {!it.is_active ? (
+                    {!it.is_active || isAccessExpired(it.access_end) ? (
                       <div className="text-xs text-red-500">
                         {language === "km" ? "បានផុតសុពលភាព" : "Expired"}
                       </div>

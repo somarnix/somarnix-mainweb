@@ -18,6 +18,185 @@ function deriveResultFromState(state: State): Result {
 
 type OrderRow = RowDataPacket & { state: State; stock_reserved?: number | null };
 type OrderItemRow = RowDataPacket & { product_id: number; qty: number };
+type ToolOrderItemRow = RowDataPacket & {
+  order_item_id: number;
+  product_id: number;
+  product_title: string;
+  product_slug: string;
+  qty: number;
+  duration_days: number | null;
+  device_limit: number | null;
+  is_unlimited_device: number | null;
+};
+
+function makeLicenseKey(prefix = "LIC-TOOL"): string {
+  const rand1 = Math.random().toString(36).slice(2, 8).toUpperCase();
+  const rand2 = Math.random().toString(36).slice(2, 8).toUpperCase();
+  const stamp = Date.now().toString(36).toUpperCase().slice(-6);
+  return `${prefix}-${stamp}-${rand1}-${rand2}`;
+}
+
+function toDateOrNull(value: Date | string | null | undefined): Date | null {
+  if (!value) return null;
+  const d = value instanceof Date ? value : new Date(value);
+  return Number.isNaN(d.getTime()) ? null : d;
+}
+
+function formatExpiry(expiresAt: Date | null): string {
+  if (!expiresAt) return "No expiry";
+  return expiresAt.toLocaleString();
+}
+
+function normalizeQty(qty: unknown): number {
+  const n = Number(qty ?? 0);
+  if (!Number.isFinite(n) || n <= 0) return 0;
+  return Math.floor(n);
+}
+
+function normalizeMaxDevices(limit: number | null, isUnlimited: number | null): number {
+  if (Number(isUnlimited ?? 0) === 1) return 9999;
+  const n = Number(limit ?? 0);
+  if (!Number.isFinite(n) || n <= 0) return 1;
+  return Math.floor(n);
+}
+
+async function getToolOrderItems(orderId: number): Promise<ToolOrderItemRow[]> {
+  const [toolVariantColRows] = await db.query<RowDataPacket[]>(
+    `
+    SELECT 1
+    FROM information_schema.columns
+    WHERE table_schema = DATABASE()
+      AND table_name = 'order_items'
+      AND column_name = 'tool_variant_id'
+    LIMIT 1
+    `
+  );
+  const hasToolVariantId = toolVariantColRows.length > 0;
+  const toolVariantRef = hasToolVariantId ? "oi.tool_variant_id" : "oi.variant_id";
+  try {
+    const [rows] = await db.query<ToolOrderItemRow[]>(
+      `
+      SELECT
+        oi.id AS order_item_id,
+        oi.product_id,
+        p.title AS product_title,
+        p.slug AS product_slug,
+        oi.qty,
+        tv.duration_days,
+        tv.device_limit,
+        tv.is_unlimited_device
+      FROM order_items oi
+      JOIN products p ON p.id = oi.product_id
+      JOIN product_categories pc ON pc.id = p.category_id
+      LEFT JOIN tool_variants tv ON tv.id = ${toolVariantRef}
+      WHERE oi.order_id = ? AND LOWER(pc.name) = 'tools'
+      `,
+      [orderId]
+    );
+    return rows;
+  } catch (err) {
+    const message = err instanceof Error ? err.message.toLowerCase() : String(err).toLowerCase();
+    if (!message.includes("tool_variants")) {
+      throw err;
+    }
+  }
+
+  const [rows] = await db.query<ToolOrderItemRow[]>(
+    `
+    SELECT
+      oi.id AS order_item_id,
+      oi.product_id,
+      p.title AS product_title,
+      p.slug AS product_slug,
+      oi.qty,
+      pv.duration_days,
+      NULL AS device_limit,
+      NULL AS is_unlimited_device
+    FROM order_items oi
+    JOIN products p ON p.id = oi.product_id
+    JOIN product_categories pc ON pc.id = p.category_id
+    LEFT JOIN product_variants pv ON pv.id = oi.variant_id
+    WHERE oi.order_id = ? AND LOWER(pc.name) = 'tools'
+    `,
+    [orderId]
+  );
+  return rows;
+}
+
+async function hasToolLicenseOrderIdColumn(): Promise<boolean> {
+  const [rows] = await db.query<RowDataPacket[]>(
+    `
+    SELECT 1
+    FROM information_schema.columns
+    WHERE table_schema = DATABASE()
+      AND table_name = 'tool_license_keys'
+      AND column_name = 'order_id'
+    LIMIT 1
+    `
+  );
+  return rows.length > 0;
+}
+
+async function createAutoToolLicenses(orderId: number, userId: number) {
+  const toolItems = await getToolOrderItems(orderId);
+  const withOrderId = await hasToolLicenseOrderIdColumn();
+  const created: Array<{
+    productId: number;
+    productTitle: string;
+    productSlug: string;
+    licenseKey: string;
+    expiresAt: Date | null;
+    maxDevices: number;
+  }> = [];
+
+  for (const item of toolItems) {
+    const qty = normalizeQty(item.qty);
+    if (qty <= 0) continue;
+
+    const baseExpiresAt =
+      Number(item.duration_days ?? 0) > 0
+        ? new Date(Date.now() + Number(item.duration_days) * 24 * 60 * 60 * 1000)
+        : null;
+    const maxDevices = normalizeMaxDevices(item.device_limit, item.is_unlimited_device);
+
+    for (let i = 0; i < qty; i += 1) {
+      const licenseKey = makeLicenseKey("LIC-TOOL");
+      const expiresAt = toDateOrNull(baseExpiresAt);
+      if (withOrderId) {
+        await db.query<ResultSetHeader>(
+          `
+          INSERT INTO tool_license_keys
+            (order_id, product_id, user_id, license_key, max_devices, status, expires_at)
+          VALUES
+            (?, ?, ?, ?, ?, 'active', ?)
+          `,
+          [orderId, item.product_id, userId, licenseKey, maxDevices, expiresAt]
+        );
+      } else {
+        await db.query<ResultSetHeader>(
+          `
+          INSERT INTO tool_license_keys
+            (product_id, user_id, license_key, max_devices, status, expires_at)
+          VALUES
+            (?, ?, ?, ?, 'active', ?)
+          `,
+          [item.product_id, userId, licenseKey, maxDevices, expiresAt]
+        );
+      }
+
+      created.push({
+        productId: item.product_id,
+        productTitle: item.product_title,
+        productSlug: item.product_slug,
+        licenseKey,
+        expiresAt,
+        maxDevices,
+      });
+    }
+  }
+
+  return created;
+}
 
 export async function POST(req: Request) {
   const auth = await getAuthUser(req);
@@ -54,10 +233,10 @@ export async function POST(req: Request) {
       ? body.delivery_message.trim()
       : null;
 
-  let existingRows: OrderRow[] = [];
+  let existingRows: Array<OrderRow & { user_id?: number }> = [];
   try {
-    const [rows] = await db.query<OrderRow[]>(
-      "SELECT state, stock_reserved FROM orders WHERE id = ? LIMIT 1",
+    const [rows] = await db.query<Array<OrderRow & { user_id: number }>>(
+      "SELECT state, stock_reserved, user_id FROM orders WHERE id = ? LIMIT 1",
       [body.orderId]
     );
     existingRows = rows;
@@ -66,8 +245,8 @@ export async function POST(req: Request) {
     if (!message.toLowerCase().includes("unknown column") || !message.includes("stock_reserved")) {
       throw err;
     }
-    const [rows] = await db.query<OrderRow[]>(
-      "SELECT state FROM orders WHERE id = ? LIMIT 1",
+    const [rows] = await db.query<Array<OrderRow & { user_id: number }>>(
+      "SELECT state, user_id FROM orders WHERE id = ? LIMIT 1",
       [body.orderId]
     );
     existingRows = rows;
@@ -76,7 +255,39 @@ export async function POST(req: Request) {
     return Response.json({ error: "Order not found" }, { status: 404 });
   }
   const previousState = existingRows[0].state;
+  const orderUserId = Number(existingRows[0].user_id ?? 0);
   const stockReserved = Number(existingRows[0].stock_reserved ?? 0) === 1;
+  const shouldAutoLicense =
+    body.state === "completed" && previousState !== "completed" && orderUserId > 0;
+  let autoLicenses: Array<{
+    productId: number;
+    productTitle: string;
+    productSlug: string;
+    licenseKey: string;
+    expiresAt: Date | null;
+    maxDevices: number;
+  }> = [];
+
+  if (shouldAutoLicense) {
+    autoLicenses = await createAutoToolLicenses(body.orderId, orderUserId);
+  }
+
+  const autoDeliveryTitle = autoLicenses.length > 0 ? "Tool license key" : null;
+  const autoDeliveryMessage =
+    autoLicenses.length > 0
+      ? autoLicenses
+          .map(
+            (row, idx) =>
+              `${idx + 1}. ${row.productTitle} (${row.productSlug})\n` +
+              `License key: ${row.licenseKey}\n` +
+              `Max devices: ${row.maxDevices >= 9999 ? "Unlimited" : row.maxDevices}\n` +
+              `Expires: ${formatExpiry(row.expiresAt)}`
+          )
+          .join("\n\n")
+      : null;
+
+  const finalDeliveryTitle = deliveryTitle ?? autoDeliveryTitle;
+  const finalDeliveryMessage = deliveryMessage ?? autoDeliveryMessage;
 
   const [r] = await db.query<ResultSetHeader>(
     `
@@ -94,9 +305,9 @@ export async function POST(req: Request) {
     [
       body.state,
       nextResult,
-      deliveryTitle,
-      deliveryMessage,
-      deliveryMessage,
+      finalDeliveryTitle,
+      finalDeliveryMessage,
+      finalDeliveryMessage,
       auth.userId,
       body.orderId,
     ]
@@ -250,5 +461,5 @@ export async function POST(req: Request) {
       [body.orderId]
     );
   }
-  return Response.json({ success: true });
+  return Response.json({ success: true, auto_licenses_created: autoLicenses.length });
 }

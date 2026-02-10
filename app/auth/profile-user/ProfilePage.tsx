@@ -21,6 +21,7 @@ import {
   DollarSign,
   ShoppingCart,
   ShoppingBag,
+  Wrench,
   AlertCircle,
   Loader2,
   ExternalLink,
@@ -37,7 +38,7 @@ interface ProfilePageProps {
   onOpenProductDetail?: (slug: string) => void;
 }
 
-type TabId = "overview" | "courses" | "my-courses" | "settings";
+type TabId = "overview" | "courses" | "tools" | "my-courses" | "settings";
 type OrderStateKey =
   | "pending"
   | "approved"
@@ -58,6 +59,7 @@ type PurchaseItem = {
   productId: number;
   title: string;
   slug: string;
+  categoryName?: string | null;
   imageUrl: string | null;
   orderNumber: string;
   orderedAt: string | null;
@@ -625,6 +627,7 @@ export function ProfilePage({ onNavigate, onOpenProductDetail }: ProfilePageProp
   const tabs: Array<{ id: TabId; name: string; icon: typeof User }> = [
     { id: "overview", name: translate("profile.overview", "Overview"), icon: User },
     { id: "courses", name: translate("profile.myProducts", "My Products"), icon: ShoppingBag },
+    { id: "tools", name: translate("profile.tools", "Tools"), icon: Wrench },
     { id: "my-courses", name: translate("profile.myCourses", "My Courses"), icon: ShoppingBag },
     { id: "settings", name: translate("profile.settings", "Settings"), icon: Settings },
   ];
@@ -676,7 +679,19 @@ export function ProfilePage({ onNavigate, onOpenProductDetail }: ProfilePageProp
   );
 
   const stateCounts = overviewStats?.stateCounts ?? DEFAULT_STATE_COUNTS;
-  const recentPurchases = useMemo(() => purchases.slice(0, 3), [purchases]);
+  const isToolPurchase = useCallback(
+    (item: PurchaseItem) => String(item.categoryName || "").toLowerCase() === "tools",
+    []
+  );
+  const productPurchases = useMemo(
+    () => purchases.filter((item) => !isToolPurchase(item)),
+    [purchases, isToolPurchase]
+  );
+  const toolPurchases = useMemo(
+    () => purchases.filter((item) => isToolPurchase(item)),
+    [purchases, isToolPurchase]
+  );
+  const recentPurchases = useMemo(() => productPurchases.slice(0, 3), [productPurchases]);
   const recentCourses = useMemo(() => videoCourses.slice(0, 3), [videoCourses]);
 
   const goToCourse = useCallback((slug: string) => {
@@ -1090,7 +1105,7 @@ export function ProfilePage({ onNavigate, onOpenProductDetail }: ProfilePageProp
                 </p>
               </div>
               <div className="text-sm text-gray-500">
-                {translate("profile.totalItems", "Items purchased")}: {formatNumber(purchases.length)}
+                {translate("profile.totalItems", "Items purchased")}: {formatNumber(productPurchases.length)}
               </div>
             </div>
 
@@ -1113,13 +1128,13 @@ export function ProfilePage({ onNavigate, onOpenProductDetail }: ProfilePageProp
                   />
                 ))}
               </div>
-            ) : purchases.length === 0 ? (
+            ) : productPurchases.length === 0 ? (
               <div className="rounded-2xl border border-dashed border-gray-300 bg-white p-8 text-center text-gray-500 dark:border-gray-700 dark:bg-gray-900 dark:text-gray-400">
                 {translate("profile.purchasesEmpty", "You haven't completed any purchases yet.")}
               </div>
             ) : (
               <div className="space-y-4">
-                {purchases.map((item) => (
+                {productPurchases.map((item) => (
                   <div
                     key={`${item.orderNumber}-${item.productId}`}
                     className="flex flex-col gap-4 rounded-2xl border border-gray-100 bg-white p-5 shadow-sm transition hover:border-blue-300 dark:border-gray-800 dark:bg-gray-900 md:flex-row md:items-center"
@@ -1205,6 +1220,123 @@ export function ProfilePage({ onNavigate, onOpenProductDetail }: ProfilePageProp
               </div>
             )}
 
+          </div>
+        )}
+
+        {activeTab === "tools" && (
+          <div className="space-y-6">
+            <div className="flex flex-col gap-2 md:flex-row md:items-center md:justify-between">
+              <div>
+                <h2 className="text-2xl font-semibold text-gray-900 dark:text-white">
+                  {translate("profile.tools", "Tools")}
+                </h2>
+                <p className="text-sm text-gray-500">
+                  {translate("profile.toolsSubtitle", "Tools you've completed purchasing")}
+                </p>
+              </div>
+              <div className="text-sm text-gray-500">
+                {translate("profile.totalItems", "Items purchased")}: {formatNumber(toolPurchases.length)}
+              </div>
+            </div>
+
+            {purchasesError && (
+              <div className="flex items-center gap-2 rounded-2xl border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700 dark:border-red-400/40 dark:bg-red-500/10 dark:text-red-100">
+                <AlertCircle className="h-4 w-4" />
+                <span className="flex-1">{purchasesError}</span>
+                <Button size="sm" variant="outline" onClick={fetchPurchases}>
+                  {translate("profile.retry", "Retry")}
+                </Button>
+              </div>
+            )}
+
+            {purchasesLoading ? (
+              <div className="space-y-4">
+                {[0, 1, 2].map((idx) => (
+                  <div
+                    key={idx}
+                    className="h-32 animate-pulse rounded-2xl bg-gray-100 dark:bg-gray-800/60"
+                  />
+                ))}
+              </div>
+            ) : toolPurchases.length === 0 ? (
+              <div className="rounded-2xl border border-dashed border-gray-300 bg-white p-8 text-center text-gray-500 dark:border-gray-700 dark:bg-gray-900 dark:text-gray-400">
+                {translate("profile.purchasesEmpty", "You haven't completed any purchases yet.")}
+              </div>
+            ) : (
+              <div className="space-y-4">
+                {toolPurchases.map((item) => (
+                  <div
+                    key={`${item.orderNumber}-${item.productId}`}
+                    className="flex flex-col gap-4 rounded-2xl border border-gray-100 bg-white p-5 shadow-sm transition hover:border-blue-300 dark:border-gray-800 dark:bg-gray-900 md:flex-row md:items-center"
+                  >
+                    <div className="flex flex-1 items-center gap-4">
+                      <img
+                        src={item.imageUrl || "/Nut Roth Logo.png"}
+                        alt={item.title}
+                        className="h-16 w-16 rounded-xl object-cover"
+                      />
+                      <div>
+                        <div className="text-base font-semibold text-gray-900 dark:text-white">
+                          {item.title}
+                        </div>
+                        {!item.isActive ? (
+                          <p className="text-xs text-red-500">
+                            {translate("profile.expired", "Expired")}
+                          </p>
+                        ) : null}
+                        <p className="text-sm text-gray-500">
+                          {translate("profile.orderNumber", "Order no.")}: {item.orderNumber}
+                        </p>
+                        <p className="text-xs text-gray-400">{formatDateTime(item.orderedAt)}</p>
+                        {item.accessEnd ? (
+                          <p className="text-xs text-gray-400">
+                            {translate("profile.accessEnd", "Access ends")}:{" "}
+                            {formatDateTime(item.accessEnd)}
+                          </p>
+                        ) : null}
+                        {item.completedAt ? (
+                          <p className="text-xs text-gray-400">
+                            {translate("profile.accessStart", "Access start")}:{" "}
+                            {formatDateTime(item.completedAt)}
+                          </p>
+                        ) : null}
+                      </div>
+                    </div>
+
+                    <div className="flex flex-wrap gap-4 text-sm text-gray-600 dark:text-gray-300">
+                      <span>
+                        {translate("profile.quantity", "Quantity")}: {formatNumber(item.quantity ?? 0)}
+                      </span>
+                      {item.variantLabel && (
+                        <span>
+                          {translate("profile.variant", "Option")}: {item.variantLabel}
+                        </span>
+                      )}
+                    </div>
+
+                    <div className="text-right">
+                      <div className="text-lg font-semibold text-blue-600 dark:text-blue-300">
+                        {formatCurrency((item.unitPrice ?? 0) * (item.quantity ?? 0))}
+                      </div>
+                      <p className="text-xs text-gray-500">
+                        {formatCurrency(item.unitPrice ?? 0)} / {translate("profile.quantity", "Quantity")}
+                      </p>
+                    </div>
+
+                    <div className="flex w-full justify-end gap-2 md:w-auto">
+                      <Button
+                        variant="outline"
+                        size="sm"
+                        onClick={() => goToProduct(item.slug)}
+                      >
+                        <ExternalLink className="h-4 w-4" />
+                        {translate("profile.viewProduct", "View product")}
+                      </Button>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            )}
           </div>
         )}
 

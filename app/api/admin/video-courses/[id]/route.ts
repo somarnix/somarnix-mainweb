@@ -20,6 +20,7 @@ type CourseRow = RowDataPacket & {
   upload_date: string | Date | null;
   thumbnail_url: string | null;
   hero_url: string | null;
+  learning_outcomes: string | null;
   preview_mode: string;
   preview_count: number;
   is_active: number;
@@ -36,6 +37,18 @@ export async function GET(req: Request, ctx: { params: Promise<{ id?: string }> 
   if (!Number.isFinite(id) || id <= 0) {
     return Response.json({ error: "Invalid id" }, { status: 400 });
   }
+
+  const [learningOutcomesColumnRows] = await db.query<RowDataPacket[]>(
+    `
+    SELECT 1 AS ok
+    FROM information_schema.columns
+    WHERE table_schema = DATABASE()
+      AND table_name = 'video_courses'
+      AND column_name = 'learning_outcomes'
+    LIMIT 1
+    `
+  );
+  const hasLearningOutcomesColumn = learningOutcomesColumnRows.length > 0;
 
   const [rows] = await db.query<CourseRow[]>(
     `
@@ -55,6 +68,7 @@ export async function GET(req: Request, ctx: { params: Promise<{ id?: string }> 
       upload_date,
       thumbnail_url,
       hero_url,
+      ${hasLearningOutcomesColumn ? "learning_outcomes," : "NULL AS learning_outcomes,"}
       preview_mode,
       preview_count,
       is_active
@@ -115,6 +129,8 @@ export async function PUT(req: Request, ctx: { params: Promise<{ id?: string }> 
   const thumbnailUrl =
     typeof data.thumbnail_url === "string" ? data.thumbnail_url.trim() : null;
   const heroUrl = typeof data.hero_url === "string" ? data.hero_url.trim() : null;
+  const learningOutcomes =
+    typeof data.learning_outcomes === "string" ? data.learning_outcomes.trim() : null;
   const previewMode =
     typeof data.preview_mode === "string" && ["count", "manual"].includes(data.preview_mode)
       ? data.preview_mode
@@ -125,6 +141,20 @@ export async function PUT(req: Request, ctx: { params: Promise<{ id?: string }> 
       : Number(data.preview_count);
   const isActive =
     typeof data.is_active === "number" ? (data.is_active ? 1 : 0) : null;
+
+  const [learningOutcomesColumnRows] = await db.query<RowDataPacket[]>(
+    `
+    SELECT 1 AS ok
+    FROM information_schema.columns
+    WHERE table_schema = DATABASE()
+      AND table_name = 'video_courses'
+      AND column_name = 'learning_outcomes'
+    LIMIT 1
+    `
+  );
+  const hasLearningOutcomesColumn = learningOutcomesColumnRows.length > 0;
+  const updateLearningOutcomesSql = hasLearningOutcomesColumn ? "learning_outcomes = ?," : "";
+  const updateLearningOutcomesParams = hasLearningOutcomesColumn ? [learningOutcomes] : [];
 
   const [result] = await db.query<ResultSetHeader>(
     `
@@ -144,6 +174,7 @@ export async function PUT(req: Request, ctx: { params: Promise<{ id?: string }> 
       upload_date = ?,
       thumbnail_url = ?,
       hero_url = ?,
+      ${updateLearningOutcomesSql}
       preview_mode = COALESCE(?, preview_mode),
       preview_count = COALESCE(?, preview_count),
       is_active = COALESCE(?, is_active)
@@ -164,6 +195,7 @@ export async function PUT(req: Request, ctx: { params: Promise<{ id?: string }> 
       uploadDate,
       thumbnailUrl,
       heroUrl,
+      ...updateLearningOutcomesParams,
       previewMode,
       Number.isFinite(previewCount) ? previewCount : null,
       isActive,

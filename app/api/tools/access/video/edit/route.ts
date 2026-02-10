@@ -3,8 +3,31 @@ import fs from "fs";
 import path from "path";
 import os from "os";
 import { spawn } from "child_process";
+import type { RowDataPacket } from "mysql2";
+import { db } from "@/lib/db";
+import { getAuthUser } from "@/lib/auth";
+import { verifyToolLicenseToken } from "@/lib/tool-license";
 
 export const runtime = "nodejs"; // IMPORTANT
+
+type LicenseRow = RowDataPacket & {
+  id: number;
+  status: "active" | "revoked" | "expired";
+  expires_at: Date | string | null;
+};
+
+function parseBearer(req: Request): string {
+  const authHeader = req.headers.get("authorization") || "";
+  if (!authHeader.toLowerCase().startsWith("bearer ")) return "";
+  return authHeader.slice(7).trim();
+}
+
+function toDate(value: Date | string | null): Date | null {
+  if (!value) return null;
+  const d = value instanceof Date ? value : new Date(value);
+  if (Number.isNaN(d.getTime())) return null;
+  return d;
+}
 
 function run(cmd: string, args: string[]) {
   return new Promise<void>((resolve, reject) => {
@@ -54,6 +77,42 @@ async function getVideoDuration(inputPath: string) {
 }
 
 export async function POST(req: Request) {
+  const auth = await getAuthUser(req);
+  if (!auth) {
+    return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+  }
+
+  const authToken = parseBearer(req);
+  const verifiedPayload = verifyToolLicenseToken(authToken);
+  if (!verifiedPayload || verifiedPayload.userId !== auth.userId) {
+    return NextResponse.json({ error: "License required" }, { status: 403 });
+  }
+  const requestedToolSlug = (req.headers.get("x-tool-slug") || "").trim();
+  if (requestedToolSlug && verifiedPayload.slug !== requestedToolSlug) {
+    return NextResponse.json({ error: "License does not match this tool" }, { status: 403 });
+  }
+
+  const [licenseRows] = await db.query<LicenseRow[]>(
+    `
+    SELECT id, status, expires_at
+    FROM tool_license_keys
+    WHERE id = ?
+    LIMIT 1
+    `,
+    [verifiedPayload.licenseId]
+  );
+  if (licenseRows.length === 0) {
+    return NextResponse.json({ error: "License not found" }, { status: 403 });
+  }
+  const license = licenseRows[0];
+  if (license.status !== "active") {
+    return NextResponse.json({ error: `License is ${license.status}` }, { status: 403 });
+  }
+  const expiresAt = toDate(license.expires_at);
+  if (expiresAt && expiresAt.getTime() <= Date.now()) {
+    return NextResponse.json({ error: "License expired" }, { status: 403 });
+  }
+
   const form = await req.formData();
 
   const action = String(form.get("action") || "compress");
