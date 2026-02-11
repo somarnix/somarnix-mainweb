@@ -317,6 +317,81 @@ export async function POST(req: Request) {
     return Response.json({ error: "Order not found" }, { status: 404 });
   }
 
+  // Keep payment status consistent with order state when editing from Admin Orders.
+  // Payment page is still the primary reviewer, but order changes must not leave stale payment badges.
+  const nextPaymentState: "waiting" | "approved" | "declined" =
+    body.state === "approved" || body.state === "delivering" || body.state === "completed"
+      ? "approved"
+      : body.state === "cancelled" || body.state === "resolution"
+      ? "declined"
+      : "waiting";
+
+  try {
+    await db.query<ResultSetHeader>(
+      `
+      UPDATE orders
+      SET
+        payment_state = ?,
+        payment_review_note = ?,
+        payment_reviewed_by = ?,
+        payment_reviewed_at = NOW()
+      WHERE id = ?
+      `,
+      [
+        nextPaymentState,
+        body.state === "pending"
+          ? "Set from order flow"
+          : `Set from order flow: ${body.state}`,
+        auth.userId,
+        body.orderId,
+      ]
+    );
+  } catch (err) {
+    const message = err instanceof Error ? err.message.toLowerCase() : String(err).toLowerCase();
+    const missingPaymentState = message.includes("unknown column") && message.includes("payment_state");
+    const missingPaymentReview = message.includes("unknown column") && (
+      message.includes("payment_review_note") ||
+      message.includes("payment_reviewed_by") ||
+      message.includes("payment_reviewed_at")
+    );
+    if (!(missingPaymentState || missingPaymentReview)) {
+      throw err;
+    }
+  }
+
+  try {
+    await db.query<ResultSetHeader>(
+      `
+      UPDATE payments
+      SET
+        admin_decision = ?,
+        decision_note = ?,
+        decided_by = ?,
+        decided_at = NOW()
+      WHERE order_id = ?
+      `,
+      [
+        nextPaymentState,
+        body.state === "pending"
+          ? "Set from order flow"
+          : `Set from order flow: ${body.state}`,
+        auth.userId,
+        body.orderId,
+      ]
+    );
+  } catch (err) {
+    const message = err instanceof Error ? err.message.toLowerCase() : String(err).toLowerCase();
+    const missingAdminDecision = message.includes("unknown column") && message.includes("admin_decision");
+    const missingDecisionColumns = message.includes("unknown column") && (
+      message.includes("decision_note") ||
+      message.includes("decided_by") ||
+      message.includes("decided_at")
+    );
+    if (!(missingAdminDecision || missingDecisionColumns)) {
+      throw err;
+    }
+  }
+
   if (body.state === "completed" && previousState !== "completed" && !stockReserved) {
     const [items] = await db.query<OrderItemRow[]>(
       `
@@ -348,11 +423,7 @@ export async function POST(req: Request) {
     );
   }
 
-  if (
-    (body.state === "approved" || body.state === "completed") &&
-    previousState !== "approved" &&
-    previousState !== "completed"
-  ) {
+  if (body.state === "completed" && previousState !== "completed") {
     await db.query<ResultSetHeader>(
       `
       UPDATE video_course_purchases vcp

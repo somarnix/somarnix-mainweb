@@ -128,7 +128,7 @@ export async function GET(req: NextRequest) {
         LEFT JOIN users seller_user ON seller_user.id = seller_product2.posted_by
         GROUP BY m.conversation_id
       ) unread ON unread.conversation_id = c.id
-      WHERE o.state NOT IN ('cancelled', 'resolution')
+      WHERE 1=1
         ${
           isAdmin
             ? ""

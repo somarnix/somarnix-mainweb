@@ -19,14 +19,54 @@ export async function GET(req: NextRequest) {
   }
 
   try {
+    const [orderStateColumnRows] = await db.query<RowDataPacket[]>(
+      `
+      SELECT 1 AS ok
+      FROM information_schema.columns
+      WHERE table_schema = DATABASE()
+        AND table_name = 'orders'
+        AND column_name = 'state'
+      LIMIT 1
+      `
+    );
+    const hasOrderStateColumn = orderStateColumnRows.length > 0;
+
+    const [orderStatusColumnRows] = await db.query<RowDataPacket[]>(
+      `
+      SELECT 1 AS ok
+      FROM information_schema.columns
+      WHERE table_schema = DATABASE()
+        AND table_name = 'orders'
+        AND column_name = 'status'
+      LIMIT 1
+      `
+    );
+    const hasOrderStatusColumn = orderStatusColumnRows.length > 0;
+
+    const completedOrderClause = hasOrderStateColumn
+      ? "o.state IN ('completed','complete')"
+      : hasOrderStatusColumn
+        ? "o.status IN ('completed','complete')"
+        : "1 = 0";
+
     const [subRows] = await db.query<RowDataPacket[]>(
       `
       SELECT vsub.id, spl.name AS plan_name
       FROM video_subscriptions vsub
       JOIN video_subscription_plans spl ON spl.id = vsub.plan_id
-      WHERE user_id = ?
-        AND status = 'active'
+      WHERE vsub.user_id = ?
+        AND vsub.status = 'active'
         AND (access_end IS NULL OR access_end >= NOW())
+        AND (
+          vsub.order_id IS NULL
+          OR EXISTS (
+            SELECT 1
+            FROM orders o
+            WHERE o.id = vsub.order_id
+              AND ${completedOrderClause}
+          )
+        )
+      ORDER BY vsub.access_end DESC, vsub.id DESC
       LIMIT 1
       `,
       [auth.userId]

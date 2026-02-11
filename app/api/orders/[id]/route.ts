@@ -46,6 +46,8 @@ type OrderLegacyRow = RowDataPacket & {
 type ItemRow = RowDataPacket & {
   id: number;
   title: string;
+  slug: string;
+  category_name: string | null;
   image_url: string | null;
   is_active: number;
   qty: number | string | null;
@@ -269,6 +271,8 @@ export async function GET(
       SELECT
         oi.id,
         p.title,
+        p.slug,
+        pc.name AS category_name,
         p.image_url,
         p.is_active,
         oi.qty,
@@ -362,6 +366,8 @@ export async function GET(
       return {
         id: item.id,
         title: item.title,
+        slug: item.slug,
+        category_name: item.category_name,
         image_url: item.image_url,
         is_active: Number(item.is_active) === 1,
         qty: Number(item.qty ?? 0),
@@ -413,18 +419,20 @@ export async function GET(
     const video_items = [...videoItems, ...videoSubscriptions];
 
     if (mode === "state") {
+      const normalizedStatus = normalizeStateRowStatus(order as OrderStateRow);
+      const canShowDelivery = normalizedStatus === "completed";
       return NextResponse.json({
         order: {
           id: order.id,
           order_number: order.order_number,
-          status: normalizeStateRowStatus(order),
+          status: normalizedStatus,
           subtotal: toNumber(order.subtotal),
           tax_amount: toNumber(order.tax_amount),
           total: toNumber(order.total),
           created_at: toDateString(order.created_at),
-          delivery_title: order.delivery_title,
-          delivery_message: order.delivery_message,
-          delivered_at: toDateString(order.delivered_at),
+          delivery_title: canShowDelivery ? order.delivery_title : null,
+          delivery_message: canShowDelivery ? order.delivery_message : null,
+          delivered_at: canShowDelivery ? toDateString(order.delivered_at) : null,
           reviewed_at: toDateString(order.reviewed_at),
           review_note: order.review_note,
         },

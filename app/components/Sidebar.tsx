@@ -113,6 +113,7 @@ export function Sidebar({
   /* ================= ADMIN MENU (ROUTER) ================= */
   const adminMenuItems = [
     { id: "admin-dashboard", label: "Dashboard", page: "admin-dashboard" },
+    { id: "admin-orders-seller", label: "Orders Seller", page: "admin-orders-seller" },
     { id: "admin-products", label: "Products", page: "admin-products" },
     { id: "admin-tools", label: "Tools", page: "admin-tools" },
     { id: "admin-tool-licenses", label: "License Tool", page: "admin-tool-licenses" },

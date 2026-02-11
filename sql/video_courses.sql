@@ -1,4 +1,13 @@
-CREATE TABLE video_courses (
+USE gstechedukh;
+
+/* =========================================================
+   VIDEO COURSES SCHEMA (CLEAN / IDEMPOTENT)
+   - Safe to run multiple times
+   - Only video-course related tables/columns
+========================================================= */
+
+/* 1) COURSES */
+CREATE TABLE IF NOT EXISTS video_courses (
   id BIGINT UNSIGNED AUTO_INCREMENT PRIMARY KEY,
   title VARCHAR(200) NOT NULL,
   slug VARCHAR(220) NOT NULL UNIQUE,
@@ -17,11 +26,16 @@ CREATE TABLE video_courses (
   preview_mode ENUM('count','manual') NOT NULL DEFAULT 'count',
   preview_count INT NOT NULL DEFAULT 0,
   is_active TINYINT(1) NOT NULL DEFAULT 1,
+  deleted_at DATETIME NULL,
+  posted_by BIGINT UNSIGNED NULL,
   created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
-  updated_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP
+  updated_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+  INDEX idx_video_courses_posted_by (posted_by),
+  CONSTRAINT fk_video_courses_posted_by FOREIGN KEY (posted_by) REFERENCES users(id) ON DELETE SET NULL
 ) ENGINE=InnoDB;
 
-CREATE TABLE video_course_sections (
+/* 2) SECTIONS */
+CREATE TABLE IF NOT EXISTS video_course_sections (
   id BIGINT UNSIGNED AUTO_INCREMENT PRIMARY KEY,
   course_id BIGINT UNSIGNED NOT NULL,
   title VARCHAR(200) NOT NULL,
@@ -33,7 +47,8 @@ CREATE TABLE video_course_sections (
     REFERENCES video_courses(id) ON DELETE CASCADE
 ) ENGINE=InnoDB;
 
-CREATE TABLE video_course_lessons (
+/* 3) LESSONS */
+CREATE TABLE IF NOT EXISTS video_course_lessons (
   id BIGINT UNSIGNED AUTO_INCREMENT PRIMARY KEY,
   course_id BIGINT UNSIGNED NOT NULL,
   section_id BIGINT UNSIGNED NOT NULL,
@@ -54,13 +69,16 @@ CREATE TABLE video_course_lessons (
     REFERENCES video_course_sections(id) ON DELETE CASCADE
 ) ENGINE=InnoDB;
 
-CREATE TABLE video_course_plans (
+/* 4) COURSE PLANS */
+CREATE TABLE IF NOT EXISTS video_course_plans (
   id BIGINT UNSIGNED AUTO_INCREMENT PRIMARY KEY,
   course_id BIGINT UNSIGNED NOT NULL,
   name VARCHAR(80) NOT NULL,
   access_type ENUM('lifetime','months') NOT NULL DEFAULT 'lifetime',
   duration_days INT NULL,
   price DECIMAL(10,2) NOT NULL DEFAULT 0.00,
+  max_devices INT NOT NULL DEFAULT 10,
+  is_unlimited_device TINYINT(1) NOT NULL DEFAULT 0,
   khqr VARCHAR(255) NOT NULL DEFAULT '/paymentQR/khmer_qr.jpg',
   usdqr VARCHAR(255) NOT NULL DEFAULT 'none',
   is_active TINYINT(1) NOT NULL DEFAULT 1,
@@ -71,17 +89,26 @@ CREATE TABLE video_course_plans (
     REFERENCES video_courses(id) ON DELETE CASCADE
 ) ENGINE=InnoDB;
 
-CREATE TABLE video_subscription_plans (
+/* 5) SUBSCRIPTION PLANS (SITE-WIDE, KEEP FOR LATER) */
+CREATE TABLE IF NOT EXISTS video_subscription_plans (
   id BIGINT UNSIGNED AUTO_INCREMENT PRIMARY KEY,
   name VARCHAR(80) NOT NULL,
   duration_days INT NOT NULL,
   price DECIMAL(10,2) NOT NULL DEFAULT 0.00,
+  description TEXT NULL,
+  features TEXT NULL,
+  access_courses TINYINT(1) NOT NULL DEFAULT 1,
+  access_ai_tools TINYINT(1) NOT NULL DEFAULT 0,
+  access_downloads TINYINT(1) NOT NULL DEFAULT 0,
+  khqr VARCHAR(255) NOT NULL DEFAULT '/paymentQR/khmer_qr.jpg',
+  usdqr VARCHAR(255) NOT NULL DEFAULT 'none',
   is_active TINYINT(1) NOT NULL DEFAULT 1,
   created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
   updated_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP
 ) ENGINE=InnoDB;
 
-CREATE TABLE video_course_purchases (
+/* 6) COURSE PURCHASES */
+CREATE TABLE IF NOT EXISTS video_course_purchases (
   id BIGINT UNSIGNED AUTO_INCREMENT PRIMARY KEY,
   order_id BIGINT UNSIGNED NOT NULL,
   user_id BIGINT UNSIGNED NOT NULL,
@@ -104,7 +131,8 @@ CREATE TABLE video_course_purchases (
     REFERENCES video_course_plans(id) ON DELETE RESTRICT
 ) ENGINE=InnoDB;
 
-CREATE TABLE video_subscriptions (
+/* 7) SUBSCRIPTIONS */
+CREATE TABLE IF NOT EXISTS video_subscriptions (
   id BIGINT UNSIGNED AUTO_INCREMENT PRIMARY KEY,
   order_id BIGINT UNSIGNED NOT NULL,
   user_id BIGINT UNSIGNED NOT NULL,
@@ -123,36 +151,7 @@ CREATE TABLE video_subscriptions (
     REFERENCES video_subscription_plans(id) ON DELETE RESTRICT
 ) ENGINE=InnoDB;
 
-ALTER TABLE video_course_plans
-  ADD COLUMN khqr VARCHAR(255) NOT NULL DEFAULT '/paymentQR/khmer_qr.jpg',
-  ADD COLUMN usdqr VARCHAR(255) NOT NULL DEFAULT 'none';
-
-ALTER TABLE video_subscription_plans
-  ADD COLUMN description TEXT NULL,
-  ADD COLUMN features TEXT NULL,
-  ADD COLUMN access_courses TINYINT(1) NOT NULL DEFAULT 1,
-  ADD COLUMN access_ai_tools TINYINT(1) NOT NULL DEFAULT 0,
-  ADD COLUMN access_downloads TINYINT(1) NOT NULL DEFAULT 0,
-  ADD COLUMN khqr VARCHAR(255) NOT NULL DEFAULT '/paymentQR/khmer_qr.jpg',
-  ADD COLUMN usdqr VARCHAR(255) NOT NULL DEFAULT 'none';
-
-ALTER TABLE product_variants
-  ADD COLUMN device_type ENUM('any','pc','phone','both') NOT NULL DEFAULT 'any' AFTER device_label;
-
-CREATE TABLE IF NOT EXISTS tool_device_access (
-  id BIGINT UNSIGNED AUTO_INCREMENT PRIMARY KEY,
-  user_id BIGINT UNSIGNED NOT NULL,
-  product_id BIGINT UNSIGNED NOT NULL,
-  device_id VARCHAR(128) NOT NULL,
-  device_type ENUM('pc','phone') NOT NULL,
-  created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
-  last_used_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
-  UNIQUE KEY uniq_tool_device (user_id, product_id, device_id),
-  INDEX idx_tool_device_user (user_id),
-  CONSTRAINT fk_tool_device_user FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE,
-  CONSTRAINT fk_tool_device_product FOREIGN KEY (product_id) REFERENCES products(id) ON DELETE CASCADE
-) ENGINE=InnoDB;
-
+/* 8) FAVORITES */
 CREATE TABLE IF NOT EXISTS video_course_favorites (
   user_id BIGINT UNSIGNED NOT NULL,
   course_id BIGINT UNSIGNED NOT NULL,
@@ -161,3 +160,26 @@ CREATE TABLE IF NOT EXISTS video_course_favorites (
   CONSTRAINT fk_video_fav_user FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE,
   CONSTRAINT fk_video_fav_course FOREIGN KEY (course_id) REFERENCES video_courses(id) ON DELETE CASCADE
 ) ENGINE=InnoDB;
+
+/* 9) DEVICE ACCESS PER COURSE */
+CREATE TABLE IF NOT EXISTS video_course_device_access (
+  id BIGINT UNSIGNED AUTO_INCREMENT PRIMARY KEY,
+  user_id BIGINT UNSIGNED NOT NULL,
+  course_id BIGINT UNSIGNED NOT NULL,
+  device_id VARCHAR(128) NOT NULL,
+  device_name VARCHAR(120) NULL,
+  created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  last_used_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+  UNIQUE KEY uniq_video_course_device (user_id, course_id, device_id),
+  INDEX idx_video_course_user_course (user_id, course_id),
+  CONSTRAINT fk_video_course_device_user
+    FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE,
+  CONSTRAINT fk_video_course_device_course
+    FOREIGN KEY (course_id) REFERENCES video_courses(id) ON DELETE CASCADE
+) ENGINE=InnoDB;
+
+/* 10) Normalize lifetime plans to unlimited devices */
+UPDATE video_course_plans
+SET max_devices = 9999, is_unlimited_device = 1
+WHERE access_type = 'lifetime';
+

@@ -21,49 +21,68 @@ type UserRow = RowDataPacket & {
 };
 
 export async function POST(req: Request): Promise<Response> {
-  const raw: unknown = await req.json().catch(() => ({}));
-  const body = isObject(raw) ? raw : {};
-  const email = str(body.email).toLowerCase();
-    
-  console.log("EMAIL RECEIVED:", email);
-    
-  if (!email) {
-    return Response.json({ error: "Email required" }, { status: 400 });
+  try {
+    const raw: unknown = await req.json().catch(() => ({}));
+    const body = isObject(raw) ? raw : {};
+    const email = str(body.email).toLowerCase();
+
+    if (!email) {
+      return Response.json({ error: "Email required" }, { status: 400 });
+    }
+
+    // Security: always return success (don’t reveal if email exists)
+    const okResponse = Response.json({ success: true });
+
+    const [users] = await db.query<UserRow[]>(
+      "SELECT id, email, deleted_at, is_active FROM users WHERE email = ? LIMIT 1",
+      [email]
+    );
+    if (users.length === 0) return okResponse;
+
+    const u = users[0];
+    if (u.deleted_at || u.is_active === 0) return okResponse;
+
+    const hasSmtpConfig =
+      !!(process.env.SMTP_HOST ?? "").trim() &&
+      !!(process.env.SMTP_USER ?? "").trim() &&
+      !!(process.env.SMTP_PASS ?? "").trim();
+    if (!hasSmtpConfig) {
+      return Response.json(
+        {
+          error: "Email service is not configured",
+          detail: "Set SMTP_HOST, SMTP_PORT, SMTP_USER, SMTP_PASS in environment.",
+        },
+        { status: 500 }
+      );
+    }
+
+    const token = crypto.randomBytes(32).toString("hex");
+    const tokenHash = sha256Hex(token);
+
+    await db.query<ResultSetHeader>(
+      `INSERT INTO password_resets (user_id, token_hash, expires_at)
+       VALUES (?, ?, DATE_ADD(NOW(), INTERVAL 30 MINUTE))`,
+      [u.id, tokenHash]
+    );
+
+    const appUrl = process.env.APP_URL ?? "http://localhost:3000";
+    const resetLink = `${appUrl}/auth/reset-password?token=${token}&email=${encodeURIComponent(
+      email
+    )}`;
+
+    const mailer = getMailer();
+    await mailer.sendMail({
+      from: process.env.SMTP_USER,
+      to: email,
+      subject: "Reset your password",
+      text: `Reset link (valid 30 minutes): ${resetLink}`,
+    });
+
+    return okResponse;
+  } catch (err) {
+    return Response.json(
+      { error: "Failed to process forgot password", detail: err instanceof Error ? err.message : String(err) },
+      { status: 500 }
+    );
   }
-
-  // ✅ Security: always return success (don’t reveal if email exists)
-  const okResponse = Response.json({ success: true });
-
-  const [users] = await db.query<UserRow[]>(
-    "SELECT id, email, deleted_at, is_active FROM users WHERE email = ? LIMIT 1",
-    [email]
-  );
-  if (users.length === 0) return okResponse;
-
-  const u = users[0];
-  if (u.deleted_at || u.is_active === 0) return okResponse;
-
-  const token = crypto.randomBytes(32).toString("hex");
-  const tokenHash = sha256Hex(token);
-
-  await db.query<ResultSetHeader>(
-    `INSERT INTO password_resets (user_id, token_hash, expires_at)
-     VALUES (?, ?, DATE_ADD(NOW(), INTERVAL 30 MINUTE))`,
-    [u.id, tokenHash]
-  );
-
-  const appUrl = process.env.APP_URL ?? "http://localhost:3000";
-  const resetLink = `${appUrl}/auth/reset-password?token=${token}&email=${encodeURIComponent(
-    email
-  )}`;
-
-  const mailer = getMailer();
-  await mailer.sendMail({
-    from: process.env.SMTP_USER,
-    to: email,
-    subject: "Reset your password",
-    text: `Reset link (valid 30 minutes): ${resetLink}`,
-  });
-
-  return okResponse;
 }

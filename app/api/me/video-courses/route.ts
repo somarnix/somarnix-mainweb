@@ -9,6 +9,7 @@ type CourseRow = RowDataPacket & {
   slug: string;
   thumbnail_url: string | null;
   is_active: number;
+  order_number: string | null;
   plan_name: string | null;
   access_start: string | Date | null;
   access_end: string | Date | null;
@@ -32,6 +33,36 @@ export async function GET(req: NextRequest) {
   }
 
   try {
+    const [orderStateColumnRows] = await db.query<RowDataPacket[]>(
+      `
+      SELECT 1 AS ok
+      FROM information_schema.columns
+      WHERE table_schema = DATABASE()
+        AND table_name = 'orders'
+        AND column_name = 'state'
+      LIMIT 1
+      `
+    );
+    const hasOrderStateColumn = orderStateColumnRows.length > 0;
+
+    const [orderStatusColumnRows] = await db.query<RowDataPacket[]>(
+      `
+      SELECT 1 AS ok
+      FROM information_schema.columns
+      WHERE table_schema = DATABASE()
+        AND table_name = 'orders'
+        AND column_name = 'status'
+      LIMIT 1
+      `
+    );
+    const hasOrderStatusColumn = orderStatusColumnRows.length > 0;
+
+    const completedOrderClause = hasOrderStateColumn
+      ? "o2.state IN ('completed','complete')"
+      : hasOrderStatusColumn
+        ? "o2.status IN ('completed','complete')"
+        : "1 = 0";
+
     const [rows] = await db.query<CourseRow[]>(
       `
       SELECT
@@ -40,6 +71,7 @@ export async function GET(req: NextRequest) {
         vc.slug,
         vc.thumbnail_url,
         vc.is_active,
+        o.order_number,
         vcp.access_start,
         vcp.access_end,
         vcp.status,
@@ -47,8 +79,18 @@ export async function GET(req: NextRequest) {
       FROM video_course_purchases vcp
       JOIN video_courses vc ON vc.id = vcp.course_id
       JOIN video_course_plans vplan ON vplan.id = vcp.plan_id
+      LEFT JOIN orders o ON o.id = vcp.order_id
       WHERE vcp.user_id = ?
         AND vcp.status IN ('active','pending')
+        AND (
+          vcp.order_id IS NULL
+          OR EXISTS (
+            SELECT 1
+            FROM orders o2
+            WHERE o2.id = vcp.order_id
+              AND ${completedOrderClause}
+          )
+        )
       ORDER BY vcp.created_at DESC, vcp.id DESC
       `,
       [auth.userId]
@@ -59,6 +101,7 @@ export async function GET(req: NextRequest) {
       title: row.title,
       slug: row.slug,
       thumbnailUrl: row.thumbnail_url,
+      orderNumber: row.order_number,
       planName: row.plan_name,
       accessStart: toDate(row.access_start),
       accessEnd: toDate(row.access_end),

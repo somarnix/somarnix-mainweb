@@ -22,6 +22,7 @@ import {
 import { Input } from "../../components/ui/input";
 import { Textarea } from "../../components/ui/textarea";
 import { Button } from "../../components/ui/button";
+import { Pagination } from "../../components/Pagination";
 import { useLanguage } from "../../contexts/LanguageContext";
 import { useAuth } from "../../contexts/AuthContext";
 
@@ -52,6 +53,64 @@ type ConversationSummary = {
   seller: Participant;
   unreadCount: number;
 };
+
+type ChatStateFilter =
+  | "all"
+  | "pending"
+  | "approved"
+  | "delivering"
+  | "completed"
+  | "cancelled"
+  | "resolution";
+
+function normalizeOrderState(state: string | null): Exclude<ChatStateFilter, "all"> | "unknown" {
+  const normalized = (state ?? "").toLowerCase();
+  if (normalized === "canceled") return "cancelled";
+  if (
+    normalized === "pending" ||
+    normalized === "approved" ||
+    normalized === "delivering" ||
+    normalized === "completed" ||
+    normalized === "cancelled" ||
+    normalized === "resolution"
+  ) {
+    return normalized;
+  }
+  return "unknown";
+}
+
+function getOrderStateLabel(state: string | null): string {
+  const normalized = (state ?? "").toLowerCase();
+  const labels: Record<string, string> = {
+    pending: "Order is Preparing",
+    approved: "Approved",
+    delivering: "Delivering",
+    completed: "Complete",
+    cancelled: "Cancelled",
+    canceled: "Cancelled",
+    resolution: "Resolution",
+  };
+  return labels[normalized] ?? "Unknown";
+}
+
+function getOrderStateBadgeClass(state: string | null): string {
+  const normalized = (state ?? "").toLowerCase();
+  const base =
+    "inline-flex items-center rounded-full px-3 py-1 text-xs font-semibold";
+  if (normalized === "completed") {
+    return `${base} bg-emerald-100 text-emerald-700`;
+  }
+  if (normalized === "cancelled" || normalized === "canceled") {
+    return `${base} bg-rose-100 text-rose-700`;
+  }
+  if (normalized === "resolution") {
+    return `${base} bg-red-100 text-red-700`;
+  }
+  if (normalized === "approved" || normalized === "delivering") {
+    return `${base} bg-blue-100 text-blue-700`;
+  }
+  return `${base} bg-slate-100 text-slate-700`;
+}
 
 type ConversationDetail = {
   id: number;
@@ -111,6 +170,7 @@ interface ChatPageProps {
 
 const QUICK_EMOJI = ["😀", "😂", "😍", "😎", "🙏", "👍", "🔥", "🎉"];
 const PRESENCE_WINDOW_MS = 5 * 60 * 1000;
+const ITEMS_PER_PAGE = 10;
 
 const isPresenceOnline = (presence?: PresenceInfo) => {
   if (!presence) return false;
@@ -200,6 +260,8 @@ export function ChatPage({
   const [messageInput, setMessageInput] = useState("");
   const [sending, setSending] = useState(false);
   const [searchTerm, setSearchTerm] = useState("");
+  const [activeStateFilter, setActiveStateFilter] = useState<ChatStateFilter>("all");
+  const [currentPage, setCurrentPage] = useState(1);
   const [emojiOpen, setEmojiOpen] = useState(false);
   const [stickerOpen, setStickerOpen] = useState(false);
   const [stickerPacks, setStickerPacks] = useState<StickerPack[]>([]);
@@ -215,16 +277,40 @@ export function ChatPage({
   const messageListRef = useRef<HTMLDivElement | null>(null);
   const queryHandledRef = useRef(false);
 
+  const conversationStateCounts = useMemo(() => {
+    const counts: Record<ChatStateFilter, number> = {
+      all: conversations.length,
+      pending: 0,
+      approved: 0,
+      delivering: 0,
+      completed: 0,
+      cancelled: 0,
+      resolution: 0,
+    };
+    for (const conv of conversations) {
+      const state = normalizeOrderState(conv.state);
+      if (state !== "unknown") counts[state] += 1;
+    }
+    return counts;
+  }, [conversations]);
+
   const filteredConversations = useMemo(() => {
     const term = searchTerm.trim().toLowerCase();
-    if (!term) return conversations;
     return conversations.filter((conv) => {
+      const state = normalizeOrderState(conv.state);
+      if (activeStateFilter !== "all" && state !== activeStateFilter) return false;
+      if (!term) return true;
       const buyerMatch = conv.buyer.name?.toLowerCase().includes(term);
       const sellerMatch = conv.seller.name?.toLowerCase().includes(term);
       const orderMatch = conv.orderNumber.toLowerCase().includes(term);
       return buyerMatch || sellerMatch || orderMatch;
     });
-  }, [conversations, searchTerm]);
+  }, [conversations, searchTerm, activeStateFilter]);
+  const totalPages = Math.max(1, Math.ceil(filteredConversations.length / ITEMS_PER_PAGE));
+  const pagedConversations = useMemo(() => {
+    const start = (currentPage - 1) * ITEMS_PER_PAGE;
+    return filteredConversations.slice(start, start + ITEMS_PER_PAGE);
+  }, [filteredConversations, currentPage]);
 
   const activeStickerPack = useMemo(() => {
     const found = stickerPacks.find((pack) => pack.id === activePackId);
@@ -665,9 +751,19 @@ export function ChatPage({
     return () => window.removeEventListener("click", handler);
   }, []);
 
+  useEffect(() => {
+    setCurrentPage(1);
+  }, [activeStateFilter, searchTerm, conversations.length]);
+
+  useEffect(() => {
+    if (currentPage > totalPages) {
+      setCurrentPage(totalPages);
+    }
+  }, [currentPage, totalPages]);
+
   return (
     <div className="min-h-screen bg-gray-50 dark:bg-gray-900">
-      <div className="w-full px-4 lg:px-8 py-8">
+      <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
         <div className="mb-6 flex items-center justify-between">
           <div>
             <p className="text-sm text-gray-500 dark:text-gray-400">
@@ -708,6 +804,43 @@ export function ChatPage({
         >
           {!hideList && (
             <div className="bg-white dark:bg-gray-900 rounded-2xl shadow p-4 flex flex-col">
+            <div className="mb-3 flex flex-wrap gap-2">
+              {(
+                [
+                  { key: "all", label: lang === "km" ? "ទាំងអស់" : "All" },
+                  { key: "pending", label: lang === "km" ? "កំពុងរៀបចំ" : "Order is Preparing" },
+                  { key: "approved", label: lang === "km" ? "អនុម័ត" : "Approve" },
+                  { key: "delivering", label: lang === "km" ? "កំពុងផ្ញើ" : "Delivering" },
+                  { key: "completed", label: lang === "km" ? "បានបញ្ចប់" : "Complete" },
+                  { key: "cancelled", label: lang === "km" ? "បានបោះបង់" : "Cancelled" },
+                  { key: "resolution", label: lang === "km" ? "ដោះស្រាយ" : "Resolution" },
+                ] as Array<{ key: ChatStateFilter; label: string }>
+              ).map((tab) => {
+                const active = activeStateFilter === tab.key;
+                const count = conversationStateCounts[tab.key] ?? 0;
+                return (
+                  <button
+                    key={tab.key}
+                    onClick={() => setActiveStateFilter(tab.key)}
+                    className={`inline-flex items-center gap-2 rounded-full border px-3 py-1.5 text-xs font-semibold transition ${
+                      active
+                        ? "border-blue-600 bg-blue-600 text-white"
+                        : "border-gray-200 bg-white text-gray-700 hover:border-blue-300 hover:text-blue-700"
+                    }`}
+                  >
+                    <span>{tab.label}</span>
+                    <span
+                      className={`inline-flex min-w-[20px] items-center justify-center rounded-full px-1.5 py-0.5 text-[10px] ${
+                        active ? "bg-white/25 text-white" : "bg-gray-100 text-gray-600"
+                      }`}
+                    >
+                      {count}
+                    </span>
+                  </button>
+                );
+              })}
+            </div>
+
             <div className="relative mb-4">
               <Search className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400 w-4 h-4" />
               <Input
@@ -740,7 +873,7 @@ export function ChatPage({
                   {lang === "km" ? "មិនមានការសន្ទនាទេ" : "No conversations yet."}
                 </div>
               ) : (
-                filteredConversations.map((conv) => {
+                pagedConversations.map((conv) => {
                   const isActive = selectedConversation?.orderId === conv.orderId;
                   const counterpart = isAdmin ? conv.buyer : conv.seller;
                   const fallbackLabel = isAdmin ? fallbackBuyerLabel : fallbackAdminLabel;
@@ -787,8 +920,13 @@ export function ChatPage({
                           >
                             {displayName}
                           </div>
-                          <div className="text-xs text-gray-500 truncate">
-                            {lang === "km" ? "លេខបញ្ជាទិញ" : "Order"} {conv.orderNumber}
+                          <div className="mt-0.5 flex items-center gap-2">
+                            <div className="text-xs text-gray-500 truncate">
+                              {lang === "km" ? "Order" : "Order"} {conv.orderNumber}
+                            </div>
+                            <span className={getOrderStateBadgeClass(conv.state)}>
+                              {getOrderStateLabel(conv.state)}
+                            </span>
                           </div>
                           <div
                             className={`mt-1 text-xs line-clamp-2 ${
@@ -820,6 +958,12 @@ export function ChatPage({
                 })
               )}
             </div>
+            <Pagination
+              currentPage={currentPage}
+              totalPages={totalPages}
+              onPageChange={setCurrentPage}
+              className="mt-3"
+            />
           </div>
           )}
 

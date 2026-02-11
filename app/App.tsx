@@ -18,6 +18,7 @@ import { BlogPage } from "./pages/blogs/BlogPage";
 import LoginPage from "./auth/login/LoginPage";
 import { RegisterPage } from "./auth/register/RegisterPage";
 import ForgotPassword from "./auth/forgot-password/ForgotPassword";
+02/import ResetPassword from "./auth/reset-password/ResetPassword";
 import { ProfilePage } from "./auth/profile-user/ProfilePage";
 
 import { CartPage } from "./order/cart/CartPage";
@@ -32,6 +33,7 @@ import { AuthProvider, useAuth } from "./contexts/AuthContext";
 import { CurrencyProvider } from "./contexts/CurrencyContext";
 
 import AdminDashboardPage from "./admin-pages/dashboard/AdminDashboardPage";
+import AdminOrdersSellerPage from "./admin-pages/orders-seller/AdminOrdersSellerPage";
 import AdminProductsPage from "./admin-pages/products/AdminProductsPage";
 import AdminOrdersPage from "./admin-pages/orders/AdminOrdersPage";
 import AdminUsersPage from "./admin-pages/users/AdminUsersPage";
@@ -70,11 +72,13 @@ type AppPage =
   | "login"
   | "register"
   | "forgot-password"
+  | "reset-password"
   | "cart"
   | "checkout"
   | "orders"
   | "order-detail"
   | "admin-dashboard"
+  | "admin-orders-seller"
   | "admin-products"
   | "admin-tools"
   | "admin-tool-licenses"
@@ -114,11 +118,13 @@ const ALL_PAGES: ReadonlyArray<AppPage> = [
   "login",
   "register",
   "forgot-password",
+  "reset-password",
   "cart",
   "checkout",
   "orders",
   "order-detail",
   "admin-dashboard",
+  "admin-orders-seller",
   "admin-products",
   "admin-tools",
   "admin-tool-licenses",
@@ -146,10 +152,12 @@ const STATIC_ROUTES: Record<string, AppPage> = {
   "/login": "login",
   "/register": "register",
   "/forgot-password": "forgot-password",
+  "/auth/reset-password": "reset-password",
   "/cart": "cart",
   "/checkout": "checkout",
   "/orders": "orders",
   "/admin/dashboard": "admin-dashboard",
+  "/admin/orders-seller": "admin-orders-seller",
   "/admin/products": "admin-products",
   "/admin/tools": "admin-tools",
   "/admin/tools/licenses": "admin-tool-licenses",
@@ -330,6 +338,8 @@ function buildPathForPage(
       return "/register";
     case "forgot-password":
       return "/forgot-password";
+    case "reset-password":
+      return "/auth/reset-password";
     case "cart":
       return "/cart";
     case "checkout":
@@ -338,6 +348,8 @@ function buildPathForPage(
       return "/orders";
     case "admin-dashboard":
       return "/admin/dashboard";
+    case "admin-orders-seller":
+      return "/admin/orders-seller";
     case "admin-products":
       return "/admin/products";
     case "admin-tools":
@@ -494,6 +506,18 @@ export default function App() {
       videoId: null,
       adminVideoCourseId: null,
       toolSlug: null,
+      sellerId: null,
+    });
+  };
+
+  const handleOpenToolDetail = (slug: string) => {
+    navigateInternal({
+      page: "tool-detail",
+      productSlug: null,
+      orderId: null,
+      videoId: null,
+      adminVideoCourseId: null,
+      toolSlug: slug,
       sellerId: null,
     });
   };
@@ -676,6 +700,8 @@ export default function App() {
           <ProfilePage
             onNavigate={handleNavigate}
             onOpenProductDetail={handleOpenProductDetail}
+            onOpenToolDetail={handleOpenToolDetail}
+            onOpenOrderDetail={handleOpenOrderDetail}
           />
         );
 
@@ -687,6 +713,8 @@ export default function App() {
 
       case "forgot-password":
         return <ForgotPassword onNavigate={handleNavigate} />;
+      case "reset-password":
+        return <ResetPassword onNavigate={handleNavigate} />;
 
       case "cart":
         return (
@@ -716,6 +744,13 @@ export default function App() {
 
       case "admin-dashboard":
         return <AdminDashboardPage />;
+      case "admin-orders-seller":
+        return (
+          <AdminOrdersSellerPage
+            onOpenChat={(orderId) => handleOpenChat(orderId)}
+            onOpenAdminOrders={() => handleNavigate("admin-orders")}
+          />
+        );
 
       case "admin-products":
         return <AdminProductsPage />;
@@ -770,7 +805,8 @@ export default function App() {
 
 const showHeaderFooter =
   activePage !== "login" &&
-  activePage !== "register";
+  activePage !== "register" &&
+  activePage !== "reset-password";
 
   return (
     <LanguageProvider>
@@ -811,8 +847,27 @@ function PresenceWatcher() {
   useEffect(() => {
     if (!user?.id) return;
 
+    const getLoginDeviceId = () => {
+      if (typeof window === "undefined") return null;
+      const key = "gstech_login_device_id";
+      const existing = window.localStorage.getItem(key);
+      if (existing && existing.trim()) return existing;
+      const created =
+        typeof crypto !== "undefined" && "randomUUID" in crypto
+          ? crypto.randomUUID()
+          : `${Date.now()}-${Math.random().toString(16).slice(2)}`;
+      window.localStorage.setItem(key, created);
+      return created;
+    };
+
+    const deviceId = getLoginDeviceId();
+    const deviceName =
+      typeof navigator !== "undefined" && navigator.userAgent
+        ? navigator.userAgent.slice(0, 120)
+        : "Web";
+
     const postStatus = (status: "online" | "offline") => {
-      const body = JSON.stringify({ status });
+      const body = JSON.stringify({ status, deviceId, deviceName });
       if (status === "offline" && typeof navigator !== "undefined" && navigator.sendBeacon) {
         const blob = new Blob([body], { type: "application/json" });
         navigator.sendBeacon("/api/presence", blob);

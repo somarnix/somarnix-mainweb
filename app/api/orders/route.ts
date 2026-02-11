@@ -153,20 +153,24 @@ export async function GET(req: NextRequest) {
 
     const orders =
       data.mode === "state"
-        ? data.rows.map(row => ({
-            id: row.id,
-            order_number: row.order_number,
-            status: normalizeStatusFromState(row),
-            subtotal: toNumber(row.subtotal),
-            tax_amount: toNumber(row.tax_amount),
-            total: toNumber(row.total),
-            created_at: toDateString(row.created_at),
-            delivery_title: row.delivery_title,
-            delivery_message: row.delivery_message,
-            delivered_at: toDateString(row.delivered_at),
-            reviewed_at: toDateString(row.reviewed_at),
-            review_note: row.review_note,
-          }))
+        ? data.rows.map(row => {
+            const status = normalizeStatusFromState(row);
+            const canShowDelivery = status === "completed";
+            return {
+              id: row.id,
+              order_number: row.order_number,
+              status,
+              subtotal: toNumber(row.subtotal),
+              tax_amount: toNumber(row.tax_amount),
+              total: toNumber(row.total),
+              created_at: toDateString(row.created_at),
+              delivery_title: canShowDelivery ? row.delivery_title : null,
+              delivery_message: canShowDelivery ? row.delivery_message : null,
+              delivered_at: canShowDelivery ? toDateString(row.delivered_at) : null,
+              reviewed_at: toDateString(row.reviewed_at),
+              review_note: row.review_note,
+            };
+          })
         : data.rows.map(row => ({
             id: row.id,
             order_number: row.order_number,

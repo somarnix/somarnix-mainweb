@@ -184,6 +184,7 @@ export default function ProductDetailPage({
   onOpenSellerBlog?: (sellerId: number | string) => void;
   onCartChanged?: () => void;
 }) {
+  const GLOBAL_LOGIN_MAX_DEVICES = 10;
   const { t, language } = useLanguage();
   const { formatPrice } = useCurrency();
   const { user } = useAuth();
@@ -488,6 +489,21 @@ export default function ProductDetailPage({
       return;
     }
     window.location.href = `/product/${encodeURIComponent(s)}`;
+  };
+
+  const formatToolVariantDeviceLabel = (variant: Variant): string => {
+    const isUnlimited = Number(variant.is_unlimited_device ?? 0) === 1;
+    const raw = Number(variant.device_limit ?? 0);
+    const itemMax = isUnlimited
+      ? GLOBAL_LOGIN_MAX_DEVICES
+      : Number.isFinite(raw) && raw > 0
+        ? Math.floor(raw)
+        : 1;
+    const effective = Math.min(itemMax, GLOBAL_LOGIN_MAX_DEVICES);
+    if (isUnlimited) {
+      return `Unlimited device (max ${GLOBAL_LOGIN_MAX_DEVICES} devices)`;
+    }
+    return `Max ${effective} devices`;
   };
 
   const openSellerBlog = (id: number | null | undefined) => {
@@ -804,6 +820,9 @@ export default function ProductDetailPage({
                                   {v.duration_note || v.device_label}
                                 </div>
                               )}
+                              <div className="text-sm text-gray-600 dark:text-gray-300 mt-1">
+                                {formatToolVariantDeviceLabel(v)}
+                              </div>
                             </div>
 
                             <div className="text-right">

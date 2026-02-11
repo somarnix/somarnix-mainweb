@@ -3,11 +3,13 @@
 "use client";
 
 import { useEffect, useMemo, useRef, useState } from "react";
+import PaginationNext from "@/app/components/PaginationNext";
 
 /* ================= TYPES ================= */
 
 type Level = "beginner" | "advanced" | "pro";
 type StatusFilter = "all" | "active" | "disabled";
+type StockFilter = "all" | "in_stock" | "out_stock" | "unlimited";
 type SortMode = "id_asc" | "id_desc" | "newest" | "price_low" | "price_high" | "title";
 
 type Category = { id: number; name: string };
@@ -93,10 +95,14 @@ function parseErrorMessage(data: unknown, fallback: string): string {
 }
 
 const STATUS_OPTIONS = ["all", "active", "disabled"] as const;
+const STOCK_OPTIONS = ["all", "in_stock", "out_stock", "unlimited"] as const;
 const SORT_OPTIONS = ["id_asc", "id_desc", "newest", "price_low", "price_high", "title"] as const;
 
 function isStatusFilter(v: string): v is StatusFilter {
   return (STATUS_OPTIONS as readonly string[]).includes(v);
+}
+function isStockFilter(v: string): v is StockFilter {
+  return (STOCK_OPTIONS as readonly string[]).includes(v);
 }
 function isSortMode(v: string): v is SortMode {
   return (SORT_OPTIONS as readonly string[]).includes(v);
@@ -115,6 +121,7 @@ function getErrorMessage(err: unknown): string {
 
 const DEFAULT_KH_QR = "/paymentQR/khmer_qr.jpg";
 const USD_QR_NONE = "none";
+const GLOBAL_MAX_DEVICES = 10;
 
 function normalizeOrderFields(raw?: string | null): OrderField[] {
   if (!raw || typeof raw !== "string") return [];
@@ -178,6 +185,7 @@ export default function AdminProductsPage({
 }: {
   mode?: "products" | "tools";
 } = {}) {
+  const PAGE_SIZE = 10;
   const isToolsMode = mode === "tools";
   const [products, setProducts] = useState<Product[]>([]);
   const [categories, setCategories] = useState<Category[]>([]);
@@ -189,7 +197,11 @@ export default function AdminProductsPage({
   /* ================= UI STATE ================= */
   const [q, setQ] = useState("");
   const [status, setStatus] = useState<StatusFilter>("all");
+  const [stockFilter, setStockFilter] = useState<StockFilter>("all");
+  const [slugFilter, setSlugFilter] = useState("all");
+  const [categoryFilter, setCategoryFilter] = useState("all");
   const [sort, setSort] = useState<SortMode>("newest");
+  const [page, setPage] = useState(1);
 
   /* ================= CREATE MODAL ================= */
   const [createOpen, setCreateOpen] = useState(false);
@@ -223,6 +235,7 @@ export default function AdminProductsPage({
   // create variant form (inside edit modal)
   const [vDurationLabel, setVDurationLabel] = useState("");
   const [vDurationNote, setVDurationNote] = useState("");
+  const [vAccessType, setVAccessType] = useState<"lifetime" | "months">("months");
   const [vDurationDays, setVDurationDays] = useState<string>("");
 
   const [vDeviceLabel, setVDeviceLabel] = useState("");
@@ -684,7 +697,10 @@ export default function AdminProductsPage({
 
   const createVariant = async (productId: number) => {
     // Products require duration; tools can use duration or device label.
-    const hasDuration = !!vDurationLabel.trim();
+    const normalizedDurationLabel =
+      vDurationLabel.trim() ||
+      (isToolsMode ? (vAccessType === "lifetime" ? "Lifetime" : "Monthly") : "");
+    const hasDuration = !!normalizedDurationLabel.trim();
     const hasDevice = isToolsMode && !!vDeviceLabel.trim();
     if (!hasDuration && !hasDevice) {
       alert(
@@ -708,27 +724,52 @@ export default function AdminProductsPage({
     }
 
     const dDays = vDurationDays.trim() ? Number(vDurationDays) : null;
-    if (dDays !== null && (!Number.isFinite(dDays) || dDays < 0)) {
+    if (!isToolsMode && dDays !== null && (!Number.isFinite(dDays) || dDays < 0)) {
       alert("Invalid duration days");
       return;
     }
+    if (
+      isToolsMode &&
+      vAccessType === "months" &&
+      (dDays === null || !Number.isFinite(dDays) || dDays <= 0)
+    ) {
+      alert("Monthly plan needs duration days > 0");
+      return;
+    }
+    const finalDurationDays = isToolsMode ? (vAccessType === "months" ? dDays : null) : dDays;
 
     const dLimit = vDeviceLimit.trim() ? Number(vDeviceLimit) : null;
-    if (dLimit !== null && (!Number.isFinite(dLimit) || dLimit < 0)) {
+    if (!isToolsMode && dLimit !== null && (!Number.isFinite(dLimit) || dLimit < 0)) {
       alert("Invalid device limit");
       return;
+    }
+    let finalDeviceLimit: number | null = null;
+    if (isToolsMode) {
+      if (vUnlimitedDevice) {
+        finalDeviceLimit = GLOBAL_MAX_DEVICES;
+      } else if (
+        dLimit === null ||
+        !Number.isFinite(dLimit) ||
+        dLimit < 1 ||
+        dLimit > GLOBAL_MAX_DEVICES
+      ) {
+        alert(`Device limit must be between 1 and ${GLOBAL_MAX_DEVICES}`);
+        return;
+      } else {
+        finalDeviceLimit = Math.floor(dLimit);
+      }
     }
 
     try {
       setVariantsSaving(true);
 
       const payload = {
-        duration_label: hasDuration ? vDurationLabel.trim() : null,
+        duration_label: hasDuration ? normalizedDurationLabel : null,
         duration_note: vDurationNote.trim() ? vDurationNote.trim() : null,
-        duration_days: dDays,
+        duration_days: finalDurationDays,
         device_label: isToolsMode && hasDevice ? vDeviceLabel.trim() : null,
         device_type: isToolsMode ? vDeviceType : "any",
-        device_limit: isToolsMode ? dLimit : null,
+        device_limit: isToolsMode ? finalDeviceLimit : null,
         is_unlimited_device: isToolsMode && vUnlimitedDevice ? 1 : 0,
         original_price: origNum,
         price: priceNum,
@@ -749,6 +790,7 @@ export default function AdminProductsPage({
       // clear form
       setVDurationLabel("");
       setVDurationNote("");
+      setVAccessType("months");
       setVDurationDays("");
       setVDeviceLabel("");
       setVDeviceType("any");
@@ -846,8 +888,10 @@ export default function AdminProductsPage({
     setVariants([]);
     setVDurationLabel("");
     setVDurationNote("");
+    setVAccessType("months");
     setVDurationDays("");
     setVDeviceLabel("");
+    setVDeviceType("any");
     setVDeviceLimit("");
     setVUnlimitedDevice(0);
     setVOriginalPrice("");
@@ -876,6 +920,7 @@ export default function AdminProductsPage({
     setVariantsSaving(false);
     setVDurationLabel("");
     setVDurationNote("");
+    setVAccessType("months");
     setVDurationDays("");
     setVDeviceLabel("");
     setVDeviceType("any");
@@ -1010,6 +1055,22 @@ export default function AdminProductsPage({
       ),
     [products, isToolsMode]
   );
+  const slugOptions = useMemo(() => {
+    const set = new Set<string>(["all"]);
+    for (const p of scopedProducts) {
+      const slug = String(p.slug || "").trim();
+      if (slug) set.add(slug);
+    }
+    return Array.from(set);
+  }, [scopedProducts]);
+  const categoryOptions = useMemo(() => {
+    const set = new Set<string>(["all"]);
+    for (const p of scopedProducts) {
+      const c = String(p.category_name || "").trim().toLowerCase();
+      if (c) set.add(c);
+    }
+    return Array.from(set);
+  }, [scopedProducts]);
   /* ================= FILTER + SORT ================= */
 
   const filtered = useMemo(() => {
@@ -1018,6 +1079,25 @@ export default function AdminProductsPage({
 
     if (status !== "all") {
       arr = arr.filter((p) => (status === "active" ? !!p.is_active : !p.is_active));
+    }
+
+    if (stockFilter !== "all") {
+      arr = arr.filter((p) => {
+        const isUnlimited = Number(p.is_unlimited_stock) === 1;
+        const qty = Number.isFinite(Number(p.stock_qty)) ? Number(p.stock_qty) : 0;
+        if (stockFilter === "unlimited") return isUnlimited;
+        if (stockFilter === "in_stock") return !isUnlimited && qty > 0;
+        if (stockFilter === "out_stock") return !isUnlimited && qty <= 0;
+        return true;
+      });
+    }
+
+    if (slugFilter !== "all") {
+      arr = arr.filter((p) => String(p.slug || "") === slugFilter);
+    }
+
+    if (categoryFilter !== "all") {
+      arr = arr.filter((p) => String(p.category_name || "").trim().toLowerCase() === categoryFilter);
     }
 
     if (needle) {
@@ -1051,7 +1131,110 @@ export default function AdminProductsPage({
     });
 
     return arr;
-  }, [scopedProducts, q, status, sort]);
+  }, [scopedProducts, q, status, stockFilter, slugFilter, categoryFilter, sort]);
+
+  const totalFiltered = filtered.length;
+  const totalPages = Math.max(1, Math.ceil(totalFiltered / PAGE_SIZE));
+  const safePage = Math.min(page, totalPages);
+  const pagedProducts = filtered.slice((safePage - 1) * PAGE_SIZE, safePage * PAGE_SIZE);
+
+  useEffect(() => {
+    setPage(1);
+  }, [q, status, stockFilter, slugFilter, categoryFilter, sort]);
+
+  useEffect(() => {
+    if (page > totalPages) setPage(totalPages);
+  }, [page, totalPages]);
+
+  const escapeHtml = (value: unknown) =>
+    String(value ?? "")
+      .replace(/&/g, "&amp;")
+      .replace(/</g, "&lt;")
+      .replace(/>/g, "&gt;")
+      .replace(/"/g, "&quot;")
+      .replace(/'/g, "&#39;");
+
+  const exportFilteredToExcel = () => {
+    const headers = ["ID", "Title", "Slug", "Category", "Price", "Stock", "Status", "Created"];
+    const rows = filtered.map((p) => {
+      const qty = Number.isFinite(Number(p.stock_qty)) ? Number(p.stock_qty) : 0;
+      const stockLabel = p.is_unlimited_stock
+        ? "Unlimited stock"
+        : qty > 0
+          ? `In stock (${qty})`
+          : "Out stock";
+      return [
+        `#${p.id}`,
+        p.title || "-",
+        p.slug || "-",
+        p.category_name || "-",
+        p.min_price == null ? "No price" : formatMoney(p.min_price),
+        stockLabel,
+        p.is_active ? "Active" : "Disabled",
+        p.created_at ? new Date(p.created_at).toLocaleString() : "-",
+      ];
+    });
+
+    const tableHeader = `<tr>${headers
+      .map((h) => `<th style="background:#0f766e;color:#fff;font-weight:700;text-align:left;padding:9px 10px;border:1px solid #cbd5e1;">${escapeHtml(h)}</th>`)
+      .join("")}</tr>`;
+    const tableBody = rows
+      .map(
+        (row, rowIndex) =>
+          `<tr>${row
+            .map((cell) => {
+              const background = rowIndex % 2 === 0 ? "#ffffff" : "#f8fafc";
+              return `<td style="vertical-align:top;text-align:left;padding:8px 10px;border:1px solid #e2e8f0;background:${background};">${escapeHtml(cell)}</td>`;
+            })
+            .join("")}</tr>`
+      )
+      .join("");
+
+    const generatedAt = new Date().toLocaleString("en-US", {
+      year: "numeric",
+      month: "short",
+      day: "2-digit",
+      hour: "2-digit",
+      minute: "2-digit",
+    });
+    const filterSummary = [
+      `Mode: ${isToolsMode ? "tools" : "products"}`,
+      `Status: ${status}`,
+      `Stock: ${stockFilter}`,
+      `Slug: ${slugFilter}`,
+      `Category: ${categoryFilter}`,
+      `Sort: ${sort}`,
+      `Search: ${q.trim() || "-"}`,
+    ].join(" | ");
+
+    const html = `
+<html>
+  <head><meta charset="utf-8" /></head>
+  <body style="background:#ffffff;margin:16px;">
+    <div style="font-family:Calibri,Arial,sans-serif;">
+      <h2 style="margin:0 0 4px 0;color:#0f172a;">${isToolsMode ? "Tools" : "Products"} Report</h2>
+      <p style="margin:0 0 2px 0;color:#475569;font-size:12px;">Generated: ${escapeHtml(generatedAt)}</p>
+      <p style="margin:0 0 10px 0;color:#475569;font-size:12px;">${escapeHtml(filterSummary)}</p>
+    </div>
+    <table border="1" cellspacing="0" cellpadding="0" style="border-collapse:collapse;font-family:Calibri,Arial,sans-serif;font-size:12px;min-width:1100px;">
+      ${tableHeader}
+      ${tableBody}
+    </table>
+  </body>
+</html>`;
+
+    const blob = new Blob([`\uFEFF${html}`], {
+      type: "application/vnd.ms-excel;charset=utf-8;",
+    });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement("a");
+    a.href = url;
+    a.download = `${isToolsMode ? "tools" : "products"}_report.xls`;
+    document.body.appendChild(a);
+    a.click();
+    a.remove();
+    URL.revokeObjectURL(url);
+  };
 
   /* ================= RENDER ================= */
 
@@ -1059,18 +1242,20 @@ export default function AdminProductsPage({
   if (error) return <div className="p-6 text-red-600">{error}</div>;
 
   return (
-    <div className="p-6">
+    <div className="max-w-7xl mx-auto px-4 py-12">
       {/* Header */}
       <div className="flex flex-col gap-3 md:flex-row md:items-center md:justify-between mb-5">
         <div>
           <h1 className="text-2xl font-bold">{isToolsMode ? "Tools" : "Products"}</h1>
           <div className="text-sm text-gray-500">
+            Filtered: <span className="font-medium text-gray-700">{totalFiltered}</span>
+            <span className="mx-1 text-gray-400">/</span>
             Total: <span className="font-medium text-gray-700">{scopedProducts.length}</span>
             {refreshing ? <span className="ml-2">Refreshing…</span> : null}
           </div>
         </div>
 
-        <div className="flex flex-col md:flex-row gap-2 md:items-center">
+        <div className="flex flex-col md:flex-row md:flex-wrap gap-2 md:items-center">
           <input
             value={q}
             onChange={(e) => setQ(e.target.value)}
@@ -1092,6 +1277,52 @@ export default function AdminProductsPage({
           </select>
 
           <select
+            value={stockFilter}
+            onChange={(e) => {
+              const v = e.target.value;
+              if (isStockFilter(v)) setStockFilter(v);
+            }}
+            className="border rounded-lg px-3 py-2 text-sm"
+          >
+            <option value="all">Stock: All</option>
+            <option value="in_stock">Stock: In stock</option>
+            <option value="out_stock">Stock: Out stock</option>
+            <option value="unlimited">Stock: Unlimited</option>
+          </select>
+
+          <select
+            value={slugFilter}
+            onChange={(e) => setSlugFilter(e.target.value)}
+            className="border rounded-lg px-3 py-2 text-sm md:w-[320px]"
+          >
+            <option value="all">Slug: All</option>
+            {slugOptions
+              .filter((s) => s !== "all")
+              .map((slug) => (
+                <option key={slug} value={slug}>
+                  {slug}
+                </option>
+              ))}
+          </select>
+
+          {!isToolsMode ? (
+            <select
+              value={categoryFilter}
+              onChange={(e) => setCategoryFilter(e.target.value)}
+              className="border rounded-lg px-3 py-2 text-sm md:w-[220px] capitalize"
+            >
+              <option value="all">Category: All</option>
+              {categoryOptions
+                .filter((c) => c !== "all")
+                .map((c) => (
+                  <option key={c} value={c} className="capitalize">
+                    {c}
+                  </option>
+                ))}
+            </select>
+          ) : null}
+
+          <select
             value={sort}
             onChange={(e) => {
               const v = e.target.value;
@@ -1108,10 +1339,27 @@ export default function AdminProductsPage({
           </select>
 
           <button
-            onClick={() => loadProducts({ silent: true })}
+            onClick={() => {
+              setQ("");
+              setStatus("all");
+              setStockFilter("all");
+              setSlugFilter("all");
+              setCategoryFilter("all");
+              setSort("newest");
+              setPage(1);
+              void loadProducts({ silent: true });
+            }}
             className="border rounded-lg px-3 py-2 text-sm hover:bg-gray-50"
           >
             Refresh
+          </button>
+
+          <button
+            onClick={exportFilteredToExcel}
+            className="border rounded-lg px-3 py-2 text-sm hover:bg-gray-50 disabled:opacity-50"
+            disabled={filtered.length === 0}
+          >
+            Export Excel
           </button>
 
           <button
@@ -1141,12 +1389,12 @@ export default function AdminProductsPage({
           <tbody>
             {filtered.length === 0 ? (
               <tr>
-                <td colSpan={6} className="p-8 text-center text-gray-500">
+                <td colSpan={7} className="p-8 text-center text-gray-500">
                   No products found
                 </td>
               </tr>
             ) : (
-              filtered.map((p) => (
+              pagedProducts.map((p) => (
                 <tr key={p.id} className="border-b last:border-b-0 hover:bg-gray-50">
                   <td className="p-3 text-sm text-gray-600">
                     #{p.id}
@@ -1189,10 +1437,24 @@ export default function AdminProductsPage({
 
                   <td className="p-3 text-sm text-gray-700">
                     {p.is_unlimited_stock ? (
-                      <span className="text-gray-600">Unlimited</span>
-                    ) : (
-                      <span>{Number.isFinite(Number(p.stock_qty)) ? Number(p.stock_qty) : 0}</span>
-                    )}
+                      <span className="inline-flex items-center rounded-full border border-sky-200 bg-sky-50 px-2 py-0.5 text-xs font-semibold text-sky-700">
+                        Unlimited stock
+                      </span>
+                    ) : (() => {
+                      const qty = Number.isFinite(Number(p.stock_qty)) ? Number(p.stock_qty) : 0;
+                      if (qty > 0) {
+                        return (
+                          <span className="inline-flex items-center rounded-full border border-emerald-200 bg-emerald-50 px-2 py-0.5 text-xs font-semibold text-emerald-700">
+                            In stock ({qty})
+                          </span>
+                        );
+                      }
+                      return (
+                        <span className="inline-flex items-center rounded-full border border-red-200 bg-red-50 px-2 py-0.5 text-xs font-semibold text-red-700">
+                          Out stock
+                        </span>
+                      );
+                    })()}
                   </td>
 
                   <td className="p-3 text-sm">
@@ -1247,6 +1509,17 @@ export default function AdminProductsPage({
           </tbody>
         </table>
       </div>
+
+      {filtered.length > PAGE_SIZE ? (
+        <PaginationNext
+          currentPage={safePage}
+          totalPages={totalPages}
+          totalItems={totalFiltered}
+          pageSize={PAGE_SIZE}
+          onPageChange={setPage}
+          enableKeyboardShortcuts
+        />
+      ) : null}
 
       {/* ================= CREATE MODAL ================= */}
       {createOpen ? (
@@ -1691,15 +1964,45 @@ export default function AdminProductsPage({
                           />
                         </div>
 
-                        <div>
-                          <label className="text-xs text-gray-600">Duration Days</label>
-                          <input
-                            type="number"
-                            value={vDurationDays}
-                            onChange={(e) => setVDurationDays(e.target.value)}
-                            className="mt-1 w-full border rounded-lg px-3 py-2 text-sm"
-                          />
-                        </div>
+                        {isToolsMode ? (
+                          <div>
+                            <label className="text-xs text-gray-600">Access Type</label>
+                            <select
+                              value={vAccessType}
+                              onChange={(e) => {
+                                const next = e.target.value === "lifetime" ? "lifetime" : "months";
+                                setVAccessType(next);
+                                if (next === "lifetime") setVDurationDays("");
+                              }}
+                              className="mt-1 w-full border rounded-lg px-3 py-2 text-sm"
+                            >
+                              <option value="lifetime">Lifetime</option>
+                              <option value="months">Monthly (days)</option>
+                            </select>
+                          </div>
+                        ) : null}
+
+                        {!isToolsMode || vAccessType === "months" ? (
+                          <div>
+                            <label className="text-xs text-gray-600">Duration Days</label>
+                            <input
+                              type="number"
+                              min={1}
+                              value={vDurationDays}
+                              onChange={(e) => setVDurationDays(e.target.value)}
+                              className="mt-1 w-full border rounded-lg px-3 py-2 text-sm"
+                            />
+                          </div>
+                        ) : (
+                          <div>
+                            <label className="text-xs text-gray-600">Duration Days</label>
+                            <input
+                              value="Lifetime"
+                              disabled
+                              className="mt-1 w-full border rounded-lg px-3 py-2 text-sm bg-gray-100 text-gray-500"
+                            />
+                          </div>
+                        )}
 
                         {isToolsMode ? (
                           <>
@@ -1734,8 +2037,20 @@ export default function AdminProductsPage({
                               <label className="text-xs text-gray-600">Device Limit</label>
                               <input
                                 type="number"
+                                min={1}
+                                max={GLOBAL_MAX_DEVICES}
                                 value={vDeviceLimit}
-                                onChange={(e) => setVDeviceLimit(e.target.value)}
+                                onChange={(e) => {
+                                  const raw = e.target.value;
+                                  setVDeviceLimit(raw);
+                                  const limit = Number(raw);
+                                  if (Number.isFinite(limit) && limit >= GLOBAL_MAX_DEVICES) {
+                                    setVDeviceLimit(String(GLOBAL_MAX_DEVICES));
+                                    setVUnlimitedDevice(1);
+                                  } else {
+                                    setVUnlimitedDevice(0);
+                                  }
+                                }}
                                 disabled={!!vUnlimitedDevice}
                                 className="mt-1 w-full border rounded-lg px-3 py-2 text-sm"
                               />
@@ -1745,9 +2060,15 @@ export default function AdminProductsPage({
                               <input
                                 type="checkbox"
                                 checked={!!vUnlimitedDevice}
-                                onChange={(e) => setVUnlimitedDevice(e.target.checked ? 1 : 0)}
+                                onChange={(e) => {
+                                  const checked = e.target.checked;
+                                  setVUnlimitedDevice(checked ? 1 : 0);
+                                  if (checked) setVDeviceLimit(String(GLOBAL_MAX_DEVICES));
+                                }}
                               />
-                              <span className="text-sm">Unlimited device</span>
+                              <span className="text-sm">
+                                Unlimited device (max {GLOBAL_MAX_DEVICES})
+                              </span>
                             </div>
                           </>
                         ) : null}
@@ -1868,6 +2189,7 @@ export default function AdminProductsPage({
                           onClick={() => {
     setVDurationLabel("");
     setVDurationNote("");
+    setVAccessType("months");
     setVDurationDays("");
     setVDeviceLabel("");
     setVDeviceType("any");
@@ -1888,16 +2210,49 @@ export default function AdminProductsPage({
                         onClick={async () => {
                           if (!editing) return;
 
-                          // SAME validation you already have
+                          const normalizedDurationLabel =
+                            vDurationLabel.trim() ||
+                            (isToolsMode ? (vAccessType === "lifetime" ? "Lifetime" : "Monthly") : "");
+                          const durationDaysRaw = vDurationDays.trim() ? Number(vDurationDays) : null;
+                          if (
+                            isToolsMode &&
+                            vAccessType === "months" &&
+                            (durationDaysRaw === null ||
+                              !Number.isFinite(durationDaysRaw) ||
+                              durationDaysRaw <= 0)
+                          ) {
+                            alert("Monthly plan needs duration days > 0");
+                            return;
+                          }
+                          const finalDurationDays = isToolsMode
+                            ? (vAccessType === "months" ? durationDaysRaw : null)
+                            : durationDaysRaw;
+                          const deviceLimitRaw = vDeviceLimit.trim() ? Number(vDeviceLimit) : null;
+                          let finalDeviceLimit: number | null = null;
+                          if (isToolsMode) {
+                            if (vUnlimitedDevice) {
+                              finalDeviceLimit = GLOBAL_MAX_DEVICES;
+                            } else if (
+                              deviceLimitRaw === null ||
+                              !Number.isFinite(deviceLimitRaw) ||
+                              deviceLimitRaw < 1 ||
+                              deviceLimitRaw > GLOBAL_MAX_DEVICES
+                            ) {
+                              alert(`Device limit must be between 1 and ${GLOBAL_MAX_DEVICES}`);
+                              return;
+                            } else {
+                              finalDeviceLimit = Math.floor(deviceLimitRaw);
+                            }
+                          }
+
                           const payload = {
-                            duration_label: vDurationLabel.trim() || null,
+                            duration_label: normalizedDurationLabel || null,
                             duration_note: vDurationNote.trim() || null,
-                            duration_days: vDurationDays ? Number(vDurationDays) : null,
+                            duration_days: finalDurationDays,
                             device_label:
                               isToolsMode && vDeviceLabel.trim() ? vDeviceLabel.trim() : null,
                             device_type: isToolsMode ? vDeviceType : "any",
-                            device_limit:
-                              isToolsMode && vDeviceLimit ? Number(vDeviceLimit) : null,
+                            device_limit: isToolsMode ? finalDeviceLimit : null,
                             is_unlimited_device: isToolsMode && vUnlimitedDevice ? 1 : 0,
                             original_price: Number(vOriginalPrice),
                             price: Number(vPrice),
@@ -1925,6 +2280,7 @@ export default function AdminProductsPage({
                             setEditingVariant(null);
                             setVDurationLabel("");
                             setVDurationNote("");
+                            setVAccessType("months");
                             setVDurationDays("");
                             setVDeviceLabel("");
                             setVDeviceType("any");
@@ -1983,6 +2339,17 @@ export default function AdminProductsPage({
                                   <div className="font-medium">
                                     {v.duration_label || (isToolsMode ? v.device_label : null) || `Variant #${v.id}`}
                                   </div>
+                                  {isToolsMode ? (
+                                    <div className="text-[11px] text-gray-500 mt-1">
+                                      {typeof v.duration_days === "number" && v.duration_days > 0
+                                        ? `Monthly (${v.duration_days} days)`
+                                        : "Lifetime"}{" "}
+                                      | Max devices:{" "}
+                                      {v.is_unlimited_device
+                                        ? `Unlimited (max ${GLOBAL_MAX_DEVICES})`
+                                        : Math.max(1, Number(v.device_limit ?? 1))}
+                                    </div>
+                                  ) : null}
                                 </td>
 
                                 <td className="p-2">
@@ -2014,6 +2381,9 @@ export default function AdminProductsPage({
 
         setVDurationLabel(v.duration_label ?? "");
         setVDurationNote(v.duration_note ?? "");
+        setVAccessType(
+          typeof v.duration_days === "number" && v.duration_days > 0 ? "months" : "lifetime"
+        );
         setVDurationDays(
           typeof v.duration_days === "number" ? String(v.duration_days) : ""
         );
@@ -2024,10 +2394,15 @@ export default function AdminProductsPage({
             ? (v.device_type as "any" | "pc" | "phone" | "both")
             : "any"
         );
+        const unlimited = v.is_unlimited_device ? 1 : 0;
+        setVUnlimitedDevice(unlimited);
         setVDeviceLimit(
-          typeof v.device_limit === "number" ? String(v.device_limit) : ""
+          unlimited
+            ? String(GLOBAL_MAX_DEVICES)
+            : typeof v.device_limit === "number"
+              ? String(v.device_limit)
+              : ""
         );
-        setVUnlimitedDevice(v.is_unlimited_device ? 1 : 0);
 
         setVOriginalPrice(
           v.original_price != null ? String(v.original_price) : ""

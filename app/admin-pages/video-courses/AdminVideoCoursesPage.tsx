@@ -53,6 +53,9 @@ type CoursePlan = {
   access_type: "lifetime" | "months";
   duration_days: number | null;
   price: number | string;
+  device_count?: number;
+  max_devices?: number | null;
+  is_unlimited_device?: number;
   khqr?: string | null;
   usdqr?: string | null;
   is_active: number;
@@ -111,6 +114,7 @@ export default function AdminVideoCoursesPage({
   courseId?: number;
   onBack?: () => void;
 } = {}) {
+  const GLOBAL_LOGIN_MAX_DEVICES = 10;
   const [courses, setCourses] = useState<VideoCourse[]>([]);
   const [selectedId, setSelectedId] = useState<number | null>(null);
   const [sections, setSections] = useState<Section[]>([]);
@@ -153,7 +157,11 @@ export default function AdminVideoCoursesPage({
   const [lessonEditFree, setLessonEditFree] = useState(false);
 
   const [planName, setPlanName] = useState("Lifetime");
+  const [planAccessType, setPlanAccessType] = useState<"lifetime" | "months">("lifetime");
+  const [planDurationDays, setPlanDurationDays] = useState("");
   const [planPrice, setPlanPrice] = useState("");
+  const [planMaxDevices, setPlanMaxDevices] = useState("3");
+  const [planUnlimitedDevice, setPlanUnlimitedDevice] = useState(false);
   const [planKhqr, setPlanKhqr] = useState("/paymentQR/khmer_qr.jpg");
   const [planUsdqr, setPlanUsdqr] = useState("none");
   const [editingPlan, setEditingPlan] = useState<CoursePlan | null>(null);
@@ -174,6 +182,7 @@ export default function AdminVideoCoursesPage({
   const [subKhqr, setSubKhqr] = useState(DEFAULT_KH_QR);
   const [subUsdqr, setSubUsdqr] = useState(USD_QR_NONE);
   const [editingSubscription, setEditingSubscription] = useState<SubscriptionPlan | null>(null);
+  const [managementTab, setManagementTab] = useState<"courses" | "subscriptions">("courses");
 
   const selectedCourse = useMemo(
     () => courses.find((c) => c.id === selectedId) ?? null,
@@ -221,8 +230,17 @@ export default function AdminVideoCoursesPage({
     const res = await fetch(`/api/admin/video-courses/${courseId}/plans`, {
       credentials: "include",
     });
-    const data = await res.json();
-    setPlans(res.ok ? data.plans ?? [] : []);
+    const data: unknown = await res.json().catch(() => ({}));
+    if (!res.ok) {
+      setPlans([]);
+      toast.error(parseErrorMessage(data, "Failed to load plans"));
+      return;
+    }
+    const plansRaw =
+      typeof data === "object" && data !== null && "plans" in data
+        ? (data as { plans?: unknown }).plans
+        : [];
+    setPlans(Array.isArray(plansRaw) ? (plansRaw as CoursePlan[]) : []);
   };
 
   const loadSubscriptionPlans = async () => {
@@ -242,12 +260,24 @@ export default function AdminVideoCoursesPage({
       setSelectedId(courseId);
     }
   }, [courseId, selectedId]);
+
+  useEffect(() => {
+    if (courseId) setManagementTab("courses");
+  }, [courseId]);
   useEffect(() => {
     if (!selectedId) return;
     void loadSections(selectedId);
     void loadLessons(selectedId);
     void loadPlans(selectedId);
   }, [selectedId]);
+
+  useEffect(() => {
+    if (!selectedCourse) {
+      setEditCourse(null);
+      return;
+    }
+    setEditCourse((prev) => (prev?.id === selectedCourse.id ? prev : selectedCourse));
+  }, [selectedCourse]);
 
   const createCourse = async () => {
     if (savingCourse) return;
@@ -497,6 +527,20 @@ export default function AdminVideoCoursesPage({
   const addPlan = async () => {
     if (!selectedId) return;
     if (savingPlan) return;
+    if (planAccessType === "months") {
+      const days = Number(planDurationDays);
+      if (!Number.isFinite(days) || days <= 0) {
+        toast.error("Duration days is required for monthly plan");
+        return;
+      }
+    }
+    if (!planUnlimitedDevice) {
+      const maxDevices = Number(planMaxDevices);
+      if (!Number.isFinite(maxDevices) || maxDevices <= 0) {
+        toast.error("Max devices must be a positive number");
+        return;
+      }
+    }
     setSavingPlan(true);
     const res = await fetch(`/api/admin/video-courses/${selectedId}/plans`, {
       method: "POST",
@@ -504,8 +548,11 @@ export default function AdminVideoCoursesPage({
       credentials: "include",
       body: JSON.stringify({
         name: planName,
-        access_type: "lifetime",
+        access_type: planAccessType,
+        duration_days: planAccessType === "months" ? Number(planDurationDays) : null,
         price: Number(planPrice),
+        max_devices: planUnlimitedDevice ? GLOBAL_LOGIN_MAX_DEVICES : Number(planMaxDevices),
+        is_unlimited_device: planUnlimitedDevice ? 1 : 0,
         khqr: planKhqr,
         usdqr: planUsdqr,
       }),
@@ -517,7 +564,11 @@ export default function AdminVideoCoursesPage({
       return;
     }
     setPlanName("Lifetime");
+    setPlanAccessType("lifetime");
+    setPlanDurationDays("");
     setPlanPrice("");
+    setPlanMaxDevices("3");
+    setPlanUnlimitedDevice(false);
     setPlanKhqr("/paymentQR/khmer_qr.jpg");
     setPlanUsdqr("none");
     await loadPlans(selectedId);
@@ -759,7 +810,7 @@ export default function AdminVideoCoursesPage({
   };
 
   return (
-    <div className="space-y-6">
+    <div className="max-w-7xl mx-auto px-4 py-12">
       <div className="flex items-center justify-between">
         <div>
           <h1 className="text-2xl font-bold">Video Courses</h1>
@@ -772,9 +823,35 @@ export default function AdminVideoCoursesPage({
           New Course
         </button>
       </div>
+      <div className="mt-3 flex flex-wrap gap-2">
+        <button
+          type="button"
+          onClick={() => setManagementTab("courses")}
+          className={`px-3 py-2 rounded-lg text-sm border ${
+            managementTab === "courses"
+              ? "bg-black text-white border-black"
+              : "bg-white text-gray-700 border-gray-200 hover:bg-gray-50"
+          }`}
+        >
+          Courses
+        </button>
+        <button
+          type="button"
+          onClick={() => setManagementTab("subscriptions")}
+          className={`px-3 py-2 rounded-lg text-sm border ${
+            managementTab === "subscriptions"
+              ? "bg-black text-white border-black"
+              : "bg-white text-gray-700 border-gray-200 hover:bg-gray-50"
+          }`}
+        >
+          Subscription plans (all courses)
+        </button>
+      </div>
 
       {error ? <div className="text-sm text-red-600">{error}</div> : null}
 
+      {managementTab === "courses" ? (
+      <>
       {!courseId ? (
         <div className="rounded-xl border bg-white p-4 space-y-3">
           <div className="flex items-center justify-between">
@@ -925,7 +1002,7 @@ export default function AdminVideoCoursesPage({
         </div>
       )}
 
-      <div className="space-y-6">
+      <div className="max-w-full mx-auto px-4 py-12">
         {courseId && selectedCourse ? (
           <>
               <div className="rounded-xl border bg-white p-4 space-y-4">
@@ -1397,12 +1474,64 @@ export default function AdminVideoCoursesPage({
                     onChange={(e) => setPlanName(e.target.value)}
                     placeholder="Plan name"
                   />
+                  <select
+                    className="border rounded-lg px-3 py-2 text-sm"
+                    value={planAccessType}
+                    onChange={(e) =>
+                      setPlanAccessType(e.target.value === "months" ? "months" : "lifetime")
+                    }
+                  >
+                    <option value="lifetime">Lifetime</option>
+                    <option value="months">Monthly (days)</option>
+                  </select>
+                  {planAccessType === "months" ? (
+                    <input
+                      className="border rounded-lg px-3 py-2 text-sm"
+                      value={planDurationDays}
+                      onChange={(e) => setPlanDurationDays(e.target.value)}
+                      placeholder="Duration days (example: 30)"
+                    />
+                  ) : (
+                    <div />
+                  )}
                   <input
                     className="border rounded-lg px-3 py-2 text-sm w-32"
                     value={planPrice}
                     onChange={(e) => setPlanPrice(e.target.value)}
                     placeholder="Price"
                   />
+                  <select
+                    className="border rounded-lg px-3 py-2 text-sm"
+                    value={planUnlimitedDevice ? String(GLOBAL_LOGIN_MAX_DEVICES) : planMaxDevices}
+                    onChange={(e) => {
+                      const value = e.target.value;
+                      setPlanMaxDevices(value);
+                      setPlanUnlimitedDevice(Number(value) === GLOBAL_LOGIN_MAX_DEVICES);
+                    }}
+                    disabled={planUnlimitedDevice}
+                  >
+                    {Array.from({ length: GLOBAL_LOGIN_MAX_DEVICES }, (_, idx) => {
+                      const value = String(idx + 1);
+                      return (
+                        <option key={value} value={value}>
+                          Max devices: {value}
+                        </option>
+                      );
+                    })}
+                  </select>
+                  <label className="inline-flex items-center gap-2 text-sm text-gray-700 px-1">
+                    <input
+                      type="checkbox"
+                      checked={planUnlimitedDevice}
+                      onChange={(e) => {
+                        setPlanUnlimitedDevice(e.target.checked);
+                        if (e.target.checked) {
+                          setPlanMaxDevices(String(GLOBAL_LOGIN_MAX_DEVICES));
+                        }
+                      }}
+                    />
+                    Unlimited devices
+                  </label>
                   <input
                     className="border rounded-lg px-3 py-2 text-sm"
                     value={planKhqr}
@@ -1513,7 +1642,25 @@ export default function AdminVideoCoursesPage({
                     <div className="flex items-center justify-between gap-2">
                       <div>
                         <div className="font-semibold text-gray-900">{plan.name}</div>
-                        <div className="text-xs text-gray-500">{formatMoney(plan.price)}</div>
+                        <div className="text-xs text-gray-500">
+                          {plan.access_type === "lifetime"
+                            ? "Lifetime"
+                            : `${plan.duration_days ?? 0} days`} - {formatMoney(plan.price)}
+                        </div>
+                        <div className="text-xs text-gray-500">
+                          Devices:{" "}
+                          {plan.is_unlimited_device === 1
+                            ? `Unlimited (max ${GLOBAL_LOGIN_MAX_DEVICES})`
+                            : Number.isFinite(Number(plan.max_devices))
+                              ? Math.max(1, Math.min(GLOBAL_LOGIN_MAX_DEVICES, Number(plan.max_devices)))
+                              : 3}
+                        </div>
+                        <div className="text-xs text-gray-500">
+                          Device count:{" "}
+                          {Number.isFinite(Number(plan.device_count))
+                            ? Math.max(0, Math.floor(Number(plan.device_count)))
+                            : 0}
+                        </div>
                       </div>
                       <span
                         className={`rounded-full px-2 py-0.5 text-[11px] ${
@@ -1533,7 +1680,21 @@ export default function AdminVideoCoursesPage({
                         onClick={() => {
                           setEditingPlan(plan);
                           setPlanName(plan.name);
+                          setPlanAccessType(plan.access_type === "months" ? "months" : "lifetime");
+                          setPlanDurationDays(
+                            plan.duration_days !== null && plan.duration_days !== undefined
+                              ? String(plan.duration_days)
+                              : ""
+                          );
                           setPlanPrice(String(plan.price ?? ""));
+                          setPlanMaxDevices(
+                            plan.is_unlimited_device === 1
+                              ? String(GLOBAL_LOGIN_MAX_DEVICES)
+                              : Number.isFinite(Number(plan.max_devices))
+                                ? String(Math.max(1, Math.min(GLOBAL_LOGIN_MAX_DEVICES, Number(plan.max_devices))))
+                                : "3"
+                          );
+                          setPlanUnlimitedDevice(plan.is_unlimited_device === 1);
                           setPlanKhqr(plan.khqr || DEFAULT_KH_QR);
                           setPlanUsdqr(plan.usdqr || USD_QR_NONE);
                         }}
@@ -1578,14 +1739,25 @@ export default function AdminVideoCoursesPage({
                             try {
                               await updatePlan(editingPlan.id, {
                                 name: planName,
+                                access_type: planAccessType,
+                                duration_days:
+                                  planAccessType === "months" ? Number(planDurationDays || 0) : null,
                                 price: Number(planPrice),
+                                max_devices: planUnlimitedDevice
+                                  ? GLOBAL_LOGIN_MAX_DEVICES
+                                  : Number(planMaxDevices || 0),
+                                is_unlimited_device: planUnlimitedDevice ? 1 : 0,
                                 khqr: planKhqr,
                                 usdqr: planUsdqr,
                               });
                               await loadPlans(selectedId);
                               setEditingPlan(null);
                               setPlanName("Lifetime");
+                              setPlanAccessType("lifetime");
+                              setPlanDurationDays("");
                               setPlanPrice("");
+                              setPlanMaxDevices("3");
+                              setPlanUnlimitedDevice(false);
                               setPlanKhqr(DEFAULT_KH_QR);
                               setPlanUsdqr(USD_QR_NONE);
                             } catch (err) {
@@ -1607,7 +1779,10 @@ export default function AdminVideoCoursesPage({
           </div>
         ) : null}
       </div>
+      </>
+      ) : null}
 
+      {managementTab === "subscriptions" ? (
       <div className="rounded-xl border bg-white p-4 space-y-4">
         <h2 className="font-semibold text-gray-900">Subscription plans (all courses)</h2>
         <div className="grid gap-3 lg:grid-cols-2">
@@ -1894,6 +2069,7 @@ export default function AdminVideoCoursesPage({
           </div>
         </div>
       </div>
+      ) : null}
 
       {createOpen && (
         <div className="fixed inset-0 bg-black/40 flex items-center justify-center z-50">

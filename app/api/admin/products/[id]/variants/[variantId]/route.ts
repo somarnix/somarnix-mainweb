@@ -8,6 +8,7 @@ export const dynamic = "force-dynamic";
 
 const DEFAULT_KH_QR = "/paymentQR/khmer_qr.jpg";
 const USD_QR_NONE = "none";
+const GLOBAL_MAX_DEVICES = 10;
 
 const DEVICE_FIELDS = [
   "device_label",
@@ -161,17 +162,27 @@ export async function PUT(req: Request, ctx: RouteCtx) {
 
         if (v === 1) {
           sets.push("device_limit = ?");
-          values.push(null);
+          values.push(GLOBAL_MAX_DEVICES);
         }
       }
 
       if ("device_limit" in b) {
+        if ("is_unlimited_device" in b && Number(b.is_unlimited_device) === 1) {
+          // Unlimited variants always use global cap.
+        } else {
         const v = b.device_limit === null ? null : toIntOrNull(b.device_limit);
         if (v !== null && v < 0) {
           return Response.json({ error: "Invalid device_limit" }, { status: 400 });
         }
+        if (toolsProduct && (v === null || v < 1 || v > GLOBAL_MAX_DEVICES)) {
+          return Response.json(
+            { error: `device_limit must be between 1 and ${GLOBAL_MAX_DEVICES}` },
+            { status: 400 }
+          );
+        }
         sets.push("device_limit = ?");
         values.push(v);
+        }
       }
     }
 

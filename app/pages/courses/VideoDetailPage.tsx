@@ -49,6 +49,8 @@ type ApiPlan = {
   access_type: string;
   duration_days: number | null;
   price: number | string;
+  max_devices?: number;
+  is_unlimited_device?: number;
   khqr?: string | null;
   usdqr?: string | null;
 };
@@ -97,6 +99,10 @@ type ApiAccess = {
   preview_count: number;
   active_subscription_plan_id?: number | null;
   pending_subscription_plan_id?: number | null;
+  active_course_plan_id?: number | null;
+  pending_course_plan_id?: number | null;
+  lifetime_course_purchased?: boolean;
+  course_order_number?: string | null;
 };
 
 type PendingPurchase = {
@@ -115,6 +121,20 @@ export function VideoDetailPage({
   onOpenOrderDetail,
   onOpenSellerBlog,
 }: VideoDetailPageProps) {
+  const GLOBAL_LOGIN_MAX_DEVICES = 10;
+  const getVideoDeviceId = (): string => {
+    if (typeof window === "undefined") return "";
+    const key = "gstech_video_device_id";
+    const existing = window.localStorage.getItem(key);
+    if (existing && existing.trim()) return existing;
+    const created =
+      typeof crypto !== "undefined" && "randomUUID" in crypto
+        ? crypto.randomUUID()
+        : `${Date.now()}-${Math.random().toString(16).slice(2)}`;
+    window.localStorage.setItem(key, created);
+    return created;
+  };
+
   const parseDurationLabelToSeconds = (raw: string | null | undefined): number => {
     if (!raw) return 0;
     const label = raw.trim().toLowerCase();
@@ -222,7 +242,9 @@ export function VideoDetailPage({
       setPurchasePending(null);
       setShowPaymentModal(false);
       try {
-        const res = await fetch(`/api/video-courses/${encodeURIComponent(slug)}`, {
+        const deviceId = getVideoDeviceId();
+        const query = deviceId ? `?deviceId=${encodeURIComponent(deviceId)}` : "";
+        const res = await fetch(`/api/video-courses/${encodeURIComponent(slug)}${query}`, {
           cache: "no-store",
           credentials: "include",
         });
@@ -323,6 +345,8 @@ export function VideoDetailPage({
     const found = plans.find((plan) => plan.id === selectedCoursePlanId);
     return found ?? plans[0] ?? null;
   }, [plans, selectedCoursePlanId]);
+  const lifetimeCoursePurchased = !!access?.lifetime_course_purchased;
+  const canBuyCoursePlan = !lifetimeCoursePurchased && !!selectedCoursePlan && !purchaseLoading;
 
   const selectedSubscriptionPlan = useMemo(() => {
     if (!subscriptionPlans.length) return null;
@@ -379,6 +403,21 @@ export function VideoDetailPage({
     if (plan.access_type === "lifetime") return "Lifetime access";
     const duration = formatPlanDuration(plan.duration_days);
     return duration ? `${duration} access` : "Limited access";
+  };
+
+  const formatCoursePlanDeviceLabel = (plan: ApiPlan) => {
+    const isUnlimited = Number(plan.is_unlimited_device ?? 0) === 1;
+    const raw = Number(plan.max_devices ?? 0);
+    const itemMax = isUnlimited
+      ? GLOBAL_LOGIN_MAX_DEVICES
+      : Number.isFinite(raw) && raw > 0
+        ? Math.floor(raw)
+        : 1;
+    const effective = Math.min(itemMax, GLOBAL_LOGIN_MAX_DEVICES);
+    if (isUnlimited) {
+      return `Unlimited device (max ${GLOBAL_LOGIN_MAX_DEVICES} devices)`;
+    }
+    return `Max ${effective} devices`;
   };
 
   const openSellerBlog = (sellerId: number | null | undefined) => {
@@ -654,7 +693,7 @@ export function VideoDetailPage({
             {/* WHAT YOU'LL LEARN */}
             <div className="rounded-2xl border border-gray-200 bg-white p-6 shadow-sm">
               <div className="flex items-center justify-between gap-3 mb-4">
-                <h2 className="text-lg font-semibold text-gray-900">What you'll learn</h2>
+                <h2 className="text-lg font-semibold text-gray-900">What you&apos;ll learn</h2>
                 <span className="text-xs text-gray-500">Key outcomes</span>
               </div>
 
@@ -829,6 +868,12 @@ export function VideoDetailPage({
                   You already have access to this course.
                 </div>
               ) : null}
+              {lifetimeCoursePurchased ? (
+                <div className="mt-2 rounded-xl border border-blue-200 bg-blue-50 px-3 py-2 text-xs text-blue-700">
+                  Lifetime plan already purchased.
+                  {access?.course_order_number ? ` Order no: ${access.course_order_number}` : ""}
+                </div>
+              ) : null}
 
               {plans.length > 0 && (
                 <div className="mt-4 space-y-2">
@@ -852,6 +897,9 @@ export function VideoDetailPage({
                             <div className="text-[11px] text-gray-500">
                               {formatCoursePlanLabel(plan)}
                             </div>
+                            <div className="text-[11px] text-gray-500">
+                              {formatCoursePlanDeviceLabel(plan)}
+                            </div>
                           </div>
                           <div className="text-xs font-semibold text-gray-900">
                             {Number(plan.price ?? 0) === 0
@@ -866,9 +914,13 @@ export function VideoDetailPage({
                   <button
                     className="w-full rounded-xl bg-gradient-to-r from-indigo-600 to-purple-600 text-white py-3 text-sm font-semibold hover:opacity-95 disabled:opacity-60"
                     onClick={() => handlePurchase("course", selectedCoursePlan)}
-                    disabled={purchaseLoading || !selectedCoursePlan}
+                    disabled={!canBuyCoursePlan}
                   >
-                    Buy this course
+                    {lifetimeCoursePurchased
+                      ? "Lifetime already purchased"
+                      : access?.has_course_access
+                        ? "Upgrade this course"
+                        : "Buy this course"}
                   </button>
                 </div>
               )}

@@ -8,6 +8,7 @@ export const dynamic = "force-dynamic";
 
 const DEFAULT_KH_QR = "/paymentQR/khmer_qr.jpg";
 const USD_QR_NONE = "none";
+const GLOBAL_MAX_DEVICES = 10;
 
 const DEVICE_COLUMNS = [
   "device_label",
@@ -213,8 +214,25 @@ export async function POST(req: Request, ctx: RouteCtx) {
       return Response.json({ error: "Invalid device_limit" }, { status: 400 });
     }
 
-    const finalDeviceLimit = is_unlimited_device ? null : device_limit;
     const toolsProduct = await isToolsProduct(productId);
+    if (toolsProduct && !is_unlimited_device) {
+      if (
+        device_limit === null ||
+        !Number.isFinite(device_limit) ||
+        device_limit < 1 ||
+        device_limit > GLOBAL_MAX_DEVICES
+      ) {
+        return Response.json(
+          { error: `device_limit must be between 1 and ${GLOBAL_MAX_DEVICES}` },
+          { status: 400 }
+        );
+      }
+    }
+    const finalDeviceLimit = is_unlimited_device
+      ? GLOBAL_MAX_DEVICES
+      : toolsProduct && device_limit !== null
+        ? Math.floor(device_limit)
+        : device_limit;
     const tableName = toolsProduct ? "tool_variants" : "product_variants";
     const withDeviceColumns = toolsProduct ? true : await hasAllDeviceColumns();
 

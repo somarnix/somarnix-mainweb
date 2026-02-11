@@ -1,6 +1,7 @@
 "use client";
 
 import { useCallback, useEffect, useMemo, useState } from "react";
+import PaginationNext from "@/app/components/PaginationNext";
 
 type Tool = {
   id: number;
@@ -22,15 +23,18 @@ type License = {
   order_number?: string | null;
   product_id: number;
   product_title: string;
+  product_slug?: string;
   user_id: number;
   user_email: string;
   user_username: string | null;
   license_key: string;
   last_device_id: string | null;
+  device_count?: number | null;
   max_devices: number;
   status: "active" | "revoked" | "expired";
   expires_at: string | null;
   created_at: string;
+  category_name?: string | null;
 };
 
 type ApiResponse = {
@@ -39,8 +43,23 @@ type ApiResponse = {
   licenses?: License[];
   error?: string;
 };
+const MONTH_OPTIONS = [
+  { value: "1", label: "January" },
+  { value: "2", label: "February" },
+  { value: "3", label: "March" },
+  { value: "4", label: "April" },
+  { value: "5", label: "May" },
+  { value: "6", label: "June" },
+  { value: "7", label: "July" },
+  { value: "8", label: "August" },
+  { value: "9", label: "September" },
+  { value: "10", label: "October" },
+  { value: "11", label: "November" },
+  { value: "12", label: "December" },
+];
 
 export default function AdminToolLicensesPage() {
+  const PAGE_SIZE = 5;
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState("");
@@ -59,6 +78,10 @@ export default function AdminToolLicensesPage() {
   const [userQuery, setUserQuery] = useState("");
   const [licenseQuery, setLicenseQuery] = useState("");
   const [statusFilter, setStatusFilter] = useState<"all" | "active" | "expired" | "revoked">("all");
+  const [slugFilter, setSlugFilter] = useState("all");
+  const [monthFilter, setMonthFilter] = useState("all");
+  const [yearFilter, setYearFilter] = useState("all");
+  const [page, setPage] = useState(1);
   const [editingLicense, setEditingLicense] = useState<License | null>(null);
   const [editLicenseKey, setEditLicenseKey] = useState("");
   const [editMaxDevices, setEditMaxDevices] = useState("");
@@ -80,6 +103,40 @@ export default function AdminToolLicensesPage() {
     });
   }, [users, userQuery]);
 
+  const getYearMonthKey = (value?: string | null) => {
+    const raw = String(value || "").trim();
+    if (!raw) return { year: "", month: "" };
+    const dt = new Date(raw);
+    if (!Number.isNaN(dt.getTime())) {
+      const year = String(dt.getFullYear());
+      const month = String(dt.getMonth() + 1).padStart(2, "0");
+      return { year, month: `${year}-${month}` };
+    }
+    const m = raw.match(/(\d{4})-(\d{2})/);
+    if (m) return { year: m[1], month: `${m[1]}-${m[2]}` };
+    return { year: "", month: "" };
+  };
+
+  const slugOptions = useMemo(() => {
+    const set = new Set<string>(["all"]);
+    for (const l of licenses) {
+      const slug = String(l.product_slug || "").trim().toLowerCase();
+      if (slug) set.add(slug);
+    }
+    return Array.from(set);
+  }, [licenses]);
+
+  const monthOptions = MONTH_OPTIONS;
+
+  const yearOptions = useMemo(() => {
+    const set = new Set<string>();
+    for (const l of licenses) {
+      const { year } = getYearMonthKey(l.created_at);
+      if (year) set.add(year);
+    }
+    return Array.from(set).sort((a, b) => (a < b ? 1 : -1));
+  }, [licenses]);
+
   const displayedLicenses = useMemo(() => {
     const q = licenseQuery.trim().toLowerCase();
     const now = Date.now();
@@ -90,6 +147,19 @@ export default function AdminToolLicensesPage() {
             ? "expired"
             : l.status;
         if (statusFilter !== "all" && effectiveStatus !== statusFilter) return false;
+        if (slugFilter !== "all") {
+          const slug = String(l.product_slug || "").trim().toLowerCase();
+          if (slug !== slugFilter) return false;
+        }
+        if (monthFilter !== "all") {
+          const { month } = getYearMonthKey(l.created_at);
+          const monthNumber = month ? String(Number(month.split("-")[1])) : "";
+          if (monthNumber !== monthFilter) return false;
+        }
+        if (yearFilter !== "all") {
+          const { year } = getYearMonthKey(l.created_at);
+          if (year !== yearFilter) return false;
+        }
         if (!q) return true;
         return (
           l.product_title.toLowerCase().includes(q) ||
@@ -106,7 +176,26 @@ export default function AdminToolLicensesPage() {
             : l.status;
         return { ...l, effectiveStatus };
       });
-  }, [licenses, licenseQuery, statusFilter]);
+  }, [licenses, licenseQuery, statusFilter, slugFilter, monthFilter, yearFilter]);
+
+  const totalFiltered = displayedLicenses.length;
+  const filteredMaxDevicesSum = displayedLicenses.reduce(
+    (sum, l) => sum + (l.max_devices >= 9999 ? 0 : Number(l.max_devices || 0)),
+    0
+  );
+  const filteredUnlimitedCount = displayedLicenses.filter((l) => l.max_devices >= 9999).length;
+  const totalPages = Math.max(1, Math.ceil(totalFiltered / PAGE_SIZE));
+  const safePage = Math.min(page, totalPages);
+  const pageStart = (safePage - 1) * PAGE_SIZE;
+  const pagedLicenses = displayedLicenses.slice(pageStart, pageStart + PAGE_SIZE);
+
+  useEffect(() => {
+    setPage(1);
+  }, [licenseQuery, statusFilter, slugFilter, monthFilter, yearFilter]);
+
+  useEffect(() => {
+    if (page > totalPages) setPage(totalPages);
+  }, [page, totalPages]);
 
   const selectedTool = useMemo(
     () => tools.find((t) => String(t.id) === productId) || null,
@@ -273,33 +362,6 @@ export default function AdminToolLicensesPage() {
     }
   };
 
-  const revokeLicense = async (licenseId: number) => {
-    const ok = window.confirm("Revoke this license?");
-    if (!ok) return;
-    setSaving(true);
-    setError("");
-    try {
-      const res = await fetch("/api/tools/license/revoke", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        credentials: "include",
-        body: JSON.stringify({
-          licenseId,
-          reason: "admin_revoke_from_ui",
-        }),
-      });
-      const data = (await res.json()) as { ok?: boolean; error?: string };
-      if (!res.ok || !data.ok) {
-        throw new Error(data.error || "Failed to revoke license");
-      }
-      await load();
-    } catch (e) {
-      setError(e instanceof Error ? e.message : "Failed to revoke license");
-    } finally {
-      setSaving(false);
-    }
-  };
-
   const removeDeviceFromLicense = async (licenseId: number, defaultDeviceId: string) => {
     const picked = window
       .prompt(
@@ -425,8 +487,121 @@ export default function AdminToolLicensesPage() {
     }
   };
 
+  const handleRefresh = async () => {
+    setLicenseQuery("");
+    setStatusFilter("all");
+    setSlugFilter("all");
+    setMonthFilter("all");
+    setYearFilter("all");
+    setPage(1);
+    await load();
+  };
+
+  const escapeHtml = (value: unknown) =>
+    String(value ?? "")
+      .replace(/&/g, "&amp;")
+      .replace(/</g, "&lt;")
+      .replace(/>/g, "&gt;")
+      .replace(/"/g, "&quot;")
+      .replace(/'/g, "&#39;");
+
+  const exportFilteredToExcel = () => {
+    const headers = [
+      "Tool",
+      "Slug",
+      "Order",
+      "Buyer",
+      "License Key",
+      "Last Device",
+      "Device Count",
+      "Max Devices",
+      "Status",
+      "Expires",
+      "Created",
+    ];
+
+    const rows = displayedLicenses.map((l) => [
+      l.product_title,
+      l.product_slug || "-",
+      l.order_number ? `#${l.order_number}` : l.order_id ? `#${l.order_id}` : "-",
+      `${l.user_username || "user"} - ${l.user_email}`,
+      l.license_key,
+      l.last_device_id || "auto-on-first-activate",
+      String(
+        Number.isFinite(Number(l.device_count))
+          ? Math.max(0, Math.floor(Number(l.device_count)))
+          : 0
+      ),
+      l.max_devices >= 9999 ? "Unlimited" : String(l.max_devices),
+      String((l as License & { effectiveStatus?: string }).effectiveStatus || l.status),
+      l.expires_at ? new Date(l.expires_at).toLocaleString() : "-",
+      l.created_at ? new Date(l.created_at).toLocaleString() : "-",
+    ]);
+
+    const tableHeader = `<tr>${headers
+      .map((h) => `<th style="background:#0f766e;color:#fff;font-weight:700;text-align:left;padding:9px 10px;border:1px solid #cbd5e1;">${escapeHtml(h)}</th>`)
+      .join("")}</tr>`;
+    const tableBody = rows
+      .map(
+        (row, rowIndex) =>
+          `<tr>${row
+            .map((cell) => {
+              const background = rowIndex % 2 === 0 ? "#ffffff" : "#f8fafc";
+              return `<td style="vertical-align:top;text-align:left;padding:8px 10px;border:1px solid #e2e8f0;background:${background};">${escapeHtml(cell).replace(/\n/g, "<br/>")}</td>`;
+            })
+            .join("")}</tr>`
+      )
+      .join("");
+
+    const generatedAt = new Date().toLocaleString("en-US", {
+      year: "numeric",
+      month: "short",
+      day: "2-digit",
+      hour: "2-digit",
+      minute: "2-digit",
+    });
+
+    const filterSummary = [
+      `State: ${statusFilter}`,
+      `Slug: ${slugFilter}`,
+      `Month: ${monthFilter}`,
+      `Year: ${yearFilter}`,
+      `Search: ${licenseQuery.trim() || "-"}`,
+    ].join(" | ");
+
+    const html = `
+<html>
+  <head><meta charset="utf-8" /></head>
+  <body style="background:#ffffff;margin:16px;">
+    <div style="font-family:Calibri,Arial,sans-serif;">
+      <h2 style="margin:0 0 4px 0;color:#0f172a;">Tool Licenses Report</h2>
+      <p style="margin:0 0 2px 0;color:#475569;font-size:12px;">Generated: ${escapeHtml(generatedAt)}</p>
+      <p style="margin:0 0 10px 0;color:#475569;font-size:12px;">${escapeHtml(filterSummary)}</p>
+    </div>
+    <table border="1" cellspacing="0" cellpadding="0" style="border-collapse:collapse;font-family:Calibri,Arial,sans-serif;font-size:12px;min-width:1500px;">
+      ${tableHeader}
+      ${tableBody}
+    </table>
+  </body>
+</html>`;
+
+    const blob = new Blob([`\uFEFF${html}`], {
+      type: "application/vnd.ms-excel;charset=utf-8;",
+    });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement("a");
+    const monthPart = monthFilter !== "all" ? `_${monthFilter}` : "";
+    const yearPart = yearFilter !== "all" ? `_${yearFilter}` : "";
+    a.href = url;
+    a.download = `tool_licenses${monthPart}${yearPart}.xls`;
+    document.body.appendChild(a);
+    a.click();
+    a.remove();
+    URL.revokeObjectURL(url);
+  };
+
   return (
-    <div className="space-y-6">
+    <div className="max-w-7xl mx-auto px-4 py-12">
       <h1 className="text-2xl font-bold">Tool Licenses</h1>
 
       <div className="rounded-xl border bg-white p-4 space-y-4">
@@ -543,13 +718,36 @@ export default function AdminToolLicensesPage() {
       <div className="rounded-xl border bg-white p-4">
         <div className="flex items-center justify-between mb-3 gap-3 flex-wrap">
           <h2 className="text-lg font-semibold">Recent licenses</h2>
+          <div className="rounded-lg border bg-white px-3 py-2 text-sm text-gray-700">
+            Filtered: <span className="font-semibold">{totalFiltered}</span>
+            <span className="mx-1 text-gray-400">/</span>
+            Total: <span className="font-semibold">{licenses.length}</span>
+            <span className="mx-2 text-gray-300">|</span>
+            Sum Max Devices: <span className="font-semibold">{filteredMaxDevicesSum}</span>
+            <span className="mx-1 text-gray-400">(+{filteredUnlimitedCount} unlimited)</span>
+          </div>
           <div className="flex items-center gap-2">
-            <input
-              value={licenseQuery}
-              onChange={(e) => setLicenseQuery(e.target.value)}
-              placeholder="Search tool / buyer / key / order"
-              className="border rounded-lg px-3 py-1.5 text-sm min-w-[260px]"
-            />
+            <button
+              onClick={exportFilteredToExcel}
+              className="text-sm px-3 py-1 border rounded-lg disabled:opacity-50"
+              disabled={displayedLicenses.length === 0}
+            >
+              Export Excel
+            </button>
+            <button onClick={() => void handleRefresh()} className="text-sm px-3 py-1 border rounded-lg">
+              Refresh
+            </button>
+          </div>
+        </div>
+
+        <div className="space-y-3 mb-3">
+          <input
+            value={licenseQuery}
+            onChange={(e) => setLicenseQuery(e.target.value)}
+            placeholder="Search tool / buyer / key / order"
+            className="border rounded-lg px-3 py-1.5 text-sm w-full"
+          />
+          <div className="grid gap-3 sm:grid-cols-2">
             <select
               value={statusFilter}
               onChange={(e) =>
@@ -562,10 +760,44 @@ export default function AdminToolLicensesPage() {
               <option value="expired">Expired</option>
               <option value="revoked">Revoked</option>
             </select>
+            <select
+              value={slugFilter}
+              onChange={(e) => setSlugFilter(e.target.value)}
+              className="border rounded-lg px-3 py-1.5 text-sm capitalize"
+            >
+              {slugOptions.map((slug) => (
+                <option key={slug} value={slug} className="capitalize">
+                  {slug === "all" ? "All slug" : slug}
+                </option>
+              ))}
+            </select>
           </div>
-          <button onClick={load} className="text-sm px-3 py-1 border rounded-lg">
-            Refresh
-          </button>
+          <div className="grid gap-3 sm:grid-cols-2">
+            <select
+              value={monthFilter}
+              onChange={(e) => setMonthFilter(e.target.value)}
+              className="border rounded-lg px-3 py-1.5 text-sm"
+            >
+              <option value="all">All month</option>
+              {monthOptions.map((m) => (
+                <option key={m.value} value={m.value}>
+                  {m.label}
+                </option>
+              ))}
+            </select>
+            <select
+              value={yearFilter}
+              onChange={(e) => setYearFilter(e.target.value)}
+              className="border rounded-lg px-3 py-1.5 text-sm"
+            >
+              <option value="all">All year</option>
+              {yearOptions.map((y) => (
+                <option key={y} value={y}>
+                  {y}
+                </option>
+              ))}
+            </select>
+          </div>
         </div>
 
         {loading ? (
@@ -573,41 +805,51 @@ export default function AdminToolLicensesPage() {
         ) : displayedLicenses.length === 0 ? (
           <div className="text-sm text-gray-500">No licenses yet.</div>
         ) : (
-          <div className="overflow-x-auto">
-            <table className="w-full text-sm">
-              <thead>
+          <div className="max-h-[70vh] overflow-y-auto overflow-x-auto">
+            <table className="min-w-[1500px] text-sm">
+              <thead className="sticky top-0 z-10 bg-gray-50">
                 <tr className="border-b">
-                  <th className="text-left py-2">Tool</th>
-                  <th className="text-left py-2">Order</th>
-                  <th className="text-left py-2">Buyer</th>
-                  <th className="text-left py-2">Key</th>
-                  <th className="text-left py-2">Last Device</th>
-                  <th className="text-left py-2">Max devices</th>
-                  <th className="text-left py-2">Status</th>
-                  <th className="text-left py-2">Expires</th>
-                  <th className="text-right py-2">Actions</th>
+                  <th className="text-left px-3 py-2 bg-gray-50">Tool</th>
+                  <th className="text-left px-3 py-2 bg-gray-50">Slug</th>
+                  <th className="text-left px-3 py-2 bg-gray-50">Order</th>
+                  <th className="text-left px-3 py-2 bg-gray-50">Buyer</th>
+                  <th className="text-left px-3 py-2 bg-gray-50">Key</th>
+                  <th className="text-left px-3 py-2 bg-gray-50">Last Device</th>
+                  <th className="text-left px-3 py-2 bg-gray-50">Device count</th>
+                  <th className="text-left px-3 py-2 bg-gray-50">Max devices</th>
+                  <th className="text-left px-3 py-2 bg-gray-50">Status</th>
+                  <th className="text-left px-3 py-2 bg-gray-50">Expires</th>
+                  <th className="text-left px-3 py-2 bg-gray-50">Created</th>
+                  <th className="text-right px-3 py-2 bg-gray-50">Actions</th>
                 </tr>
               </thead>
               <tbody>
-                {displayedLicenses.map((l) => (
+                {pagedLicenses.map((l) => (
                   <tr key={l.id} className="border-b">
-                    <td className="py-2">{l.product_title}</td>
-                    <td className="py-2">
+                    <td className="px-3 py-2 whitespace-nowrap">{l.product_title}</td>
+                    <td className="px-3 py-2 whitespace-nowrap font-mono text-xs">{l.product_slug || "-"}</td>
+                    <td className="px-3 py-2 whitespace-nowrap">
                       {l.order_number
                         ? `#${l.order_number}`
                         : l.order_id
                           ? `#${l.order_id}`
                           : "-"}
                     </td>
-                    <td className="py-2">
+                    <td className="px-3 py-2 whitespace-nowrap">
                       {l.user_username || "user"} - {l.user_email}
                     </td>
-                    <td className="py-2 font-mono text-xs">{l.license_key}</td>
-                    <td className="py-2 font-mono text-xs">{l.last_device_id || "auto-on-first-activate"}</td>
-                    <td className="py-2">{l.max_devices >= 9999 ? "Unlimited" : l.max_devices}</td>
-                    <td className="py-2">{l.effectiveStatus}</td>
-                    <td className="py-2">{l.expires_at ? new Date(l.expires_at).toLocaleString() : "-"}</td>
-                    <td className="py-2 text-right">
+                    <td className="px-3 py-2 font-mono text-xs whitespace-nowrap">{l.license_key}</td>
+                    <td className="px-3 py-2 font-mono text-xs whitespace-nowrap">{l.last_device_id || "auto-on-first-activate"}</td>
+                    <td className="px-3 py-2 whitespace-nowrap">
+                      {Number.isFinite(Number(l.device_count))
+                        ? Math.max(0, Math.floor(Number(l.device_count)))
+                        : 0}
+                    </td>
+                    <td className="px-3 py-2 whitespace-nowrap">{l.max_devices >= 9999 ? "Unlimited" : l.max_devices}</td>
+                    <td className="px-3 py-2 whitespace-nowrap">{l.effectiveStatus}</td>
+                    <td className="px-3 py-2 whitespace-nowrap">{l.expires_at ? new Date(l.expires_at).toLocaleString() : "-"}</td>
+                    <td className="px-3 py-2 whitespace-nowrap">{l.created_at ? new Date(l.created_at).toLocaleString() : "-"}</td>
+                    <td className="px-3 py-2 text-right whitespace-nowrap">
                       <button
                         className="text-xs px-2 py-1 rounded border hover:bg-gray-50 mr-2"
                         onClick={() => openEdit(l)}
@@ -619,12 +861,6 @@ export default function AdminToolLicensesPage() {
                         onClick={() => void generateToken(l)}
                       >
                         Token
-                      </button>
-                      <button
-                        className="text-xs px-2 py-1 rounded border border-amber-300 text-amber-700 hover:bg-amber-50 mr-2"
-                        onClick={() => void revokeLicense(l.id)}
-                      >
-                        Revoke
                       </button>
                       <button
                         className="text-xs px-2 py-1 rounded border border-indigo-300 text-indigo-700 hover:bg-indigo-50 mr-2"
@@ -644,6 +880,16 @@ export default function AdminToolLicensesPage() {
               </tbody>
             </table>
           </div>
+        )}
+        {!loading && !error && displayedLicenses.length > PAGE_SIZE && (
+          <PaginationNext
+            currentPage={safePage}
+            totalPages={totalPages}
+            totalItems={totalFiltered}
+            pageSize={PAGE_SIZE}
+            onPageChange={setPage}
+            enableKeyboardShortcuts
+          />
         )}
       </div>
 

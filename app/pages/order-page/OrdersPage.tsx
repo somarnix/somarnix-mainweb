@@ -3,6 +3,7 @@ import { Package, RefreshCw } from "lucide-react";
 import { useLanguage } from "../../contexts/LanguageContext";
 import { useCurrency } from "../../contexts/CurrencyContext";
 import { Button } from "../../components/ui/button";
+import { Pagination } from "../../components/Pagination";
 import type { OrderStatus } from "@/lib/order-status";
 import { ORDER_STATUS_TABS, getStatusLabel } from "./orderStatusConfig";
 
@@ -36,6 +37,8 @@ interface OrdersPageProps {
   onOpenOrderDetail: (orderId: number | string) => void;
 }
 
+const ITEMS_PER_PAGE = 5;
+
 export function OrdersPage({ onNavigate, onOpenOrderDetail }: OrdersPageProps) {
   const { language } = useLanguage();
   const { formatPrice } = useCurrency();
@@ -43,6 +46,7 @@ export function OrdersPage({ onNavigate, onOpenOrderDetail }: OrdersPageProps) {
   const [orders, setOrders] = useState<Order[]>([]);
   const [loading, setLoading] = useState(true);
   const [activeTab, setActiveTab] = useState<OrderStatus>("pending");
+  const [currentPage, setCurrentPage] = useState(1);
 
   const loadOrders = async () => {
     setLoading(true);
@@ -88,6 +92,21 @@ export function OrdersPage({ onNavigate, onOpenOrderDetail }: OrdersPageProps) {
   const filteredOrders = useMemo(() => {
     return orders.filter((order) => order.status === activeTab);
   }, [orders, activeTab]);
+  const totalPages = Math.max(1, Math.ceil(filteredOrders.length / ITEMS_PER_PAGE));
+  const pagedOrders = useMemo(() => {
+    const start = (currentPage - 1) * ITEMS_PER_PAGE;
+    return filteredOrders.slice(start, start + ITEMS_PER_PAGE);
+  }, [filteredOrders, currentPage]);
+
+  useEffect(() => {
+    setCurrentPage(1);
+  }, [activeTab, orders.length]);
+
+  useEffect(() => {
+    if (currentPage > totalPages) {
+      setCurrentPage(totalPages);
+    }
+  }, [currentPage, totalPages]);
 
   return (
     <div className="min-h-screen bg-gray-50 dark:bg-gray-900 py-12">
@@ -167,7 +186,7 @@ export function OrdersPage({ onNavigate, onOpenOrderDetail }: OrdersPageProps) {
               </div>
             ) : (
               <div className="space-y-4">
-                {filteredOrders.map((o) => (
+                {pagedOrders.map((o) => (
                   <div
                     key={o.id}
                     className="bg-white dark:bg-gray-800 rounded-xl shadow-sm p-6 space-y-4"
@@ -236,6 +255,11 @@ export function OrdersPage({ onNavigate, onOpenOrderDetail }: OrdersPageProps) {
                     </div>
                   </div>
                 ))}
+                <Pagination
+                  currentPage={currentPage}
+                  totalPages={totalPages}
+                  onPageChange={setCurrentPage}
+                />
               </div>
             )}
           </>

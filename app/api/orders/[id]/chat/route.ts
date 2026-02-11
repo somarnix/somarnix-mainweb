@@ -314,14 +314,6 @@ export async function GET(
     return NextResponse.json({ error: "Order not found" }, { status: 404 });
   }
 
-  const orderState = (order.state ?? "").toLowerCase();
-  if (orderState === "cancelled" || orderState === "resolution") {
-    return NextResponse.json(
-      { error: "Chat is not available for this order." },
-      { status: 403 }
-    );
-  }
-
   const isOwner = order.user_id === auth.userId;
   const isSeller = Number(order.seller_id ?? 0) === auth.userId;
   const isAdmin = auth.role === "admin";
@@ -498,14 +490,6 @@ export async function POST(
     const order = await fetchOrder(orderId);
     if (!order) {
       return NextResponse.json({ error: "Order not found" }, { status: 404 });
-    }
-
-    const orderState = (order.state ?? "").toLowerCase();
-    if (orderState === "cancelled" || orderState === "resolution") {
-      return NextResponse.json(
-        { error: "Chat is not available for this order." },
-        { status: 403 }
-      );
     }
 
     const isOwner = order.user_id === auth.userId;

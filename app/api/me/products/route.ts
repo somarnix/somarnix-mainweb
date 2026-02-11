@@ -4,6 +4,7 @@ import { db } from "@/lib/db";
 import { getAuthUser } from "@/lib/auth";
 
 type PurchaseRow = RowDataPacket & {
+  order_id: number;
   product_id: number;
   title: string;
   slug: string;
@@ -106,6 +107,7 @@ export async function GET(req: NextRequest) {
     const [data] = await db.query<PurchaseRow[]>(
       `
       SELECT
+        o.id AS order_id,
         p.id AS product_id,
         p.title,
         p.slug,
@@ -135,6 +137,7 @@ export async function GET(req: NextRequest) {
     rows = data;
 
     const purchases = rows.map(row => ({
+      orderId: row.order_id,
       productId: row.product_id,
       title: row.title,
       slug: row.slug,

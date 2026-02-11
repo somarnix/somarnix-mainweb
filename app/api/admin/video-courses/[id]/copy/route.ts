@@ -47,6 +47,8 @@ type PlanRow = RowDataPacket & {
   access_type: string;
   duration_days: number | null;
   price: number | string | null;
+  max_devices: number | null;
+  is_unlimited_device: number | null;
   is_active: number;
   khqr: string | null;
   usdqr: string | null;
@@ -240,6 +242,8 @@ export async function POST(
         access_type,
         duration_days,
         price,
+        max_devices,
+        is_unlimited_device,
         is_active,
         khqr,
         usdqr
@@ -252,7 +256,7 @@ export async function POST(
 
     if (plans.length > 0) {
       const planValues: Array<unknown> = [];
-      const planPlaceholders = plans.map(() => "(?, ?, ?, ?, ?, ?, ?, ?)");
+      const planPlaceholders = plans.map(() => "(?, ?, ?, ?, ?, ?, ?, ?, ?, ?)");
       plans.forEach((plan) => {
         planValues.push(
           newCourseId,
@@ -260,6 +264,8 @@ export async function POST(
           plan.access_type,
           plan.duration_days,
           plan.price ?? 0,
+          Number.isFinite(Number(plan.max_devices)) ? Number(plan.max_devices) : 3,
+          plan.is_unlimited_device ? 1 : 0,
           plan.is_active ?? 1,
           plan.khqr ?? "/paymentQR/khmer_qr.jpg",
           plan.usdqr ?? "none"
@@ -273,6 +279,8 @@ export async function POST(
           access_type,
           duration_days,
           price,
+          max_devices,
+          is_unlimited_device,
           is_active,
           khqr,
           usdqr

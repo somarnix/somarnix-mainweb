@@ -3,11 +3,27 @@
 import { useEffect, useMemo, useState } from "react";
 import type { OrderStatus } from "@/lib/order-status";
 import { getStatusLabel } from "@/app/pages/order-page/orderStatusConfig";
+import PaginationNext from "@/app/components/PaginationNext";
 
 /* ================= TYPES ================= */
 
 type OrderState = OrderStatus;
 type OrderResult = "none" | "done" | "failed";
+type PaymentStateFilter = "all" | "waiting" | "approved" | "declined";
+const MONTH_OPTIONS = [
+  { value: "1", label: "January" },
+  { value: "2", label: "February" },
+  { value: "3", label: "March" },
+  { value: "4", label: "April" },
+  { value: "5", label: "May" },
+  { value: "6", label: "June" },
+  { value: "7", label: "July" },
+  { value: "8", label: "August" },
+  { value: "9", label: "September" },
+  { value: "10", label: "October" },
+  { value: "11", label: "November" },
+  { value: "12", label: "December" },
+];
 
 type Order = {
   id: number;
@@ -15,6 +31,7 @@ type Order = {
   user_id: number;
   state: OrderState;
   result: OrderResult;
+  payment_state?: "waiting" | "approved" | "declined" | null;
   total?: number | string | null;
   created_at?: string | null;
   user_email?: string | null;
@@ -23,6 +40,7 @@ type Order = {
   delivery_title?: string | null;
   delivery_message?: string | null;
   delivered_at?: string | null;
+  categories?: string | null;
 };
 
 type ToolProduct = {
@@ -61,6 +79,12 @@ function formatTotal(o: Order): number {
   const v = o.total ?? 0;
   const n = typeof v === "string" ? Number(v) : v ?? 0;
   return Number.isFinite(n) ? n : 0;
+}
+
+function formatMoney(value?: number | string | null): string {
+  const n = typeof value === "string" ? Number(value) : value ?? 0;
+  const safe = Number.isFinite(n) ? n : 0;
+  return `$${safe.toFixed(2)}`;
 }
 
 function parseOrderInfo(raw?: string | null): Array<{ key: string; value: string }> {
@@ -111,9 +135,82 @@ function parseToolSlugFromText(value?: string | null): string {
   return "";
 }
 
+function getAdminStateLabel(state: OrderState): string {
+  return getStatusLabel(state, "en");
+}
+
+function stateBadgeClass(state: OrderState): string {
+  if (state === "completed") {
+    return "inline-flex items-center rounded-md border border-emerald-200 bg-emerald-50 px-2 py-1 text-xs font-semibold text-emerald-700";
+  }
+  if (state === "approved" || state === "delivering") {
+    return "inline-flex items-center rounded-md border border-blue-200 bg-blue-50 px-2 py-1 text-xs font-semibold text-blue-700";
+  }
+  if (state === "cancelled" || state === "resolution") {
+    return "inline-flex items-center rounded-md border border-red-200 bg-red-50 px-2 py-1 text-xs font-semibold text-red-700";
+  }
+  return "inline-flex items-center rounded-md border border-gray-200 bg-white px-2 py-1 text-xs font-medium text-gray-600";
+}
+
+function resultBadgeClass(result: OrderResult): string {
+  if (result === "done") {
+    return "inline-flex items-center rounded-md border border-emerald-200 bg-emerald-50 px-2 py-1 text-xs font-semibold text-emerald-700";
+  }
+  if (result === "failed") {
+    return "inline-flex items-center rounded-md border border-red-200 bg-red-50 px-2 py-1 text-xs font-semibold text-red-700";
+  }
+  return "inline-flex items-center rounded-md border border-gray-200 bg-white px-2 py-1 text-xs font-medium text-gray-600";
+}
+
+function getOrderPaymentLabel(
+  paymentState: Order["payment_state"],
+  state: OrderState,
+  result: OrderResult
+): string {
+  if (paymentState === "approved") return "Approve payment";
+  if (paymentState === "declined") return "Decline payment";
+  if (paymentState === "waiting") return "Waiting payment";
+  if (state === "cancelled") return "Decline payment";
+  if (state === "approved" || state === "delivering" || state === "completed" || result === "done") {
+    return "Approve payment";
+  }
+  return "Waiting payment";
+}
+
+function paymentBadgeClass(
+  paymentState: Order["payment_state"],
+  state: OrderState,
+  result: OrderResult
+): string {
+  const payment = getOrderPaymentFilterValue(paymentState, state, result);
+  if (payment === "approved") {
+    return "inline-flex items-center rounded-md border border-emerald-200 bg-emerald-50 px-2 py-1 text-xs font-semibold text-emerald-700";
+  }
+  if (payment === "declined") {
+    return "inline-flex items-center rounded-md border border-red-200 bg-red-50 px-2 py-1 text-xs font-semibold text-red-700";
+  }
+  return "inline-flex items-center rounded-md border border-gray-200 bg-white px-2 py-1 text-xs font-medium text-gray-600";
+}
+
+function getOrderPaymentFilterValue(
+  paymentState: Order["payment_state"],
+  state: OrderState,
+  result: OrderResult
+): Exclude<PaymentStateFilter, "all"> {
+  if (paymentState === "approved") return "approved";
+  if (paymentState === "declined") return "declined";
+  if (paymentState === "waiting") return "waiting";
+  if (state === "cancelled") return "declined";
+  if (state === "approved" || state === "delivering" || state === "completed" || result === "done") {
+    return "approved";
+  }
+  return "waiting";
+}
+
 /* ================= PAGE ================= */
 
 export default function AdminOrdersPage() {
+  const PAGE_SIZE = 10;
   const [orders, setOrders] = useState<Order[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
@@ -131,14 +228,18 @@ export default function AdminOrdersPage() {
   const [licenseKeyInput, setLicenseKeyInput] = useState("");
   const [licenseMaxDevices, setLicenseMaxDevices] = useState("");
   const [licenseExpiresAt, setLicenseExpiresAt] = useState("");
-  const [licenseLoading, setLicenseLoading] = useState(false);
+  const [licenseLoading] = useState(false);
   const [licenseSaving, setLicenseSaving] = useState(false);
   const [licenseError, setLicenseError] = useState("");
   const [licenseSuccess, setLicenseSuccess] = useState("");
 
   const [search, setSearch] = useState("");
-  const [filterState, setFilterState] =
-    useState<"all" | OrderState>("all");
+  const [filterState, setFilterState] = useState<"all" | OrderState>("all");
+  const [filterPayment, setFilterPayment] = useState<PaymentStateFilter>("all");
+  const [filterCategory, setFilterCategory] = useState("all");
+  const [monthFilter, setMonthFilter] = useState("all");
+  const [yearFilter, setYearFilter] = useState("all");
+  const [page, setPage] = useState(1);
 
   /* ===== EDIT MODAL STATE ===== */
   const [editOrder, setEditOrder] = useState<Order | null>(null);
@@ -217,6 +318,47 @@ export default function AdminOrdersPage() {
 
   /* ================= FILTER ================= */
 
+  const getYearMonthKey = (value?: string | null) => {
+    const raw = String(value || "").trim();
+    if (!raw) return { year: "", month: "" };
+    const dt = new Date(raw);
+    if (!Number.isNaN(dt.getTime())) {
+      const year = String(dt.getFullYear());
+      const month = String(dt.getMonth() + 1).padStart(2, "0");
+      return { year, month: `${year}-${month}` };
+    }
+    const m = raw.match(/(\d{4})-(\d{2})/);
+    if (m) {
+      return { year: m[1], month: `${m[1]}-${m[2]}` };
+    }
+    return { year: "", month: "" };
+  };
+
+  const categoryOptions = useMemo(() => {
+    const base = ["all", "product", "ai", "game", "program", "tools", "video-course"];
+    const set = new Set(base);
+    for (const o of orders) {
+      for (const c of String(o.categories || "")
+        .split(",")
+        .map((x) => x.trim().toLowerCase())
+        .filter(Boolean)) {
+        set.add(c);
+      }
+    }
+    return Array.from(set);
+  }, [orders]);
+
+  const monthOptions = MONTH_OPTIONS;
+
+  const yearOptions = useMemo(() => {
+    const set = new Set<string>();
+    for (const o of orders) {
+      const { year } = getYearMonthKey(o.created_at);
+      if (year) set.add(year);
+    }
+    return Array.from(set).sort((a, b) => (a < b ? 1 : -1));
+  }, [orders]);
+
   const filteredOrders = useMemo(() => {
     const q = search.trim().toLowerCase();
 
@@ -225,14 +367,62 @@ export default function AdminOrdersPage() {
         return false;
       }
 
+      if (
+        filterPayment !== "all" &&
+        getOrderPaymentFilterValue(o.payment_state, o.state, o.result) !== filterPayment
+      ) {
+        return false;
+      }
+
+      if (filterCategory !== "all") {
+        const categories = String(o.categories || "")
+          .split(",")
+          .map((x) => x.trim().toLowerCase())
+          .filter(Boolean);
+        if (!categories.includes(filterCategory)) return false;
+      }
+
+      if (monthFilter !== "all") {
+        const { month } = getYearMonthKey(o.created_at);
+        const monthNumber = month ? String(Number(month.split("-")[1])) : "";
+        if (monthNumber !== monthFilter) return false;
+      }
+
+      if (yearFilter !== "all") {
+        const { year } = getYearMonthKey(o.created_at);
+        if (year !== yearFilter) return false;
+      }
+
       if (!q) return true;
 
       return (
         String(o.id).includes(q) ||
+        String(o.order_number || "").toLowerCase().includes(q) ||
         (o.user_email ?? "").toLowerCase().includes(q)
       );
     });
-  }, [orders, search, filterState]);
+  }, [orders, search, filterState, filterPayment, filterCategory, monthFilter, yearFilter]);
+
+  const totalFiltered = filteredOrders.length;
+  const filteredAmount = filteredOrders.reduce((sum, o) => sum + formatTotal(o), 0);
+  const totalPages = Math.max(1, Math.ceil(totalFiltered / PAGE_SIZE));
+  const safePage = Math.min(page, totalPages);
+  const pageStart = (safePage - 1) * PAGE_SIZE;
+  const pagedOrders = filteredOrders.slice(pageStart, pageStart + PAGE_SIZE);
+  const selectedInfoOrder = useMemo(
+    () => orders.find((o) => o.id === infoOrderId) ?? null,
+    [orders, infoOrderId]
+  );
+
+  useEffect(() => {
+    setPage(1);
+  }, [search, filterState, filterPayment, filterCategory, monthFilter, yearFilter]);
+
+  useEffect(() => {
+    if (page > totalPages) {
+      setPage(totalPages);
+    }
+  }, [page, totalPages]);
 
   const deriveResult = (state: OrderState): OrderResult => {
     if (state === "completed") return "done";
@@ -377,48 +567,6 @@ export default function AdminOrdersPage() {
     }
   };
 
-  const openLicense = async (order: Order) => {
-    setLicenseOpen(true);
-    setLicenseOrder(order);
-    setLicenseTools([]);
-    setLicenseToolId("");
-    setLicenseError("");
-    setLicenseSuccess("");
-    setLicenseLoading(true);
-    try {
-      const res = await fetch(`/api/admin/orders/${order.id}`, {
-        credentials: "include",
-        cache: "no-store",
-      });
-      const data = await res.json().catch(() => ({}));
-      if (!res.ok) {
-        throw new Error(data?.error || "Failed to load order tools");
-      }
-      const parsed = (Array.isArray(data.items) ? data.items : [])
-        .filter((it: OrderInfoItem) => (it.category_name || "").toLowerCase() === "tools")
-        .map((it: OrderInfoItem) => ({
-          productId: Number(it.product_id || 0),
-          slug: String(it.product_slug || ""),
-          title: String(it.product_title || ""),
-        }))
-        .filter((it: OrderToolItem) => it.productId > 0 && it.slug);
-      const unique = Array.from(
-        new Map(parsed.map((it: OrderToolItem) => [it.productId, it])).values()
-      );
-      setLicenseTools(unique);
-      if (unique[0]) {
-        setLicenseToolId(String(unique[0].productId));
-      }
-      if (unique.length === 0) {
-        setLicenseError("No tool item found in this order.");
-      }
-    } catch (e) {
-      setLicenseError(e instanceof Error ? e.message : "Failed to load tool items");
-    } finally {
-      setLicenseLoading(false);
-    }
-  };
-
   const createLicenseFromOrder = async () => {
     if (!licenseOrder || !licenseToolId) return;
     setLicenseSaving(true);
@@ -452,46 +600,243 @@ export default function AdminOrdersPage() {
     }
   };
 
+  const handleRefresh = async () => {
+    setSearch("");
+    setFilterState("all");
+    setFilterPayment("all");
+    setFilterCategory("all");
+    setMonthFilter("all");
+    setYearFilter("all");
+    setPage(1);
+    await load();
+  };
+
+  const escapeHtml = (value: unknown) =>
+    String(value ?? "")
+      .replace(/&/g, "&amp;")
+      .replace(/</g, "&lt;")
+      .replace(/>/g, "&gt;")
+      .replace(/"/g, "&quot;")
+      .replace(/'/g, "&#39;");
+
+  const exportFilteredToExcel = () => {
+    const headers = [
+      "Order",
+      "Order ID",
+      "User",
+      "State",
+      "Payment",
+      "Result",
+      "Total",
+      "Category",
+      "Delivery",
+      "Created",
+    ];
+
+    const rows = filteredOrders.map((o) => [
+      `#${o.id}`,
+      o.order_number || "-",
+      o.user_email || "-",
+      getAdminStateLabel(o.state),
+      getOrderPaymentLabel(o.payment_state, o.state, o.result),
+      o.result,
+      formatTotal(o).toFixed(2),
+      o.categories || "-",
+      [o.delivery_title || "", o.delivery_message || ""].filter(Boolean).join("\n") || "-",
+      formatDate(o.created_at),
+    ]);
+
+    const tableHeader = `<tr>${headers
+      .map((h, index) => {
+        const centerCols = new Set([0, 1, 6, 9]);
+        const align = centerCols.has(index) ? "center" : "left";
+        return `<th style="background:#0f766e;color:#ffffff;font-weight:700;text-align:${align};padding:9px 10px;border:1px solid #cbd5e1;">${escapeHtml(h)}</th>`;
+      })
+      .join("")}</tr>`;
+    const tableBody = rows
+      .map(
+        (row, rowIndex) =>
+          `<tr>${row
+            .map((cell, colIndex) => {
+              const centerCols = new Set([0, 1, 6, 9]);
+              const align = centerCols.has(colIndex) ? "center" : "left";
+              const background = rowIndex % 2 === 0 ? "#ffffff" : "#f8fafc";
+              return `<td style="vertical-align:top;text-align:${align};padding:8px 10px;border:1px solid #e2e8f0;background:${background};">${escapeHtml(cell).replace(/\n/g, "<br/>")}</td>`;
+            })
+            .join("")}</tr>`
+      )
+      .join("");
+
+    const generatedAt = new Date().toLocaleString("en-US", {
+      year: "numeric",
+      month: "short",
+      day: "2-digit",
+      hour: "2-digit",
+      minute: "2-digit",
+    });
+    const filterSummary = [
+      `State: ${filterState}`,
+      `Payment: ${filterPayment}`,
+      `Category: ${filterCategory}`,
+      `Month: ${monthFilter}`,
+      `Year: ${yearFilter}`,
+      `Search: ${search.trim() || "-"}`,
+    ].join(" | ");
+
+    const html = `
+<html>
+  <head>
+    <meta charset="utf-8" />
+  </head>
+  <body style="background:#ffffff;margin:16px;">
+    <div style="font-family:Calibri,Arial,sans-serif;">
+      <h2 style="margin:0 0 4px 0;color:#0f172a;">Orders Report</h2>
+      <p style="margin:0 0 2px 0;color:#475569;font-size:12px;">Generated: ${escapeHtml(generatedAt)}</p>
+      <p style="margin:0 0 10px 0;color:#475569;font-size:12px;">${escapeHtml(filterSummary)}</p>
+    </div>
+    <table border="1" cellspacing="0" cellpadding="0" style="border-collapse:collapse;font-family:Calibri,Arial,sans-serif;font-size:12px;min-width:1500px;">
+      <colgroup>
+        <col style="width:90px;" />
+        <col style="width:140px;" />
+        <col style="width:220px;" />
+        <col style="width:130px;" />
+        <col style="width:140px;" />
+        <col style="width:100px;" />
+        <col style="width:95px;" />
+        <col style="width:120px;" />
+        <col style="width:360px;" />
+        <col style="width:170px;" />
+      </colgroup>
+      ${tableHeader}
+      ${tableBody}
+    </table>
+  </body>
+</html>`;
+
+    const blob = new Blob([`\uFEFF${html}`], {
+      type: "application/vnd.ms-excel;charset=utf-8;",
+    });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement("a");
+    const monthPart = monthFilter !== "all" ? `_${monthFilter}` : "";
+    const yearPart = yearFilter !== "all" ? `_${yearFilter}` : "";
+    a.href = url;
+    a.download = `orders${monthPart}${yearPart}.xls`;
+    document.body.appendChild(a);
+    a.click();
+    a.remove();
+    URL.revokeObjectURL(url);
+  };
+
   /* ================= RENDER ================= */
 
   return (
-    <div className="py-6 px-4">
-      <h1 className="text-2xl font-bold md:mb-6 mb-0">
-        Admin Orders
-      </h1>
+    <div className="max-w-7xl mx-auto px-4 py-12">
+      <div className="flex items-center justify-between">
+        <h1 className="text-2xl font-bold">Admin Orders</h1>
+        <div className="flex items-center gap-3">
+          <div className="rounded-lg border bg-white px-3 py-2 text-sm text-gray-700">
+            Filtered: <span className="font-semibold">{totalFiltered}</span>
+            <span className="mx-1 text-gray-400">/</span>
+            Total Order: <span className="font-semibold">{orders.length}</span>
+            <span className="mx-2 text-gray-300">|</span>
+            Sum: <span className="font-semibold">${filteredAmount.toFixed(2)}</span>
+          </div>
+          <button
+            onClick={() => void handleRefresh()}
+            className="border rounded-lg px-4 py-2 text-sm bg-white hover:bg-gray-50"
+          >
+            Refresh
+          </button>
+          <button
+            onClick={exportFilteredToExcel}
+            className="border rounded-lg px-4 py-2 text-sm bg-white hover:bg-gray-50 disabled:opacity-50"
+            disabled={filteredOrders.length === 0}
+          >
+            Export Excel
+          </button>
+          <button
+            onClick={() => {
+              if (typeof window !== "undefined") {
+                window.location.href = "/admin/test";
+              }
+            }}
+            className="border rounded-lg px-4 py-2 text-sm bg-white hover:bg-gray-50"
+          >
+            Search payment
+          </button>
+        </div>
+      </div>
 
       {/* Controls */}
-      <div className="space-y-2 md:space-y-0 md:flex md:gap-3 md:mb-4">
+      <div className="space-y-3 mt-3 mb-4">
         <input
           value={search}
           onChange={e => setSearch(e.target.value)}
           placeholder="Search order id or email"
-          className="border rounded-lg px-3 py-2 text-sm w-full md:w-72"
+          className="border rounded-lg px-3 py-2 text-sm w-full"
         />
-
-        <div className="flex gap-2">
+        <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
           <select
             value={filterState}
-            onChange={e =>
-              setFilterState(e.target.value as "all" | OrderState)
-            }
-            className="border rounded-lg px-3 py-2 text-sm w-44 sm:w-48 md:w-48 bg-white"
+            onChange={e => setFilterState(e.target.value as "all" | OrderState)}
+            className="border rounded-lg px-3 py-2 text-sm bg-white"
           >
             <option value="all">All states</option>
             <option value="pending">pending</option>
-            <option value="approved">approved</option>
+            <option value="approved">Approve</option>
             <option value="delivering">delivering</option>
             <option value="completed">completed</option>
             <option value="cancelled">cancelled</option>
             <option value="resolution">resolution</option>
           </select>
-
-          <button
-            onClick={load}
-            className="border rounded-lg px-4 py-2 text-sm bg-white hover:bg-gray-50 flex-1 md:flex-none"
+          <select
+            value={filterPayment}
+            onChange={e => setFilterPayment(e.target.value as PaymentStateFilter)}
+            className="border rounded-lg px-3 py-2 text-sm bg-white"
           >
-            Refresh
-          </button>
+            <option value="all">All payment</option>
+            <option value="waiting">Waiting payment</option>
+            <option value="approved">Approve payment</option>
+            <option value="declined">Decline payment</option>
+          </select>
+          <select
+            value={filterCategory}
+            onChange={e => setFilterCategory(e.target.value)}
+            className="border rounded-lg px-3 py-2 text-sm bg-white capitalize"
+          >
+            {categoryOptions.map((c) => (
+              <option key={c} value={c} className="capitalize">
+                {c === "all" ? "All category" : c}
+              </option>
+            ))}
+          </select>
+        </div>
+        <div className="grid gap-3 sm:grid-cols-2">
+          <select
+            value={monthFilter}
+            onChange={(e) => setMonthFilter(e.target.value)}
+            className="border rounded-lg px-3 py-2 text-sm bg-white"
+          >
+            <option value="all">All month</option>
+            {monthOptions.map((m) => (
+              <option key={m.value} value={m.value}>
+                {m.label}
+              </option>
+            ))}
+          </select>
+          <select
+            value={yearFilter}
+            onChange={(e) => setYearFilter(e.target.value)}
+            className="border rounded-lg px-3 py-2 text-sm bg-white"
+          >
+            <option value="all">All year</option>
+            {yearOptions.map((y) => (
+              <option key={y} value={y}>
+                {y}
+              </option>
+            ))}
+          </select>
         </div>
       </div>
 
@@ -510,31 +855,41 @@ export default function AdminOrdersPage() {
           <div className="hidden md:block overflow-x-auto">
             <div className="max-h-[70vh] overflow-y-auto">
               <table className="min-w-full text-sm">
-                <thead className="bg-gray-50">
+                <thead className="sticky top-0 z-10 bg-gray-50">
                   <tr>
-                    <th className="p-3 text-left">Order</th>
-                    <th className="p-3 text-left">Order ID</th>
-                    <th className="p-3 text-left">User</th>
-                    <th className="p-3 text-left">State</th>
-                    <th className="p-3 text-left">Result</th>
-                    <th className="p-3 text-right">Total</th>
-                    <th className="p-3 text-left">Delivery</th>
-                    <th className="p-3 text-left">Created</th>
-                    <th className="p-3 text-right">Action</th>
+                    <th className="p-3 text-left bg-gray-50">Order</th>
+                    <th className="p-3 text-left bg-gray-50">Order ID</th>
+                    <th className="p-3 text-left bg-gray-50">User</th>
+                    <th className="p-3 text-left bg-gray-50">State</th>
+                    <th className="p-3 text-left bg-gray-50">Payment</th>
+                    <th className="p-3 text-left bg-gray-50">Result</th>
+                    <th className="p-3 text-right bg-gray-50">Total</th>
+                    <th className="p-3 text-left bg-gray-50">Delivery</th>
+                    <th className="p-3 text-left bg-gray-50">Created</th>
+                    <th className="p-3 text-right w-[220px] bg-gray-50">Action</th>
                   </tr>
                 </thead>
 
                 <tbody className="divide-y">
-                  {filteredOrders.map(o => (
+                  {pagedOrders.map(o => (
                     <tr key={o.id}>
-                      <td className="p-3 font-medium">#{o.id}</td>
-                      <td className="p-3">{o.order_number || "-"}</td>
-                      <td className="p-3">{o.user_email ?? "-"}</td>
-                      <td className="p-3">
-                        {getStatusLabel(o.state, "en")}
+                      <td className="p-3 align-top font-medium">#{o.id}</td>
+                      <td className="p-3 align-top">{o.order_number || "-"}</td>
+                      <td className="p-3 align-top">{o.user_email ?? "-"}</td>
+                      <td className="p-3 align-top">
+                        <span className={stateBadgeClass(o.state)}>
+                          {getAdminStateLabel(o.state)}
+                        </span>
                       </td>
-                      <td className="p-3">{o.result}</td>
-                      <td className="p-3 text-right font-semibold">
+                      <td className="p-3 align-top">
+                        <span className={paymentBadgeClass(o.payment_state, o.state, o.result)}>
+                          {getOrderPaymentLabel(o.payment_state, o.state, o.result)}
+                        </span>
+                      </td>
+                      <td className="p-3 align-top">
+                        <span className={resultBadgeClass(o.result)}>{o.result}</span>
+                      </td>
+                      <td className="p-3 align-top text-right font-semibold">
                         ${formatTotal(o).toFixed(2)}
                       </td>
 
@@ -558,36 +913,30 @@ export default function AdminOrdersPage() {
                         )}
                       </td>
 
-                      <td className="p-3">{formatDate(o.created_at)}</td>
+                      <td className="p-3 align-top">{formatDate(o.created_at)}</td>
 
-                      <td className="p-3 text-right">
-                        <button
-                          onClick={() => void openEdit(o)}
-                          className="bg-blue-600 text-white px-3 py-1 rounded text-xs"
-                        >
-                          Edit
-                        </button>
-                        <button
-                          onClick={() => openInfo(o.id)}
-                          className="ml-2 bg-gray-100 text-gray-700 px-3 py-1 rounded text-xs hover:bg-gray-200"
-                        >
-                          Info
-                        </button>
-                        {(o.state === "completed" || o.result === "done") && (
+                      <td className="p-3 align-top">
+                        <div className="flex justify-end items-start gap-2 min-h-[36px]">
                           <button
-                            onClick={() => openLicense(o)}
-                            className="ml-2 bg-emerald-600 text-white px-3 py-1 rounded text-xs"
+                            onClick={() => void openEdit(o)}
+                            className="inline-flex min-w-[58px] justify-center rounded-md bg-blue-600 px-3 py-1.5 text-xs font-semibold text-white shadow-sm transition hover:bg-blue-700"
                           >
-                            License
+                            Edit
                           </button>
-                        )}
+                          <button
+                            onClick={() => openInfo(o.id)}
+                            className="inline-flex min-w-[58px] justify-center rounded-md border border-gray-200 bg-gray-50 px-3 py-1.5 text-xs font-semibold text-gray-700 transition hover:bg-gray-100"
+                          >
+                            Info
+                          </button>
+                        </div>
                       </td>
                     </tr>
                   ))}
 
                   {filteredOrders.length === 0 && (
                     <tr>
-                      <td colSpan={9} className="p-6 text-center text-gray-500">
+                      <td colSpan={10} className="p-6 text-center text-gray-500">
                         No orders found
                       </td>
                     </tr>
@@ -599,7 +948,7 @@ export default function AdminOrdersPage() {
 
           {/* ===== PHONE CARDS (below md) ===== */}
           <div className="md:hidden p-3 space-y-3">
-            {filteredOrders.map(o => (
+            {pagedOrders.map(o => (
               <div key={o.id} className="border rounded-xl p-3">
                 <div className="flex items-start justify-between gap-3">
                   <div>
@@ -624,11 +973,25 @@ export default function AdminOrdersPage() {
                 <div className="mt-3 grid grid-cols-2 gap-2 text-sm">
                   <div>
                     <div className="text-xs text-gray-500">State</div>
-                    <div>{getStatusLabel(o.state, "en")}</div>
+                    <div>
+                      <span className={stateBadgeClass(o.state)}>
+                        {getAdminStateLabel(o.state)}
+                      </span>
+                    </div>
+                  </div>
+                  <div>
+                    <div className="text-xs text-gray-500">Payment</div>
+                    <div>
+                      <span className={paymentBadgeClass(o.payment_state, o.state, o.result)}>
+                        {getOrderPaymentLabel(o.payment_state, o.state, o.result)}
+                      </span>
+                    </div>
                   </div>
                   <div>
                     <div className="text-xs text-gray-500">Result</div>
-                    <div>{o.result}</div>
+                    <div>
+                      <span className={resultBadgeClass(o.result)}>{o.result}</span>
+                    </div>
                   </div>
                 </div>
 
@@ -655,24 +1018,16 @@ export default function AdminOrdersPage() {
 
                 <button
                   onClick={() => void openEdit(o)}
-                  className="mt-3 w-full bg-blue-600 text-white px-3 py-2 rounded text-sm"
+                  className="mt-3 w-full rounded-md bg-blue-600 px-3 py-2 text-sm font-semibold text-white shadow-sm transition hover:bg-blue-700"
                 >
                   Edit
                 </button>
                 <button
                   onClick={() => openInfo(o.id)}
-                  className="mt-2 w-full bg-gray-100 text-gray-700 px-3 py-2 rounded text-sm hover:bg-gray-200"
+                  className="mt-2 w-full rounded-md border border-gray-200 bg-gray-50 px-3 py-2 text-sm font-semibold text-gray-700 transition hover:bg-gray-100"
                 >
                   Info
                 </button>
-                {(o.state === "completed" || o.result === "done") && (
-                  <button
-                    onClick={() => openLicense(o)}
-                    className="mt-2 w-full bg-emerald-600 text-white px-3 py-2 rounded text-sm"
-                  >
-                    License
-                  </button>
-                )}
               </div>
             ))}
 
@@ -683,6 +1038,17 @@ export default function AdminOrdersPage() {
             )}
           </div>
         </div>
+      )}
+
+      {!loading && !error && filteredOrders.length > PAGE_SIZE && (
+        <PaginationNext
+          currentPage={safePage}
+          totalPages={totalPages}
+          totalItems={totalFiltered}
+          pageSize={PAGE_SIZE}
+          onPageChange={setPage}
+          enableKeyboardShortcuts
+        />
       )}
 
 
@@ -697,7 +1063,7 @@ export default function AdminOrdersPage() {
             <div className="space-y-4">
               <div>
                 <label className="text-sm text-gray-500">
-                  State
+                  State (order flow)
                 </label>
                 <select
                   value={editState}
@@ -708,13 +1074,25 @@ export default function AdminOrdersPage() {
                   }}
                   className="w-full border rounded-lg px-3 py-2"
                 >
-                  <option value="pending">pending</option>
-                  <option value="approved">approved</option>
-                  <option value="delivering">delivering</option>
-                  <option value="completed">completed</option>
-                  <option value="cancelled">cancelled</option>
-                  <option value="resolution">resolution</option>
+                  <option value="pending">Order is Preparing</option>
+                  <option value="approved">Approve</option>
+                  <option value="delivering">Delivering</option>
+                  <option value="completed">Complete</option>
+                  <option value="cancelled">Cancelled</option>
+                  <option value="resolution">Resolution</option>
                 </select>
+                <p className="mt-1 text-xs text-gray-500">
+                  Payment status is auto-synced from selected state when you save.
+                </p>
+              </div>
+
+              <div>
+                <label className="text-sm text-gray-500">Payment (auto from current state)</label>
+                <div className="mt-1">
+                  <span className={paymentBadgeClass(editOrder.payment_state, editState, editResult)}>
+                    {getOrderPaymentLabel(editOrder.payment_state, editState, editResult)}
+                  </span>
+                </div>
               </div>
 
               <div>
@@ -909,10 +1287,10 @@ export default function AdminOrdersPage() {
       )}
 
       {infoOpen && (
-        <div className="fixed inset-0 bg-black/40 flex items-center justify-center z-50">
-          <div className="bg-white rounded-xl w-full max-w-lg p-6">
-            <div className="flex items-center justify-between mb-4">
-              <h2 className="text-lg font-bold">Order Info #{infoOrderId}</h2>
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40">
+          <div className="w-full max-w-3xl max-h-[88vh] overflow-hidden rounded-xl bg-white p-6">
+            <div className="mb-4 flex items-center justify-between">
+              <h2 className="text-xl font-bold">Order Info #{infoOrderId}</h2>
               <button
                 onClick={() => {
                   setInfoOpen(false);
@@ -920,51 +1298,123 @@ export default function AdminOrdersPage() {
                   setInfoOrderId(null);
                   setInfoError("");
                 }}
-                className="text-sm px-3 py-1.5 rounded-lg border hover:bg-gray-50"
+                className="rounded-lg border px-3 py-1.5 text-sm hover:bg-gray-50"
               >
                 Close
               </button>
             </div>
 
-            {infoLoading ? (
-              <div className="text-sm text-gray-500">Loading...</div>
-            ) : infoError ? (
-              <div className="text-sm text-red-600">{infoError}</div>
-            ) : infoItems.length === 0 ? (
-              <div className="text-sm text-gray-500">No order info found.</div>
-            ) : (
-              <div className="space-y-4">
-                {infoItems.map((item) => {
-                  const entries = parseOrderInfo(item.order_info_json);
-                  return (
-                    <div key={item.id} className="border rounded-lg p-3">
-                      <div className="font-semibold">
-                        {item.product_title || "Order item"}
-                      </div>
-                      <div className="text-xs text-gray-500">
-                        Qty: {item.qty ?? "-"} • Unit: {item.unit_price ?? "-"}
-                      </div>
-                      {entries.length > 0 ? (
-                        <div className="mt-2 space-y-1 text-sm">
-                          {entries.map((e) => (
-                            <div key={`${item.id}-${e.key}`} className="flex gap-2">
-                              <span className="font-semibold">
-                                {resolveLabel(e.key, parseOrderFields(item.order_fields_json))}:
-                              </span>
-                              <span className="break-all">{e.value}</span>
-                            </div>
-                          ))}
-                        </div>
-                      ) : (
-                        <div className="mt-2 text-sm text-gray-500">
-                          No order info provided.
-                        </div>
-                      )}
+            <div className="max-h-[74vh] space-y-4 overflow-y-auto pr-1">
+              {selectedInfoOrder && (
+                <div className="rounded-lg border border-gray-200 bg-gray-50 p-4">
+                  <div className="grid grid-cols-1 gap-3 md:grid-cols-2">
+                    <div className="space-y-1">
+                      <div className="text-xs text-gray-500">Order number</div>
+                      <div className="font-semibold">{selectedInfoOrder.order_number || "-"}</div>
                     </div>
-                  );
-                })}
-              </div>
-            )}
+                    <div className="space-y-1">
+                      <div className="text-xs text-gray-500">User</div>
+                      <div className="font-semibold">{selectedInfoOrder.user_email || "-"}</div>
+                    </div>
+                    <div className="space-y-1">
+                      <div className="text-xs text-gray-500">State</div>
+                      <span className={stateBadgeClass(selectedInfoOrder.state)}>
+                        {getAdminStateLabel(selectedInfoOrder.state)}
+                      </span>
+                    </div>
+                    <div className="space-y-1">
+                      <div className="text-xs text-gray-500">Payment</div>
+                      <span
+                        className={paymentBadgeClass(
+                          selectedInfoOrder.payment_state,
+                          selectedInfoOrder.state,
+                          selectedInfoOrder.result
+                        )}
+                      >
+                        {getOrderPaymentLabel(
+                          selectedInfoOrder.payment_state,
+                          selectedInfoOrder.state,
+                          selectedInfoOrder.result
+                        )}
+                      </span>
+                    </div>
+                    <div className="space-y-1">
+                      <div className="text-xs text-gray-500">Result</div>
+                      <span className={resultBadgeClass(selectedInfoOrder.result)}>
+                        {selectedInfoOrder.result}
+                      </span>
+                    </div>
+                    <div className="space-y-1">
+                      <div className="text-xs text-gray-500">Total</div>
+                      <div className="font-semibold text-blue-700">{formatMoney(selectedInfoOrder.total)}</div>
+                    </div>
+                    <div className="space-y-1 md:col-span-2">
+                      <div className="text-xs text-gray-500">Created</div>
+                      <div>{formatDate(selectedInfoOrder.created_at)}</div>
+                    </div>
+                  </div>
+                </div>
+              )}
+
+              {infoLoading ? (
+                <div className="text-sm text-gray-500">Loading...</div>
+              ) : infoError ? (
+                <div className="text-sm text-red-600">{infoError}</div>
+              ) : infoItems.length === 0 ? (
+                <div className="text-sm text-gray-500">No order info found.</div>
+              ) : (
+                <div className="space-y-3">
+                  {infoItems.map((item) => {
+                    const entries = parseOrderInfo(item.order_info_json);
+                    const fields = parseOrderFields(item.order_fields_json);
+                    const qty = typeof item.qty === "string" ? Number(item.qty) : (item.qty ?? 0);
+                    const unit = typeof item.unit_price === "string" ? Number(item.unit_price) : (item.unit_price ?? 0);
+                    const subtotal = Number.isFinite(qty) && Number.isFinite(unit) ? qty * unit : 0;
+
+                    return (
+                      <div key={item.id} className="rounded-lg border border-gray-200 p-4">
+                        <div className="flex items-start justify-between gap-4">
+                          <div>
+                            <div className="font-semibold text-gray-900">{item.product_title || "Order item"}</div>
+                            <div className="mt-1 text-xs text-gray-500">
+                              Qty: {item.qty ?? "-"} | Unit: {formatMoney(item.unit_price)}
+                            </div>
+                          </div>
+                          <div className="text-right">
+                            <div className="text-xs text-gray-500">Subtotal</div>
+                            <div className="font-semibold text-blue-700">{formatMoney(subtotal)}</div>
+                          </div>
+                        </div>
+
+                        {entries.length > 0 ? (
+                          <div className="mt-3 grid grid-cols-1 gap-2 sm:grid-cols-2">
+                            {entries.map((e) => (
+                              <div
+                                key={`${item.id}-${e.key}`}
+                                className="rounded-md bg-gray-50 px-3 py-2 text-sm"
+                              >
+                                <span className="font-semibold text-gray-700">{resolveLabel(e.key, fields)}:</span>{" "}
+                                <span className="break-all text-gray-900">{e.value}</span>
+                              </div>
+                            ))}
+                          </div>
+                        ) : (
+                          <div className="mt-3 text-sm text-gray-500">No order info provided.</div>
+                        )}
+                      </div>
+                    );
+                  })}
+                </div>
+              )}
+
+              {!infoLoading && !infoError && infoItems.length > 0 && (
+                <div className="flex justify-end pt-1">
+                  <div className="rounded-md bg-blue-50 px-3 py-1.5 text-sm text-blue-700">
+                    Items: <span className="font-semibold">{infoItems.length}</span>
+                  </div>
+                </div>
+              )}
+            </div>
           </div>
         </div>
       )}

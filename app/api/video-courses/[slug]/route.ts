@@ -43,11 +43,19 @@ type LessonRow = RowDataPacket & {
   is_active: number;
 };
 
-type AccessRow = RowDataPacket & { id: number };
 type SubscriptionStatusRow = RowDataPacket & {
   plan_id: number;
   status: "pending" | "active" | "expired" | "cancelled";
   access_end: Date | string | null;
+};
+type CoursePurchaseStatusRow = RowDataPacket & {
+  plan_id: number;
+  status: "pending" | "active" | "expired" | "cancelled";
+  access_end: Date | string | null;
+  access_type: "lifetime" | "months";
+  max_devices: number;
+  is_unlimited_device: number;
+  order_number: string | null;
 };
 type PlanRow = RowDataPacket & {
   id: number;
@@ -55,6 +63,8 @@ type PlanRow = RowDataPacket & {
   access_type: string;
   duration_days: number | null;
   price: number | string;
+  max_devices: number;
+  is_unlimited_device: number;
   khqr: string | null;
   usdqr: string | null;
 };
@@ -142,6 +152,8 @@ export async function GET(
   req: Request,
   ctx: { params: Promise<{ slug?: string }> }
 ) {
+  const url = new URL(req.url);
+  const deviceId = (url.searchParams.get("deviceId") || "").trim();
   const params = await ctx.params;
   const slug = (params?.slug ?? "").trim();
   if (!slug) {
@@ -170,6 +182,37 @@ export async function GET(
     `
   );
   const hasLearningOutcomesColumn = learningOutcomesColumnRows.length > 0;
+
+  const [orderStateColumnRows] = await db.query<RowDataPacket[]>(
+    `
+    SELECT 1 AS ok
+    FROM information_schema.columns
+    WHERE table_schema = DATABASE()
+      AND table_name = 'orders'
+      AND column_name = 'state'
+    LIMIT 1
+    `
+  );
+  const hasOrderStateColumn = orderStateColumnRows.length > 0;
+
+  const [orderStatusColumnRows] = await db.query<RowDataPacket[]>(
+    `
+    SELECT 1 AS ok
+    FROM information_schema.columns
+    WHERE table_schema = DATABASE()
+      AND table_name = 'orders'
+      AND column_name = 'status'
+    LIMIT 1
+    `
+  );
+  const hasOrderStatusColumn = orderStatusColumnRows.length > 0;
+
+  const completedOrderClause = (alias: string) =>
+    hasOrderStateColumn
+      ? `${alias}.state IN ('completed','complete')`
+      : hasOrderStatusColumn
+        ? `${alias}.status IN ('completed','complete')`
+        : "1 = 0";
 
   const [courseRows] = await db.query<CourseRow[]>(
     `
@@ -228,7 +271,7 @@ export async function GET(
 
   const [plans] = await db.query<PlanRow[]>(
     `
-    SELECT id, name, access_type, duration_days, price, khqr, usdqr
+    SELECT id, name, access_type, duration_days, price, max_devices, is_unlimited_device, khqr, usdqr
     FROM video_course_plans
     WHERE course_id = ? AND is_active = 1
     ORDER BY id ASC
@@ -261,6 +304,13 @@ export async function GET(
   let hasCourseAccess = false;
   let activeSubscriptionPlanId: number | null = null;
   let pendingSubscriptionPlanId: number | null = null;
+  let activeCoursePlanId: number | null = null;
+  let pendingCoursePlanId: number | null = null;
+  let lifetimeCoursePurchased = false;
+  let courseOrderNumber: string | null = null;
+  let courseDeviceLimit: number | null = null;
+  let courseDeviceCount: number | null = null;
+  let courseAccessReason: string | null = null;
 
   if (auth?.userId) {
     const [subRows] = await db.query<SubscriptionStatusRow[]>(
@@ -268,7 +318,19 @@ export async function GET(
       SELECT plan_id, status, access_end
       FROM video_subscriptions
       WHERE user_id = ?
-        AND status IN ('active','pending')
+        AND (
+          (status = 'active' AND (access_end IS NULL OR access_end >= NOW()))
+          OR status = 'pending'
+        )
+        AND (
+          order_id IS NULL
+          OR EXISTS (
+            SELECT 1
+            FROM orders o
+            WHERE o.id = video_subscriptions.order_id
+              AND ${completedOrderClause("o")}
+          )
+        )
       ORDER BY
         CASE status WHEN 'active' THEN 0 ELSE 1 END,
         access_end DESC
@@ -286,21 +348,142 @@ export async function GET(
       pendingSubscriptionPlanId = Number(pendingRow.plan_id);
     }
 
-    if (!hasSubscription) {
-      const [purchaseRows] = await db.query<AccessRow[]>(
-        `
-        SELECT id
-        FROM video_course_purchases
-        WHERE user_id = ?
-          AND course_id = ?
-          AND status = 'active'
-          AND (access_end IS NULL OR access_end >= NOW())
-        LIMIT 1
-        `,
-        [auth.userId, course.id]
-      );
-      hasCourseAccess = purchaseRows.length > 0;
+    const [coursePurchaseRows] = await db.query<CoursePurchaseStatusRow[]>(
+      `
+      SELECT
+        vcp.plan_id,
+        vcp.status,
+        vcp.access_end,
+        vplan.access_type,
+        vplan.max_devices,
+        vplan.is_unlimited_device,
+        o.order_number
+      FROM video_course_purchases vcp
+      JOIN video_course_plans vplan ON vplan.id = vcp.plan_id
+      LEFT JOIN orders o ON o.id = vcp.order_id
+      WHERE vcp.user_id = ?
+        AND vcp.course_id = ?
+        AND (
+          vcp.order_id IS NULL
+          OR EXISTS (
+            SELECT 1
+            FROM orders o2
+            WHERE o2.id = vcp.order_id
+              AND ${completedOrderClause("o2")}
+          )
+        )
+      ORDER BY
+        CASE vcp.status WHEN 'active' THEN 0 WHEN 'pending' THEN 1 ELSE 2 END,
+        vcp.access_end DESC,
+        vcp.id DESC
+      `,
+      [auth.userId, course.id]
+    );
+
+    const activeCourseRow = coursePurchaseRows.find((row) => {
+      if (row.status !== "active") return false;
+      if (!row.access_end) return true;
+      const end = row.access_end instanceof Date ? row.access_end : new Date(row.access_end);
+      return !Number.isNaN(end.getTime()) && end.getTime() >= Date.now();
+    });
+    const pendingCourseRow = coursePurchaseRows.find((row) => row.status === "pending");
+
+    if (activeCourseRow) {
+      hasCourseAccess = true;
+      activeCoursePlanId = Number(activeCourseRow.plan_id);
+      const unlimited = Number(activeCourseRow.is_unlimited_device ?? 0) === 1;
+      const rawLimit = Number(activeCourseRow.max_devices ?? 0);
+      const maxDevices =
+        unlimited ? 9999 : Number.isFinite(rawLimit) && rawLimit > 0 ? Math.floor(rawLimit) : 1;
+      courseDeviceLimit = maxDevices;
+
+      if (!unlimited) {
+        if (!deviceId) {
+          hasCourseAccess = false;
+          courseAccessReason = "device_id_required";
+        } else {
+          try {
+            const [existingDeviceRows] = await db.query<RowDataPacket[]>(
+              `
+              SELECT id
+              FROM video_course_device_access
+              WHERE user_id = ? AND course_id = ? AND device_id = ?
+              LIMIT 1
+              `,
+              [auth.userId, course.id, deviceId]
+            );
+
+            if (existingDeviceRows.length > 0) {
+              await db.query(
+                `
+                UPDATE video_course_device_access
+                SET last_used_at = NOW()
+                WHERE user_id = ? AND course_id = ? AND device_id = ?
+                `,
+                [auth.userId, course.id, deviceId]
+              );
+            } else {
+              const [countRows] = await db.query<RowDataPacket[]>(
+                `
+                SELECT COUNT(*) AS total
+                FROM video_course_device_access
+                WHERE user_id = ? AND course_id = ?
+                `,
+                [auth.userId, course.id]
+              );
+              const totalDevices = Number(countRows[0]?.total ?? 0);
+              courseDeviceCount = totalDevices;
+              if (totalDevices >= maxDevices) {
+                hasCourseAccess = false;
+                courseAccessReason = "device_limit";
+              } else {
+                await db.query(
+                  `
+                  INSERT INTO video_course_device_access (user_id, course_id, device_id, device_name)
+                  VALUES (?, ?, ?, ?)
+                  `,
+                  [auth.userId, course.id, deviceId, (req.headers.get("user-agent") || "").slice(0, 120)]
+                );
+              }
+            }
+
+            if (hasCourseAccess) {
+              const [newCountRows] = await db.query<RowDataPacket[]>(
+                `
+                SELECT COUNT(*) AS total
+                FROM video_course_device_access
+                WHERE user_id = ? AND course_id = ?
+                `,
+                [auth.userId, course.id]
+              );
+              courseDeviceCount = Number(newCountRows[0]?.total ?? 0);
+            }
+          } catch (err) {
+            const message = err instanceof Error ? err.message.toLowerCase() : String(err).toLowerCase();
+            if (message.includes("video_course_device_access")) {
+              // migration not yet applied; keep access behavior unchanged
+            } else {
+              throw err;
+            }
+          }
+        }
+      }
     }
+    if (pendingCourseRow) {
+      pendingCoursePlanId = Number(pendingCourseRow.plan_id);
+    }
+
+    lifetimeCoursePurchased = coursePurchaseRows.some(
+      (row) =>
+        row.access_type === "lifetime" &&
+        (row.status === "active" || row.status === "pending")
+    );
+    courseOrderNumber =
+      coursePurchaseRows
+        .map((row) =>
+          typeof row.order_number === "string" ? row.order_number.trim() : ""
+        )
+        .find((value) => value.length > 0) ?? null;
   }
 
   const hasAccess = hasSubscription || hasCourseAccess;
@@ -359,6 +542,13 @@ export async function GET(
       preview_count: previewCount,
       active_subscription_plan_id: activeSubscriptionPlanId,
       pending_subscription_plan_id: pendingSubscriptionPlanId,
+      active_course_plan_id: activeCoursePlanId,
+      pending_course_plan_id: pendingCoursePlanId,
+      lifetime_course_purchased: lifetimeCoursePurchased,
+      course_order_number: courseOrderNumber,
+      course_device_limit: courseDeviceLimit,
+      course_device_count: courseDeviceCount,
+      course_access_reason: courseAccessReason,
     },
   });
 }

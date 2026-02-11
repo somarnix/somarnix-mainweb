@@ -38,6 +38,8 @@ type Order = {
 type Item = {
   id: number;
   title: string;
+  slug?: string | null;
+  category_name?: string | null;
   image_url: string | null;
   is_active?: boolean;
   qty: number;
@@ -474,9 +476,13 @@ function normalizeSlug(value: string): string {
     .replace(/^-+|-+$/g, "");
 }
 
+function isToolItem(item: Item): boolean {
+  return String(item.category_name || "").toLowerCase() === "tools";
+}
+
 function Timeline({ steps, lang }: { steps: TimelineStep[]; lang: LanguageCode }) {
   return (
-    <div className="space-y-6">
+    <div className="max-w-7xl mx-auto px-4 py-12">
       <div className="hidden md:flex items-center gap-2">
         {steps.map((step, index) => {
           const color =
@@ -752,6 +758,16 @@ export function OrderDetailPage({
     if (order?.id && onOpenChat && order.status === "completed") {
       onOpenChat(order.id);
     }
+  };
+
+  const handleOpenPurchasedItem = (item: Item) => {
+    const slug = String(item.slug || "").trim();
+    if (!slug) return;
+    if (isToolItem(item)) {
+      window.location.href = `/tools-ai/${encodeURIComponent(normalizeSlug(slug))}`;
+      return;
+    }
+    window.location.href = `/product/${encodeURIComponent(slug)}`;
   };
 
   const canEditOrderInfo = order?.status === "pending";
@@ -1395,6 +1411,23 @@ export function OrderDetailPage({
                   <p className="text-lg font-semibold text-blue-600 dark:text-blue-400">
                     {formatPrice(it.unit_price * it.qty)}
                   </p>
+                  {it.slug ? (
+                    <div className="mt-2">
+                      <Button
+                        variant="outline"
+                        size="sm"
+                        onClick={() => handleOpenPurchasedItem(it)}
+                      >
+                        {isToolItem(it)
+                          ? language === "km"
+                            ? "បើកឧបករណ៍"
+                            : "Open tool"
+                          : language === "km"
+                          ? "មើលលម្អិត"
+                          : "View detail"}
+                      </Button>
+                    </div>
+                  ) : null}
                 </div>
               </div>
             ))}

@@ -1,15 +1,7 @@
-import jwt, { JwtPayload } from "jsonwebtoken";
 import bcrypt from "bcryptjs";
 import type { RowDataPacket, ResultSetHeader } from "mysql2";
 import { db } from "@/lib/db";
-
-/* ================= COOKIE HELPERS ================= */
-
-function getCookie(cookieHeader: string, name: string): string | null {
-  const parts = cookieHeader.split(";").map((p) => p.trim());
-  const hit = parts.find((p) => p.startsWith(name + "="));
-  return hit ? hit.substring(name.length + 1) : null;
-}
+import { getAuthUser } from "@/lib/auth";
 
 function isObject(v: unknown): v is Record<string, unknown> {
   return typeof v === "object" && v !== null;
@@ -74,31 +66,11 @@ interface UserRow extends RowDataPacket {
   deleted_at: string | null;
 }
 
-/* ================= AUTH ================= */
-
-async function getUserIdFromCookie(req: Request): Promise<number | null> {
-  const cookie = req.headers.get("cookie") ?? "";
-  const token = getCookie(cookie, "token");
-  if (!token) return null;
-
-  try {
-    const payload = jwt.verify(
-      token,
-      process.env.JWT_SECRET ?? "dev_secret"
-    ) as JwtPayload;
-
-    const userId = Number(payload.userId);
-    return userId || null;
-  } catch {
-    return null;
-  }
-}
-
 /* ================= GET PROFILE ================= */
 
 export async function GET(req: Request): Promise<Response> {
-  const userId = await getUserIdFromCookie(req);
-  if (!userId) return Response.json({ error: "Unauthorized" }, { status: 401 });
+  const auth = await getAuthUser(req);
+  if (!auth) return Response.json({ error: "Unauthorized" }, { status: 401 });
 
   const [rows] = await db.query<UserRow[]>(
     `SELECT
@@ -108,7 +80,7 @@ export async function GET(req: Request): Promise<Response> {
       is_active, deleted_at
      FROM users
      WHERE id = ? LIMIT 1`,
-    [userId]
+    [auth.userId]
   );
 
   if (rows.length === 0) {
@@ -147,8 +119,8 @@ export async function GET(req: Request): Promise<Response> {
 /* ================= UPDATE PROFILE ================= */
 
 export async function PUT(req: Request): Promise<Response> {
-  const userId = await getUserIdFromCookie(req);
-  if (!userId) return Response.json({ error: "Unauthorized" }, { status: 401 });
+  const auth = await getAuthUser(req);
+  if (!auth) return Response.json({ error: "Unauthorized" }, { status: 401 });
 
   const raw: unknown = await req.json().catch(() => ({}));
   const body: ProfileUpdateBody = isObject(raw) ? (raw as ProfileUpdateBody) : {};
@@ -180,7 +152,7 @@ export async function PUT(req: Request): Promise<Response> {
 
     const [pwRows] = await db.query<UserRow[]>(
       "SELECT password_hash FROM users WHERE id = ? LIMIT 1",
-      [userId]
+      [auth.userId]
     );
 
     if (pwRows.length === 0) {
@@ -215,7 +187,7 @@ export async function PUT(req: Request): Promise<Response> {
   if (phone) {
     const [dupRows] = await db.query<RowDataPacket[]>(
       "SELECT id FROM users WHERE phone = ? AND id <> ? LIMIT 1",
-      [phone, userId]
+      [phone, auth.userId]
     );
     if (dupRows.length > 0) {
       return Response.json(
@@ -236,7 +208,7 @@ export async function PUT(req: Request): Promise<Response> {
   }
 
   sets.push("updated_at = NOW()");
-  values.push(userId);
+  values.push(auth.userId);
 
   try {
     await db.query<ResultSetHeader>(

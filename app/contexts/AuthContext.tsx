@@ -68,12 +68,38 @@ type ForgotPasswordResult = {
   error?: string;
 };
 
+type LoginResult = {
+  success: boolean;
+  reason?:
+    | "required"
+    | "invalid"
+    | "deleted"
+    | "banned"
+    | "banned_until"
+    | "device_limit"
+    | "email_not_verified"
+    | "password_not_set"
+    | "server";
+  banUntil?: string;
+  banDaysLeft?: number;
+  maxDevices?: number;
+  email?: string;
+  message?: string;
+};
+
+type RegisterResult = {
+  success: boolean;
+  requiresVerification?: boolean;
+  email?: string;
+};
+
 type AuthContextType = {
   user: AuthUser | null;
   loading: boolean;
   isAuthenticated: boolean;
 
-  login: (email: string, password: string) => Promise<boolean>;
+  login: (email: string, password: string) => Promise<LoginResult>;
+  loginWithGoogle: (credential: string) => Promise<LoginResult>;
   register: (
     firstName: string,
     lastName: string,
@@ -82,7 +108,7 @@ type AuthContextType = {
     place: string,
     email: string,
     password: string
-  ) => Promise<void>;
+  ) => Promise<RegisterResult>;
 
   logout: () => Promise<void>;
   refreshMe: () => Promise<void>;
@@ -105,8 +131,31 @@ function isObject(v: unknown): v is Record<string, unknown> {
 
 function getErrorMessage(data: unknown): string | null {
   if (!isObject(data)) return null;
-  const err = data.error;
-  return typeof err === "string" ? err : null;
+  const err = typeof data.error === "string" ? data.error.trim() : "";
+  const detail = typeof data.detail === "string" ? data.detail.trim() : "";
+  if (err && detail) return `${err}: ${detail}`;
+  if (err) return err;
+  if (detail) return detail;
+  return null;
+}
+
+function getLoginDeviceId(): string | null {
+  if (typeof window === "undefined") return null;
+  const key = "gstech_login_device_id";
+  const existing = window.localStorage.getItem(key);
+  if (existing && existing.trim()) return existing;
+  const created =
+    typeof crypto !== "undefined" && "randomUUID" in crypto
+      ? crypto.randomUUID()
+      : `${Date.now()}-${Math.random().toString(16).slice(2)}`;
+  window.localStorage.setItem(key, created);
+  return created;
+}
+
+function getLoginDeviceName(): string {
+  if (typeof navigator === "undefined") return "Web";
+  const ua = navigator.userAgent || "Web";
+  return ua.slice(0, 120);
 }
 
 /* ================= PROVIDER ================= */
@@ -183,26 +232,105 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   }, []);
 
   /* 🔐 LOGIN */
-  const login = async (email: string, password: string) => {
+  const login = async (email: string, password: string): Promise<LoginResult> => {
     try {
+      const deviceId = getLoginDeviceId();
+      const deviceName = getLoginDeviceName();
       const res = await fetch("/api/auth/login-cookie", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         credentials: "include",
-        body: JSON.stringify({ email, password }),
+        body: JSON.stringify({ email, password, deviceId, deviceName }),
       });
 
       const data: unknown = await res.json().catch(() => null);
-
       if (!res.ok || !isObject(data) || data.success !== true) {
-        return false;
+        const parsed = isObject(data) ? data : {};
+        const code = typeof parsed.code === "string" ? parsed.code : null;
+        const msg = getErrorMessage(parsed) ?? "Login failed";
+        if (code === "ACCOUNT_DELETED") {
+          return { success: false, reason: "deleted", message: msg };
+        }
+        if (code === "ACCOUNT_BANNED_UNTIL") {
+          const banUntil = typeof parsed.banUntil === "string" ? parsed.banUntil : undefined;
+          const banDaysLeft =
+            typeof parsed.banDaysLeft === "number" && Number.isFinite(parsed.banDaysLeft)
+              ? parsed.banDaysLeft
+              : undefined;
+          return { success: false, reason: "banned_until", banUntil, banDaysLeft, message: msg };
+        }
+        if (code === "ACCOUNT_BANNED") {
+          return { success: false, reason: "banned", message: msg };
+        }
+        if (code === "ACCOUNT_LOGIN_DEVICE_LIMIT") {
+          const maxDevices =
+            typeof parsed.maxDevices === "number" && Number.isFinite(parsed.maxDevices)
+              ? parsed.maxDevices
+              : undefined;
+          return { success: false, reason: "device_limit", message: msg, maxDevices };
+        }
+        if (code === "ACCOUNT_EMAIL_NOT_VERIFIED") {
+          const emailValue = typeof parsed.email === "string" ? parsed.email : undefined;
+          return { success: false, reason: "email_not_verified", message: msg, email: emailValue };
+        }
+        if (code === "ACCOUNT_PASSWORD_NOT_SET") {
+          return { success: false, reason: "password_not_set", message: msg };
+        }
+        if (res.status === 400) {
+          return { success: false, reason: "required", message: msg };
+        }
+        if (res.status === 401) {
+          return { success: false, reason: "invalid", message: msg };
+        }
+        return { success: false, reason: "server", message: msg };
       }
 
       await refreshMe();
       await fetchProfile();
-      return true;
+      return { success: true };
     } catch {
-      return false;
+      return { success: false, reason: "server", message: "Server error" };
+    }
+  };
+
+  const loginWithGoogle = async (credential: string): Promise<LoginResult> => {
+    try {
+      const deviceId = getLoginDeviceId();
+      const deviceName = getLoginDeviceName();
+      const res = await fetch("/api/auth/google", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        credentials: "include",
+        body: JSON.stringify({ credential, deviceId, deviceName }),
+      });
+
+      const data: unknown = await res.json().catch(() => null);
+      if (!res.ok || !isObject(data) || data.success !== true) {
+        const parsed = isObject(data) ? data : {};
+        const code = typeof parsed.code === "string" ? parsed.code : null;
+        const msg = getErrorMessage(parsed) ?? "Google login failed";
+
+        if (code === "ACCOUNT_LOGIN_DEVICE_LIMIT") {
+          const maxDevices =
+            typeof parsed.maxDevices === "number" && Number.isFinite(parsed.maxDevices)
+              ? parsed.maxDevices
+              : undefined;
+          return { success: false, reason: "device_limit", message: msg, maxDevices };
+        }
+        if (code === "ACCOUNT_DELETED") {
+          return { success: false, reason: "deleted", message: msg };
+        }
+        if (code === "ACCOUNT_BANNED") {
+          return { success: false, reason: "banned", message: msg };
+        }
+        return { success: false, reason: "server", message: msg };
+      }
+
+      await refreshMe();
+      await fetchProfile();
+      return { success: true };
+    } catch {
+      return { success: false, reason: "server", message: "Server error" };
     }
   };
 
@@ -233,9 +361,23 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     const data: unknown = await res.json().catch(() => null);
 
     if (!res.ok || !isObject(data) || data.success !== true) {
+      if (isObject(data) && data.code === "EMAIL_NOT_VERIFIED") {
+        return {
+          success: true,
+          requiresVerification: true,
+          email: typeof data.email === "string" ? data.email : email,
+        };
+      }
       const msg = getErrorMessage(data) ?? "Registration failed";
       throw new Error(msg);
     }
+    const parsed = data as Record<string, unknown>;
+
+    return {
+      success: true,
+      requiresVerification: parsed.requiresVerification === true,
+      email: typeof parsed.email === "string" ? parsed.email : email,
+    };
   };
 
   /* 📝 FORGOTPASSWORD */
@@ -305,17 +447,24 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   /* 🚪 LOGOUT */
   const logout = async () => {
     try {
+      const deviceId = getLoginDeviceId();
       if (user?.id) {
         fetch("/api/presence", {
           method: "POST",
           headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ status: "offline" }),
+          body: JSON.stringify({
+            status: "offline",
+            deviceId,
+            deviceName: getLoginDeviceName(),
+          }),
           keepalive: true,
         }).catch(() => {});
       }
       await fetch("/api/auth/logout", {
         method: "POST",
+        headers: { "Content-Type": "application/json" },
         credentials: "include",
+        body: JSON.stringify({ deviceId }),
       });
     } finally {
       setUser(null);
@@ -328,8 +477,9 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         user,
         loading,
         isAuthenticated: !!user,
-        login,
-        register,
+      login,
+      loginWithGoogle,
+      register,
         logout,
         refreshMe,
         fetchProfile,

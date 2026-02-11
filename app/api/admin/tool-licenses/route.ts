@@ -24,15 +24,18 @@ type LicenseRow = RowDataPacket & {
   order_number: string | null;
   product_id: number;
   product_title: string;
+  product_slug: string;
   user_id: number;
   user_email: string;
   user_username: string | null;
   license_key: string;
   last_device_id: string | null;
+  device_count: number;
   max_devices: number;
   status: "active" | "revoked" | "expired";
   expires_at: string | Date | null;
   created_at: string | Date;
+  category_name: string | null;
 };
 
 type OrderLicenseDetailRow = RowDataPacket & {
@@ -342,6 +345,8 @@ export async function GET(req: Request) {
             ) AS order_number,
             lk.product_id,
             p.title AS product_title,
+            p.slug AS product_slug,
+            LOWER(pc.name) AS category_name,
             lk.user_id,
             u.email AS user_email,
             u.username AS user_username,
@@ -353,12 +358,18 @@ export async function GET(req: Request) {
               ORDER BY ta.last_seen_at DESC, ta.id DESC
               LIMIT 1
             ) AS last_device_id,
+            (
+              SELECT COUNT(DISTINCT ta.device_id)
+              FROM tool_license_activations ta
+              WHERE ta.license_id = lk.id
+            ) AS device_count,
             lk.max_devices,
             lk.status,
             lk.expires_at,
             lk.created_at
           FROM tool_license_keys lk
           JOIN products p ON p.id = lk.product_id
+          LEFT JOIN product_categories pc ON pc.id = p.category_id
           JOIN users u ON u.id = lk.user_id
           LEFT JOIN orders o ON o.id = lk.order_id
           ORDER BY lk.created_at DESC
@@ -391,6 +402,8 @@ export async function GET(req: Request) {
             ) AS order_number,
             lk.product_id,
             p.title AS product_title,
+            p.slug AS product_slug,
+            LOWER(pc.name) AS category_name,
             lk.user_id,
             u.email AS user_email,
             u.username AS user_username,
@@ -402,12 +415,18 @@ export async function GET(req: Request) {
               ORDER BY ta.last_seen_at DESC, ta.id DESC
               LIMIT 1
             ) AS last_device_id,
+            (
+              SELECT COUNT(DISTINCT ta.device_id)
+              FROM tool_license_activations ta
+              WHERE ta.license_id = lk.id
+            ) AS device_count,
             lk.max_devices,
             lk.status,
             lk.expires_at,
             lk.created_at
           FROM tool_license_keys lk
           JOIN products p ON p.id = lk.product_id
+          LEFT JOIN product_categories pc ON pc.id = p.category_id
           JOIN users u ON u.id = lk.user_id
           ORDER BY lk.created_at DESC
           LIMIT 100

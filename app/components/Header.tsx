@@ -47,6 +47,7 @@ type HeaderChatParticipant = {
 type HeaderChatSummary = {
   orderId: number;
   orderNumber: string;
+  state?: string | null;
   buyer: HeaderChatParticipant;
   seller: HeaderChatParticipant;
   sellerName?: string | null;
@@ -359,6 +360,7 @@ const mapSummary = (raw: any): HeaderChatSummary => {
   return {
     orderId: Number(raw.orderId ?? raw.order_id ?? 0),
     orderNumber: String(raw.orderNumber ?? raw.order_number ?? ''),
+    state: raw.state ?? null,
     buyer,
     seller,
     lastMessage: raw.lastMessage ?? raw.last_body ?? null,
@@ -370,6 +372,39 @@ const mapSummary = (raw: any): HeaderChatSummary => {
     lastStickerPath: raw.lastStickerPath ?? raw.last_sticker_path ?? null,
     unreadCount: Number(raw.unreadCount ?? raw.unread_count ?? 0),
   };
+};
+
+const getChatOrderStateLabel = (state?: string | null) => {
+  const normalized = (state ?? "").toLowerCase();
+  const labels: Record<string, string> = {
+    pending: "Order is Preparing",
+    approved: "Approved",
+    delivering: "Delivering",
+    completed: "Complete",
+    cancelled: "Cancelled",
+    canceled: "Cancelled",
+    resolution: "Resolution",
+  };
+  return labels[normalized] ?? "Unknown";
+};
+
+const getChatOrderStateBadgeClass = (state?: string | null) => {
+  const normalized = (state ?? "").toLowerCase();
+  const base =
+    "inline-flex items-center rounded-full px-3 py-1 text-xs font-semibold";
+  if (normalized === "completed") {
+    return `${base} bg-emerald-100 text-emerald-700`;
+  }
+  if (normalized === "cancelled" || normalized === "canceled") {
+    return `${base} bg-rose-100 text-rose-700`;
+  }
+  if (normalized === "resolution") {
+    return `${base} bg-red-100 text-red-700`;
+  }
+  if (normalized === "approved" || normalized === "delivering") {
+    return `${base} bg-blue-100 text-blue-700`;
+  }
+  return `${base} bg-slate-100 text-slate-700`;
 };
 
   const loadWidgetConversations = async (
@@ -1376,9 +1411,13 @@ const mapSummary = (raw: any): HeaderChatSummary => {
                                   >
                                     {displayName}
                                   </div>
-                                  <div className="text-xs text-gray-500 truncate">
-                                    {language === "km" ? "???????????" : "Order"}{" "}
-                                    {conv.orderNumber}
+                                  <div className="mt-0.5 flex items-center gap-2">
+                                    <div className="text-xs text-gray-500 truncate">
+                                      {language === "km" ? "Order" : "Order"} {conv.orderNumber}
+                                    </div>
+                                    <span className={getChatOrderStateBadgeClass(conv.state)}>
+                                      {getChatOrderStateLabel(conv.state)}
+                                    </span>
                                   </div>
                                   <div
                                     className={`mt-1 text-xs line-clamp-2 ${
@@ -1441,6 +1480,9 @@ const mapSummary = (raw: any): HeaderChatSummary => {
                           <p className="text-xs opacity-80">
                             #{chatWidgetActive.orderNumber}
                           </p>
+                          <span className={getChatOrderStateBadgeClass(chatWidgetActive.state)}>
+                            {getChatOrderStateLabel(chatWidgetActive.state)}
+                          </span>
                         </div>
                       </div>
                       <button

@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { Button } from "../../components/ui/button";
 import { Input } from "../../components/ui/input";
 import { Label } from "../../components/ui/label";
@@ -48,12 +48,17 @@ function isValidUsername(username: string): boolean {
 }
 
 export function RegisterPage({ onNavigate }: RegisterPageProps) {
-  const { register } = useAuth();
+  const { register, loginWithGoogle } = useAuth();
   const { t } = useLanguage();
 
   const [showPassword, setShowPassword] = useState(false);
   const [showConfirmPassword, setShowConfirmPassword] = useState(false);
   const [isLoading, setIsLoading] = useState(false);
+  const [verificationEmail, setVerificationEmail] = useState("");
+  const [verificationCode, setVerificationCode] = useState("");
+  const [verifyingCode, setVerifyingCode] = useState(false);
+  const [resendingCode, setResendingCode] = useState(false);
+  const [googleReady, setGoogleReady] = useState(false);
 
   const [formData, setFormData] = useState({
     firstName: "",
@@ -107,7 +112,7 @@ export function RegisterPage({ onNavigate }: RegisterPageProps) {
 
     setIsLoading(true);
     try {
-      await register(
+      const result = await register(
         formData.firstName.trim(),
         formData.lastName.trim(),
         uname,
@@ -117,8 +122,14 @@ export function RegisterPage({ onNavigate }: RegisterPageProps) {
         formData.password
       );
 
-      toast.success(t("register.success"));
-      onNavigate("login");
+      if (result.requiresVerification) {
+        const targetEmail = result.email || formData.email.trim().toLowerCase();
+        setVerificationEmail(targetEmail);
+        toast.success(`Verification code sent to ${targetEmail}`);
+      } else {
+        toast.success(t("register.success"));
+        onNavigate("login");
+      }
     } catch (error) {
       toast.error(t("register.failed"), {
         description: error instanceof Error ? error.message : t("register.tryAgain"),
@@ -126,6 +137,116 @@ export function RegisterPage({ onNavigate }: RegisterPageProps) {
     } finally {
       setIsLoading(false);
     }
+  };
+
+  const handleVerifyCode = async () => {
+    const email = verificationEmail.trim().toLowerCase();
+    const code = verificationCode.replace(/\s+/g, "");
+    if (!email) {
+      toast.error("Verification email is missing.");
+      return;
+    }
+    if (!/^\d{6}$/.test(code)) {
+      toast.error("Please enter a valid 6-digit code.");
+      return;
+    }
+
+    try {
+      setVerifyingCode(true);
+      const res = await fetch("/api/auth/verify-email/confirm", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ email, code }),
+      });
+      const data = await res.json().catch(() => ({}));
+      if (!res.ok) {
+        throw new Error(typeof data?.error === "string" ? data.error : "Failed to verify email");
+      }
+      toast.success("Email verified successfully. You can login now.");
+      onNavigate("login");
+    } catch (error) {
+      toast.error("Verification failed", {
+        description: error instanceof Error ? error.message : "Please try again.",
+      });
+    } finally {
+      setVerifyingCode(false);
+    }
+  };
+
+  const handleResendCode = async () => {
+    const email = verificationEmail.trim().toLowerCase();
+    if (!email) {
+      toast.error("Verification email is missing.");
+      return;
+    }
+    try {
+      setResendingCode(true);
+      const res = await fetch("/api/auth/verify-email/send-code", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ email }),
+      });
+      const data = await res.json().catch(() => ({}));
+      if (!res.ok) {
+        throw new Error(typeof data?.error === "string" ? data.error : "Failed to resend code");
+      }
+      toast.success(`Verification code re-sent to ${email}`);
+    } catch (error) {
+      toast.error("Resend failed", {
+        description: error instanceof Error ? error.message : "Please try again.",
+      });
+    } finally {
+      setResendingCode(false);
+    }
+  };
+
+  const inVerifyStep = verificationEmail.trim().length > 0;
+
+  useEffect(() => {
+    if (typeof window === "undefined") return;
+    const existing = document.getElementById("google-gsi-script") as HTMLScriptElement | null;
+    if (existing) {
+      setGoogleReady(true);
+      return;
+    }
+    const script = document.createElement("script");
+    script.id = "google-gsi-script";
+    script.src = "https://accounts.google.com/gsi/client";
+    script.async = true;
+    script.defer = true;
+    script.onload = () => setGoogleReady(true);
+    document.head.appendChild(script);
+  }, []);
+
+  const handleGoogleAuth = () => {
+    const clientId = process.env.NEXT_PUBLIC_GOOGLE_CLIENT_ID;
+    if (!clientId) {
+      toast.error("Google login is not configured.");
+      return;
+    }
+    if (!googleReady || typeof window === "undefined" || !window.google?.accounts?.id) {
+      toast.error("Google login is loading. Please try again.");
+      return;
+    }
+    window.google.accounts.id.initialize({
+      client_id: clientId,
+      use_fedcm_for_prompt: false,
+      callback: async (response: { credential?: string }) => {
+        const credential = typeof response?.credential === "string" ? response.credential : "";
+        if (!credential) {
+          toast.error("Google login failed.");
+          return;
+        }
+        const result = await loginWithGoogle(credential);
+        if (!result.success) {
+          toast.error(result.message || "Google login failed.");
+          return;
+        }
+        toast.success("Google login successful.");
+        onNavigate("home");
+      },
+    });
+    window.google.accounts.id.prompt();
   };
 
   return (
@@ -149,21 +270,14 @@ export function RegisterPage({ onNavigate }: RegisterPageProps) {
 
           {/* Social Registration Buttons */}
           <div className="space-y-3 mb-6">
-            <Button type="button" variant="outline" className="w-full border-2">
+            <Button type="button" variant="outline" className="w-full border-2" onClick={handleGoogleAuth}>
               <svg className="w-5 h-5 mr-2" viewBox="0 0 24 24">
                 <path fill="currentColor" d="M22.56 12.25c0-.78-.07-1.53-.2-2.25H12v4.26h5.92c-.26 1.37-1.04 2.53-2.21 3.31v2.77h3.57c2.08-1.92 3.28-4.74 3.28-8.09z" />
                 <path fill="currentColor" d="M12 23c2.97 0 5.46-.98 7.28-2.66l-3.57-2.77c-.98.66-2.23 1.06-3.71 1.06-2.86 0-5.29-1.93-6.16-4.53H2.18v2.84C3.99 20.53 7.7 23 12 23z" />
                 <path fill="currentColor" d="M5.84 14.09c-.22-.66-.35-1.36-.35-2.09s.13-1.43.35-2.09V7.07H2.18C1.43 8.55 1 10.22 1 12s.43 3.45 1.18 4.93l2.85-2.22.81-.62z" />
                 <path fill="currentColor" d="M12 5.38c1.62 0 3.06.56 4.21 1.64l3.15-3.15C17.45 2.09 14.97 1 12 1 7.7 1 3.99 3.47 2.18 7.07l3.66 2.84c.87-2.6 3.3-4.53 6.16-4.53z" />
               </svg>
-              {t("register.google")} {t("register.to")} {t("register.emailLabel")}
-            </Button>
-
-            <Button type="button" variant="outline" className="w-full border-2">
-              <svg className="w-5 h-5 mr-2" fill="currentColor" viewBox="0 0 24 24">
-                <path d="M24 12.073c0-6.627-5.373-12-12-12s-12 5.373-12 12c0 5.99 4.388 10.954 10.125 11.854v-8.385H7.078v-3.47h3.047V9.43c0-3.007 1.792-4.669 4.533-4.669 1.312 0 2.686.235 2.686.235v2.953H15.83c-1.491 0-1.956.925-1.956 1.874v2.25h3.328l-.532 3.47h-2.796v8.385C19.612 23.027 24 18.062 24 12.073z" />
-              </svg>
-              {t("register.facebook")} {t("register.to")} {t("register.emailLabel")}
+              {t("register.google")}
             </Button>
           </div>
 
@@ -177,7 +291,8 @@ export function RegisterPage({ onNavigate }: RegisterPageProps) {
             </div>
           </div>
 
-          {/* Registration Form */}
+          {/* Registration / Verification Form */}
+          {!inVerifyStep ? (
           <form onSubmit={handleRegister} className="space-y-5">
             {/* First + Last name */}
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
@@ -353,6 +468,51 @@ export function RegisterPage({ onNavigate }: RegisterPageProps) {
               {isLoading ? t("register.loading") : t("register.createAccount")}
             </Button>
           </form>
+          ) : (
+            <div className="space-y-5">
+              <div className="rounded-xl border border-blue-200 bg-blue-50 p-3 text-sm text-blue-700">
+                We sent a 6-digit verification code to <strong>{verificationEmail}</strong>.
+              </div>
+              <div>
+                <Label htmlFor="verifyCode">Verification code</Label>
+                <Input
+                  id="verifyCode"
+                  type="text"
+                  value={verificationCode}
+                  onChange={(e) => setVerificationCode(e.target.value.replace(/\D/g, "").slice(0, 6))}
+                  placeholder="Enter 6-digit code"
+                />
+              </div>
+              <Button
+                type="button"
+                className="w-full bg-gradient-to-r from-blue-600 to-purple-600 hover:from-blue-700 hover:to-purple-700"
+                onClick={handleVerifyCode}
+                disabled={verifyingCode || verificationCode.trim().length !== 6}
+              >
+                {verifyingCode ? "Verifying..." : "Verify email"}
+              </Button>
+              <Button
+                type="button"
+                variant="outline"
+                className="w-full"
+                onClick={handleResendCode}
+                disabled={resendingCode}
+              >
+                {resendingCode ? "Sending..." : "Resend code"}
+              </Button>
+              <Button
+                type="button"
+                variant="ghost"
+                className="w-full"
+                onClick={() => {
+                  setVerificationEmail("");
+                  setVerificationCode("");
+                }}
+              >
+                Change email
+              </Button>
+            </div>
+          )}
 
           {/* Login Link */}
           <p className="mt-6 text-center text-sm text-gray-600">

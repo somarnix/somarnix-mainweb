@@ -3,6 +3,7 @@ import { getAuthUser } from "@/lib/auth";
 import type { RowDataPacket, ResultSetHeader } from "mysql2";
 
 export const runtime = "nodejs";
+const GLOBAL_MAX_DEVICES = 10;
 
 type ProductRow = RowDataPacket & {
   id: number;
@@ -166,50 +167,51 @@ export async function GET(req: Request) {
   }
 
   const isUnlimited = Number(order.is_unlimited_device) === 1;
-  const deviceLimit = isUnlimited ? null : order.device_limit ?? 1;
+  const configuredDeviceLimit = Math.max(1, Number(order.device_limit ?? 1) || 1);
+  const deviceLimit = isUnlimited
+    ? GLOBAL_MAX_DEVICES
+    : Math.min(GLOBAL_MAX_DEVICES, configuredDeviceLimit);
 
-  if (!isUnlimited) {
-    const [exists] = await db.query<DeviceRow[]>(
+  const [exists] = await db.query<DeviceRow[]>(
+    `
+    SELECT device_id
+    FROM tool_device_access
+    WHERE user_id = ? AND product_id = ? AND device_id = ?
+    LIMIT 1
+    `,
+    [auth.userId, product.id, deviceId]
+  );
+
+  if (exists.length === 0) {
+    const [countRows] = await db.query<RowDataPacket[]>(
       `
-      SELECT device_id
+      SELECT COUNT(*) AS total
       FROM tool_device_access
+      WHERE user_id = ? AND product_id = ?
+      `,
+      [auth.userId, product.id]
+    );
+    const total = Number(countRows[0]?.total ?? 0);
+    if (total >= deviceLimit) {
+      return Response.json({ hasAccess: false, reason: "device_limit", deviceLimit }, { status: 200 });
+    }
+
+    await db.query<ResultSetHeader>(
+      `
+      INSERT INTO tool_device_access (user_id, product_id, device_id, device_type)
+      VALUES (?, ?, ?, ?)
+      `,
+      [auth.userId, product.id, deviceId, clientDevice]
+    );
+  } else {
+    await db.query<ResultSetHeader>(
+      `
+      UPDATE tool_device_access
+      SET last_used_at = NOW()
       WHERE user_id = ? AND product_id = ? AND device_id = ?
-      LIMIT 1
       `,
       [auth.userId, product.id, deviceId]
     );
-
-    if (exists.length === 0) {
-      const [countRows] = await db.query<RowDataPacket[]>(
-        `
-        SELECT COUNT(*) AS total
-        FROM tool_device_access
-        WHERE user_id = ? AND product_id = ?
-        `,
-        [auth.userId, product.id]
-      );
-      const total = Number(countRows[0]?.total ?? 0);
-      if (Number.isFinite(deviceLimit) && total >= deviceLimit) {
-        return Response.json({ hasAccess: false, reason: "device_limit", deviceLimit }, { status: 200 });
-      }
-
-      await db.query<ResultSetHeader>(
-        `
-        INSERT INTO tool_device_access (user_id, product_id, device_id, device_type)
-        VALUES (?, ?, ?, ?)
-        `,
-        [auth.userId, product.id, deviceId, clientDevice]
-      );
-    } else {
-      await db.query<ResultSetHeader>(
-        `
-        UPDATE tool_device_access
-        SET last_used_at = NOW()
-        WHERE user_id = ? AND product_id = ? AND device_id = ?
-        `,
-        [auth.userId, product.id, deviceId]
-      );
-    }
   }
 
   return Response.json({

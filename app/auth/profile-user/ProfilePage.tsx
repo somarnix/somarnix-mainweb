@@ -25,10 +25,13 @@ import {
   AlertCircle,
   Loader2,
   ExternalLink,
+  Smartphone,
+  Mail,
 } from "lucide-react";
 
 import { Button } from "../../components/ui/button";
 import { Input } from "../../components/ui/input";
+import { Pagination } from "../../components/Pagination";
 import { useAuth } from "../../contexts/AuthContext";
 import { useLanguage } from "../../contexts/LanguageContext";
 import { useTheme } from "../../contexts/ThemeContext";
@@ -36,6 +39,8 @@ import { useTheme } from "../../contexts/ThemeContext";
 interface ProfilePageProps {
   onNavigate: (page: string) => void;
   onOpenProductDetail?: (slug: string) => void;
+  onOpenToolDetail?: (slug: string) => void;
+  onOpenOrderDetail?: (orderId: number | string) => void;
 }
 
 type TabId = "overview" | "courses" | "tools" | "my-courses" | "settings";
@@ -56,6 +61,7 @@ type OverviewStats = {
 };
 
 type PurchaseItem = {
+  orderId?: number;
   productId: number;
   title: string;
   slug: string;
@@ -94,6 +100,7 @@ type VideoCourseItem = {
   title: string;
   slug: string;
   thumbnailUrl: string | null;
+  orderNumber?: string | null;
   planName: string | null;
   accessStart: string | null;
   accessEnd: string | null;
@@ -134,6 +141,14 @@ type StoredCountry = {
   dial: string;
 };
 
+type LoginDeviceItem = {
+  deviceId: string;
+  deviceName: string;
+  firstSeenAt: string | null;
+  lastSeenAt: string | null;
+};
+
+const ITEMS_PER_PAGE = 5;
 const AVATARS: string[] = ["/Job Jik.jpg", "/Mrrecaps.png", "/Nut Roth Logo.png", "/Nut Roth.jpg"];
 
 const ORDER_STATUS_ORDER: OrderStateKey[] = [
@@ -174,10 +189,18 @@ const mapStateCounts = (
   resolution: raw?.resolution ?? 0,
 });
 
-export function ProfilePage({ onNavigate, onOpenProductDetail }: ProfilePageProps) {
+export function ProfilePage({ onNavigate, onOpenProductDetail, onOpenToolDetail, onOpenOrderDetail }: ProfilePageProps) {
   const { user, logout, updateProfile, deleteAccount } = useAuth();
   const { language, setLanguage, t } = useLanguage(); // ✅ must have t()
   const { theme, toggleTheme } = useTheme();
+
+  const getLoginDeviceId = useCallback((): string | null => {
+    if (typeof window === "undefined") return null;
+    const key = "gstech_login_device_id";
+    const existing = window.localStorage.getItem(key);
+    if (existing && existing.trim()) return existing;
+    return null;
+  }, []);
 
   const [activeTab, setActiveTab] = useState<TabId>("overview");
   const [isEditing, setIsEditing] = useState(false);
@@ -222,13 +245,19 @@ export function ProfilePage({ onNavigate, onOpenProductDetail }: ProfilePageProp
         if (!res.ok) throw new Error("Failed to load countries");
         const data = await res.json();
         const mapped: CountryOption[] = (Array.isArray(data) ? data : [])
-          .map((item: any) => {
-            const name = item?.name?.common ?? "";
-            const cca2 = String(item?.cca2 ?? "").toUpperCase();
-            const flag = item?.flags?.png || item?.flags?.svg || "";
-            const root = item?.idd?.root ?? "";
-            const suffixes: string[] = Array.isArray(item?.idd?.suffixes)
-              ? item.idd.suffixes
+          .map((item: unknown) => {
+            const row = (typeof item === "object" && item !== null ? item : {}) as {
+              name?: { common?: string };
+              cca2?: string;
+              flags?: { png?: string; svg?: string };
+              idd?: { root?: string; suffixes?: string[] };
+            };
+            const name = row?.name?.common ?? "";
+            const cca2 = String(row?.cca2 ?? "").toUpperCase();
+            const flag = row?.flags?.png || row?.flags?.svg || "";
+            const root = row?.idd?.root ?? "";
+            const suffixes: string[] = Array.isArray(row?.idd?.suffixes)
+              ? row.idd!.suffixes!
               : [];
             const dials = root
               ? (suffixes.length ? suffixes : [""])
@@ -335,6 +364,18 @@ export function ProfilePage({ onNavigate, onOpenProductDetail }: ProfilePageProp
   const [myCourseTab, setMyCourseTab] = useState<"subscribe" | "lifetime" | "favorite" | "free">(
     "subscribe"
   );
+  const [coursesPage, setCoursesPage] = useState(1);
+  const [toolsPage, setToolsPage] = useState(1);
+  const [myCoursesPage, setMyCoursesPage] = useState(1);
+  const [loginDevices, setLoginDevices] = useState<LoginDeviceItem[]>([]);
+  const [devicesLoading, setDevicesLoading] = useState(false);
+  const [devicesError, setDevicesError] = useState<string | null>(null);
+  const [deviceActionMessage, setDeviceActionMessage] = useState<string | null>(null);
+  const [otpTargetDeviceId, setOtpTargetDeviceId] = useState<string | null>(null);
+  const [otpCode, setOtpCode] = useState("");
+  const [sendingOtp, setSendingOtp] = useState(false);
+  const [removingDevice, setRemovingDevice] = useState(false);
+  const [currentLoginDeviceId, setCurrentLoginDeviceId] = useState<string | null>(null);
 
   const translate = useCallback(
     (key: string, fallback: string) => {
@@ -392,6 +433,34 @@ export function ProfilePage({ onNavigate, onOpenProductDetail }: ProfilePageProp
       }
     },
     [onOpenProductDetail]
+  );
+
+  const goToTool = useCallback(
+    (slug: string) => {
+      if (!slug) return;
+      if (onOpenToolDetail) {
+        onOpenToolDetail(slug);
+        return;
+      }
+      if (typeof window !== "undefined") {
+        window.location.href = `/tools-ai/${slug}`;
+      }
+    },
+    [onOpenToolDetail]
+  );
+
+  const goToOrderDetail = useCallback(
+    (orderId?: number) => {
+      if (!orderId) return;
+      if (onOpenOrderDetail) {
+        onOpenOrderDetail(orderId);
+        return;
+      }
+      if (typeof window !== "undefined") {
+        window.location.href = `/orders/${orderId}`;
+      }
+    },
+    [onOpenOrderDetail]
   );
 
   // const enrolledCourses = courses.slice(0, 3);
@@ -601,6 +670,119 @@ export function ProfilePage({ onNavigate, onOpenProductDetail }: ProfilePageProp
     }
   }, [user]);
 
+  const fetchLoginDevices = useCallback(async () => {
+    if (!user) return;
+    setDevicesLoading(true);
+    setDevicesError(null);
+    try {
+      const res = await fetch("/api/auth/devices", { cache: "no-store", credentials: "include" });
+      const data = await res.json().catch(() => ({}));
+      if (!res.ok) throw new Error(data?.error || "Failed to load devices");
+      setLoginDevices(Array.isArray(data?.devices) ? (data.devices as LoginDeviceItem[]) : []);
+    } catch (error) {
+      const message = error instanceof Error ? error.message : String(error);
+      setDevicesError(message || "Failed to load devices.");
+      setLoginDevices([]);
+    } finally {
+      setDevicesLoading(false);
+    }
+  }, [user]);
+
+  const sendLogoutCode = useCallback(
+    async (deviceId: string) => {
+      if (!deviceId) return;
+      setDeviceActionMessage(null);
+      setDevicesError(null);
+      setSendingOtp(true);
+      try {
+        const res = await fetch("/api/auth/devices/send-remove-code", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          credentials: "include",
+          body: JSON.stringify({
+            deviceId,
+            currentDeviceId: currentLoginDeviceId,
+          }),
+        });
+        const data = await res.json().catch(() => ({}));
+        if (!res.ok) {
+          const errMsg =
+            typeof data?.error === "string" && data.error.trim().length > 0
+              ? data.error
+              : "Failed to send code";
+          const detail =
+            typeof data?.detail === "string" && data.detail.trim().length > 0
+              ? data.detail
+              : "";
+          throw new Error(detail ? `${errMsg}: ${detail}` : errMsg);
+        }
+        setOtpTargetDeviceId(deviceId);
+        setOtpCode("");
+        setDeviceActionMessage(
+          `Verification code sent to ${user?.email || "your email"} (valid 10 minutes).`
+        );
+      } catch (error) {
+        const message = error instanceof Error ? error.message : String(error);
+        setDevicesError(message || "Failed to send code.");
+      } finally {
+        setSendingOtp(false);
+      }
+    },
+    [currentLoginDeviceId, user?.email]
+  );
+
+  const confirmLogoutOtherDevice = useCallback(
+    async (deviceId: string) => {
+      if (!deviceId || otpCode.trim().length === 0) return;
+      setDeviceActionMessage(null);
+      setDevicesError(null);
+      setRemovingDevice(true);
+      try {
+        const res = await fetch("/api/auth/devices/remove", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          credentials: "include",
+          body: JSON.stringify({
+            deviceId,
+            code: otpCode.trim(),
+            currentDeviceId: currentLoginDeviceId,
+          }),
+        });
+        const data = await res.json().catch(() => ({}));
+        if (!res.ok) {
+          const errMsg =
+            typeof data?.error === "string" && data.error.trim().length > 0
+              ? data.error
+              : "Failed to logout device";
+          const detail =
+            typeof data?.detail === "string" && data.detail.trim().length > 0
+              ? data.detail
+              : "";
+          throw new Error(detail ? `${errMsg}: ${detail}` : errMsg);
+        }
+        setDeviceActionMessage("Device logged out successfully.");
+        setOtpTargetDeviceId(null);
+        setOtpCode("");
+        await fetchLoginDevices();
+      } catch (error) {
+        const message = error instanceof Error ? error.message : String(error);
+        setDevicesError(message || "Failed to logout device.");
+      } finally {
+        setRemovingDevice(false);
+      }
+    },
+    [currentLoginDeviceId, fetchLoginDevices, otpCode]
+  );
+
+  useEffect(() => {
+    setCurrentLoginDeviceId(getLoginDeviceId());
+  }, [getLoginDeviceId]);
+
+  useEffect(() => {
+    if (!user || activeTab !== "settings") return;
+    fetchLoginDevices();
+  }, [activeTab, fetchLoginDevices, user]);
+
   useEffect(() => {
     if (!user) {
       setOverviewStats(null);
@@ -693,6 +875,76 @@ export function ProfilePage({ onNavigate, onOpenProductDetail }: ProfilePageProp
   );
   const recentPurchases = useMemo(() => productPurchases.slice(0, 3), [productPurchases]);
   const recentCourses = useMemo(() => videoCourses.slice(0, 3), [videoCourses]);
+  const coursesTotalPages = Math.max(1, Math.ceil(productPurchases.length / ITEMS_PER_PAGE));
+  const pagedProductPurchases = useMemo(() => {
+    const start = (coursesPage - 1) * ITEMS_PER_PAGE;
+    return productPurchases.slice(start, start + ITEMS_PER_PAGE);
+  }, [productPurchases, coursesPage]);
+  const toolsTotalPages = Math.max(1, Math.ceil(toolPurchases.length / ITEMS_PER_PAGE));
+  const pagedToolPurchases = useMemo(() => {
+    const start = (toolsPage - 1) * ITEMS_PER_PAGE;
+    return toolPurchases.slice(start, start + ITEMS_PER_PAGE);
+  }, [toolPurchases, toolsPage]);
+  const activeCourseItemsCount = useMemo(() => {
+    if (myCourseTab === "free") return freeCourses.length;
+    if (myCourseTab === "subscribe") return subscribedCourses.length;
+    if (myCourseTab === "favorite") return favoriteCourses.length;
+    return videoCourses.length;
+  }, [myCourseTab, freeCourses.length, subscribedCourses.length, favoriteCourses.length, videoCourses.length]);
+  const myCoursesTotalPages = Math.max(1, Math.ceil(activeCourseItemsCount / ITEMS_PER_PAGE));
+  const pagedSubscribedCourses = useMemo(() => {
+    const start = (myCoursesPage - 1) * ITEMS_PER_PAGE;
+    return subscribedCourses.slice(start, start + ITEMS_PER_PAGE);
+  }, [subscribedCourses, myCoursesPage]);
+  const pagedFreeCourses = useMemo(() => {
+    const start = (myCoursesPage - 1) * ITEMS_PER_PAGE;
+    return freeCourses.slice(start, start + ITEMS_PER_PAGE);
+  }, [freeCourses, myCoursesPage]);
+  const pagedVideoCourses = useMemo(() => {
+    const start = (myCoursesPage - 1) * ITEMS_PER_PAGE;
+    return videoCourses.slice(start, start + ITEMS_PER_PAGE);
+  }, [videoCourses, myCoursesPage]);
+  const pagedFavoriteCourses = useMemo(() => {
+    const start = (myCoursesPage - 1) * ITEMS_PER_PAGE;
+    return favoriteCourses.slice(start, start + ITEMS_PER_PAGE);
+  }, [favoriteCourses, myCoursesPage]);
+
+  useEffect(() => {
+    setCoursesPage(1);
+  }, [activeTab, productPurchases.length]);
+
+  useEffect(() => {
+    if (coursesPage > coursesTotalPages) {
+      setCoursesPage(coursesTotalPages);
+    }
+  }, [coursesPage, coursesTotalPages]);
+
+  useEffect(() => {
+    setToolsPage(1);
+  }, [activeTab, toolPurchases.length]);
+
+  useEffect(() => {
+    if (toolsPage > toolsTotalPages) {
+      setToolsPage(toolsTotalPages);
+    }
+  }, [toolsPage, toolsTotalPages]);
+
+  useEffect(() => {
+    setMyCoursesPage(1);
+  }, [
+    activeTab,
+    myCourseTab,
+    subscribedCourses.length,
+    freeCourses.length,
+    videoCourses.length,
+    favoriteCourses.length,
+  ]);
+
+  useEffect(() => {
+    if (myCoursesPage > myCoursesTotalPages) {
+      setMyCoursesPage(myCoursesTotalPages);
+    }
+  }, [myCoursesPage, myCoursesTotalPages]);
 
   const goToCourse = useCallback((slug: string) => {
     if (!slug) return;
@@ -1134,7 +1386,7 @@ export function ProfilePage({ onNavigate, onOpenProductDetail }: ProfilePageProp
               </div>
             ) : (
               <div className="space-y-4">
-                {productPurchases.map((item) => (
+                {pagedProductPurchases.map((item) => (
                   <div
                     key={`${item.orderNumber}-${item.productId}`}
                     className="flex flex-col gap-4 rounded-2xl border border-gray-100 bg-white p-5 shadow-sm transition hover:border-blue-300 dark:border-gray-800 dark:bg-gray-900 md:flex-row md:items-center"
@@ -1209,14 +1461,19 @@ export function ProfilePage({ onNavigate, onOpenProductDetail }: ProfilePageProp
                       <Button
                         variant="outline"
                         size="sm"
-                        onClick={() => goToProduct(item.slug)}
+                        onClick={() => goToOrderDetail(item.orderId)}
                       >
                         <ExternalLink className="h-4 w-4" />
-                        {translate("profile.viewProduct", "View product")}
+                        {translate("profile.viewProduct", "View detail")}
                       </Button>
                     </div>
                   </div>
                 ))}
+                <Pagination
+                  currentPage={coursesPage}
+                  totalPages={coursesTotalPages}
+                  onPageChange={setCoursesPage}
+                />
               </div>
             )}
 
@@ -1264,7 +1521,7 @@ export function ProfilePage({ onNavigate, onOpenProductDetail }: ProfilePageProp
               </div>
             ) : (
               <div className="space-y-4">
-                {toolPurchases.map((item) => (
+                {pagedToolPurchases.map((item) => (
                   <div
                     key={`${item.orderNumber}-${item.productId}`}
                     className="flex flex-col gap-4 rounded-2xl border border-gray-100 bg-white p-5 shadow-sm transition hover:border-blue-300 dark:border-gray-800 dark:bg-gray-900 md:flex-row md:items-center"
@@ -1327,14 +1584,19 @@ export function ProfilePage({ onNavigate, onOpenProductDetail }: ProfilePageProp
                       <Button
                         variant="outline"
                         size="sm"
-                        onClick={() => goToProduct(item.slug)}
+                        onClick={() => goToTool(item.slug)}
                       >
                         <ExternalLink className="h-4 w-4" />
-                        {translate("profile.viewProduct", "View product")}
+                        {translate("profile.openTool", "Open tool")}
                       </Button>
                     </div>
                   </div>
                 ))}
+                <Pagination
+                  currentPage={toolsPage}
+                  totalPages={toolsTotalPages}
+                  onPageChange={setToolsPage}
+                />
               </div>
             )}
           </div>
@@ -1359,7 +1621,7 @@ export function ProfilePage({ onNavigate, onOpenProductDetail }: ProfilePageProp
                 </p>
               </div>
               <div className="text-sm text-gray-500">
-              {translate("profile.totalItems", "Items purchased")}: {formatNumber(videoCourses.length)}
+              {translate("profile.totalItems", "Items purchased")}: {formatNumber(activeCourseItemsCount)}
             </div>
             </div>
 
@@ -1373,7 +1635,7 @@ export function ProfilePage({ onNavigate, onOpenProductDetail }: ProfilePageProp
                 <button
                   key={tab.id}
                   type="button"
-                  onClick={() => setMyCourseTab(tab.id as "subscribe" | "lifetime" | "favorite")}
+                  onClick={() => setMyCourseTab(tab.id as "subscribe" | "lifetime" | "favorite" | "free")}
                   className={`px-4 py-2 rounded-full text-sm border ${
                     myCourseTab === tab.id
                       ? "border-blue-600 text-blue-600 bg-blue-50"
@@ -1414,7 +1676,7 @@ export function ProfilePage({ onNavigate, onOpenProductDetail }: ProfilePageProp
               </div>
             ) : (
               <div className="space-y-4">
-                {subscribedCourses.map((course) => {
+                {pagedSubscribedCourses.map((course) => {
                   const isFav = favoriteCourses.some((f) => f.courseId === course.courseId);
                   return (
                     <div
@@ -1460,6 +1722,11 @@ export function ProfilePage({ onNavigate, onOpenProductDetail }: ProfilePageProp
                     </div>
                   );
                 })}
+                <Pagination
+                  currentPage={myCoursesPage}
+                  totalPages={myCoursesTotalPages}
+                  onPageChange={setMyCoursesPage}
+                />
               </div>
             ))}
 
@@ -1488,7 +1755,7 @@ export function ProfilePage({ onNavigate, onOpenProductDetail }: ProfilePageProp
               </div>
             ) : (
               <div className="space-y-4">
-                {freeCourses.map((course) => {
+                {pagedFreeCourses.map((course) => {
                   const isFav = favoriteCourses.some((f) => f.courseId === course.courseId);
                   return (
                     <div
@@ -1534,6 +1801,11 @@ export function ProfilePage({ onNavigate, onOpenProductDetail }: ProfilePageProp
                     </div>
                   );
                 })}
+                <Pagination
+                  currentPage={myCoursesPage}
+                  totalPages={myCoursesTotalPages}
+                  onPageChange={setMyCoursesPage}
+                />
               </div>
             ))}
             {myCourseTab === "lifetime" && videoCoursesError && (
@@ -1561,7 +1833,7 @@ export function ProfilePage({ onNavigate, onOpenProductDetail }: ProfilePageProp
               </div>
             ) : (
               <div className="space-y-4">
-                {videoCourses.map((course) => (
+                {pagedVideoCourses.map((course) => (
                   <div
                     key={`${course.courseId}-${course.slug}`}
                     className="flex flex-col gap-4 rounded-2xl border border-gray-100 bg-white p-5 shadow-sm transition hover:border-blue-300 dark:border-gray-800 dark:bg-gray-900 md:flex-row md:items-center"
@@ -1584,6 +1856,11 @@ export function ProfilePage({ onNavigate, onOpenProductDetail }: ProfilePageProp
                         <p className="text-sm text-gray-500">
                           {translate("profile.plan", "Plan")}: {course.planName || "Plan"}
                         </p>
+                        {course.orderNumber ? (
+                          <p className="text-xs text-gray-400">
+                            {translate("profile.orderNumber", "Order no.")}: {course.orderNumber}
+                          </p>
+                        ) : null}
                         <p className="text-xs text-gray-400">
                           {translate("profile.accessEnd", "Access end")}:{" "}
                           {course.accessEnd
@@ -1615,6 +1892,11 @@ export function ProfilePage({ onNavigate, onOpenProductDetail }: ProfilePageProp
                     </div>
                   </div>
                 ))}
+                <Pagination
+                  currentPage={myCoursesPage}
+                  totalPages={myCoursesTotalPages}
+                  onPageChange={setMyCoursesPage}
+                />
               </div>
             ))}
 
@@ -1643,7 +1925,7 @@ export function ProfilePage({ onNavigate, onOpenProductDetail }: ProfilePageProp
               </div>
             ) : (
               <div className="space-y-4">
-                {favoriteCourses.map((course) => (
+                {pagedFavoriteCourses.map((course) => (
                   <div
                     key={`${course.courseId}-${course.slug}`}
                     className="flex flex-col gap-4 rounded-2xl border border-gray-100 bg-white p-5 shadow-sm transition hover:border-blue-300 dark:border-gray-800 dark:bg-gray-900 md:flex-row md:items-center"
@@ -1686,6 +1968,11 @@ export function ProfilePage({ onNavigate, onOpenProductDetail }: ProfilePageProp
                     </div>
                   </div>
                 ))}
+                <Pagination
+                  currentPage={myCoursesPage}
+                  totalPages={myCoursesTotalPages}
+                  onPageChange={setMyCoursesPage}
+                />
               </div>
             ))}
           </div>
@@ -1890,9 +2177,18 @@ export function ProfilePage({ onNavigate, onOpenProductDetail }: ProfilePageProp
                         type={showPw[field.key as keyof typeof showPw] ? "text" : "password"}
                         placeholder={field.label}
                         value={field.value}
-                        onChange={(e) =>
-                          setPwForm({ ...pwForm, [`${field.key}Password`]: e.target.value } as any)
-                        }
+                        onChange={(e) => {
+                          const v = e.target.value;
+                          if (field.key === "current") {
+                            setPwForm((prev) => ({ ...prev, currentPassword: v }));
+                            return;
+                          }
+                          if (field.key === "next") {
+                            setPwForm((prev) => ({ ...prev, newPassword: v }));
+                            return;
+                          }
+                          setPwForm((prev) => ({ ...prev, confirmPassword: v }));
+                        }}
                       />
                       <button
                         type="button"
@@ -2027,6 +2323,130 @@ export function ProfilePage({ onNavigate, onOpenProductDetail }: ProfilePageProp
                     </div>
                   </div>
                 )}
+
+                <div className="mt-5 border-t border-gray-100 pt-5 dark:border-gray-700">
+                  <div className="flex items-start justify-between gap-3">
+                    <div>
+                      <div className="font-semibold text-gray-900 dark:text-white">
+                        {translate("profile.manageDevices", "Manage devices")}
+                      </div>
+                      <p className="text-sm text-gray-500">
+                        {translate(
+                          "profile.manageDevicesDesc",
+                          "Logout another device by verifying a code sent to your email."
+                        )}
+                      </p>
+                    </div>
+                    <Button
+                      type="button"
+                      size="sm"
+                      variant="outline"
+                      onClick={fetchLoginDevices}
+                      disabled={devicesLoading}
+                    >
+                      {devicesLoading
+                        ? (translate("profile.loading", "Loading..."))
+                        : (translate("profile.refresh", "Refresh"))}
+                    </Button>
+                  </div>
+
+                  {!!deviceActionMessage && (
+                    <div className="mt-3 rounded-lg border border-emerald-200 bg-emerald-50 px-3 py-2 text-sm text-emerald-700">
+                      {deviceActionMessage}
+                    </div>
+                  )}
+                  {!!devicesError && (
+                    <div className="mt-3 rounded-lg border border-red-200 bg-red-50 px-3 py-2 text-sm text-red-700">
+                      {devicesError}
+                    </div>
+                  )}
+
+                  <div className="mt-3 space-y-2">
+                    {devicesLoading ? (
+                      <div className="text-sm text-gray-500">{translate("profile.loading", "Loading...")}</div>
+                    ) : loginDevices.length === 0 ? (
+                      <div className="text-sm text-gray-500">
+                        {translate("profile.noDevices", "No active login devices.")}
+                      </div>
+                    ) : (
+                      loginDevices.map((device) => {
+                        const isCurrent = currentLoginDeviceId === device.deviceId;
+                        const isOtpTarget = otpTargetDeviceId === device.deviceId;
+                        return (
+                          <div
+                            key={device.deviceId}
+                            className="rounded-xl border border-gray-200 bg-gray-50 p-3 dark:border-gray-700 dark:bg-gray-900"
+                          >
+                            <div className="flex flex-wrap items-start justify-between gap-2">
+                              <div className="min-w-0">
+                                <div className="flex items-center gap-2 text-sm font-semibold text-gray-900 dark:text-white">
+                                  <Smartphone className="h-4 w-4 text-gray-500" />
+                                  <span className="truncate">{device.deviceName || "Unknown device"}</span>
+                                  {isCurrent ? (
+                                    <span className="rounded-full bg-blue-100 px-2 py-0.5 text-xs text-blue-700">
+                                      {translate("profile.currentDevice", "Current")}
+                                    </span>
+                                  ) : null}
+                                </div>
+                                <div className="mt-1 text-xs text-gray-500">
+                                  ID: <span className="font-mono">{device.deviceId}</span>
+                                </div>
+                                <div className="text-xs text-gray-500">
+                                  {translate("profile.lastSeen", "Last seen")}: {formatDateTime(device.lastSeenAt)}
+                                </div>
+                              </div>
+
+                              {!isCurrent ? (
+                                <Button
+                                  type="button"
+                                  size="sm"
+                                  variant="outline"
+                                  onClick={() => void sendLogoutCode(device.deviceId)}
+                                  disabled={sendingOtp || removingDevice}
+                                >
+                                  <Mail className="mr-2 h-4 w-4" />
+                                  {translate("profile.sendCode", "Send code")}
+                                </Button>
+                              ) : null}
+                            </div>
+
+                            {!isCurrent && isOtpTarget ? (
+                              <div className="mt-3 flex flex-wrap items-center gap-2">
+                                <Input
+                                  value={otpCode}
+                                  onChange={(e) => setOtpCode(e.target.value.replace(/\D/g, "").slice(0, 6))}
+                                  placeholder={translate("profile.enterCode", "Enter 6-digit code")}
+                                  className="w-52"
+                                />
+                                <Button
+                                  type="button"
+                                  size="sm"
+                                  onClick={() => void confirmLogoutOtherDevice(device.deviceId)}
+                                  disabled={removingDevice || otpCode.trim().length !== 6}
+                                >
+                                  {removingDevice
+                                    ? translate("profile.saving", "Saving...")
+                                    : translate("profile.logoutDevice", "Logout device")}
+                                </Button>
+                                <Button
+                                  type="button"
+                                  size="sm"
+                                  variant="ghost"
+                                  onClick={() => {
+                                    setOtpTargetDeviceId(null);
+                                    setOtpCode("");
+                                  }}
+                                >
+                                  {translate("profile.cancel", "Cancel")}
+                                </Button>
+                              </div>
+                            ) : null}
+                          </div>
+                        );
+                      })
+                    )}
+                  </div>
+                </div>
               </div>
             </div>
           </div>
