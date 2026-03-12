@@ -18,7 +18,7 @@ import { BlogPage } from "./pages/blogs/BlogPage";
 import LoginPage from "./auth/login/LoginPage";
 import { RegisterPage } from "./auth/register/RegisterPage";
 import ForgotPassword from "./auth/forgot-password/ForgotPassword";
-02/import ResetPassword from "./auth/reset-password/ResetPassword";
+import ResetPassword from "./auth/reset-password/ResetPassword";
 import { ProfilePage } from "./auth/profile-user/ProfilePage";
 
 import { CartPage } from "./order/cart/CartPage";
@@ -86,6 +86,7 @@ type AppPage =
   | "admin-users"
   | "admin-test"
   | "admin-video-courses"
+  | "admin-video-courses-promotions"
   | "admin-video-course-detail";
 
 type RouteState = {
@@ -132,6 +133,7 @@ const ALL_PAGES: ReadonlyArray<AppPage> = [
   "admin-users",
   "admin-test",
   "admin-video-courses",
+  "admin-video-courses-promotions",
   "admin-video-course-detail",
 ];
 
@@ -165,6 +167,7 @@ const STATIC_ROUTES: Record<string, AppPage> = {
   "/admin/users": "admin-users",
   "/admin/test": "admin-test",
   "/admin/video-courses": "admin-video-courses",
+  "/admin/video-courses/promotions": "admin-video-courses-promotions",
 };
 
 function normalizePath(pathname?: string | null): string {
@@ -364,6 +367,8 @@ function buildPathForPage(
       return "/admin/test";
     case "admin-video-courses":
       return "/admin/video-courses";
+    case "admin-video-courses-promotions":
+      return "/admin/video-courses/promotions";
     case "admin-video-course-detail":
       return ctx?.adminVideoCourseId
         ? `/admin/video-courses/${encodeURIComponent(String(ctx.adminVideoCourseId))}`
@@ -381,7 +386,43 @@ function buildPathForPage(
   }
 }
 
-type CartApiItem = { qty: number };
+type CartApiItem = {
+  qty?: number;
+  order_info_json?: string | null;
+};
+
+function getComboCourseQtyFromOrderInfo(raw: string | null | undefined): {
+  comboId: string | null;
+  courseQty: number;
+} {
+  if (!raw || typeof raw !== "string") {
+    return { comboId: null, courseQty: 0 };
+  }
+  try {
+    const parsed = JSON.parse(raw);
+    if (!parsed || typeof parsed !== "object") {
+      return { comboId: null, courseQty: 0 };
+    }
+    const comboIdRaw = (parsed as Record<string, unknown>).promotion_combo_id;
+    const comboId =
+      comboIdRaw === null || comboIdRaw === undefined
+        ? null
+        : String(comboIdRaw).trim() || null;
+    const courseItems = (parsed as Record<string, unknown>).promotion_course_items;
+    if (!Array.isArray(courseItems)) {
+      return { comboId, courseQty: 0 };
+    }
+    const courseQty = courseItems.reduce((sum, row) => {
+      if (!row || typeof row !== "object") return sum;
+      const qtyRaw = Number((row as Record<string, unknown>).qty ?? 1);
+      const qty = Number.isFinite(qtyRaw) && qtyRaw > 0 ? Math.floor(qtyRaw) : 1;
+      return sum + qty;
+    }, 0);
+    return { comboId, courseQty };
+  } catch {
+    return { comboId: null, courseQty: 0 };
+  }
+}
 
 export default function App() {
   const initialPath = usePathname() ?? "/";
@@ -434,18 +475,36 @@ export default function App() {
 
       const items = Array.isArray(data.items) ? data.items : [];
 
-      // ✅ total qty (1+2+3 = 6)
+      // Count real cart rows qty + included combo-course qty (count once per combo).
       const totalQty = items.reduce((sum, it) => sum + Number(it.qty ?? 0), 0);
+      const seenComboIds = new Set<string>();
+      const comboCourseQty = items.reduce((sum, it) => {
+        const { comboId, courseQty } = getComboCourseQtyFromOrderInfo(it.order_info_json);
+        if (!comboId || seenComboIds.has(comboId)) return sum;
+        seenComboIds.add(comboId);
+        return sum + courseQty;
+      }, 0);
 
-      setCartCount(totalQty);
+      setCartCount(totalQty + comboCourseQty);
     } catch {
-      // keep old cartCount (or set 0 if you want)
+      setCartCount(0);
     }
   };
 
   // load once (and whenever you come back to app)
   useEffect(() => {
-    refreshCartCount();
+    const refresh = () => {
+      void refreshCartCount();
+    };
+    refresh();
+    if (typeof window !== "undefined") {
+      window.addEventListener("cart:changed", refresh as EventListener);
+    }
+    return () => {
+      if (typeof window !== "undefined") {
+        window.removeEventListener("cart:changed", refresh as EventListener);
+      }
+    };
   }, []);
 
   const navigateInternal = (next: RouteState) => {
@@ -769,6 +828,8 @@ export default function App() {
         return <AdminTest />;
       case "admin-video-courses":
         return <AdminVideoCoursesPage />;
+      case "admin-video-courses-promotions":
+        return <AdminVideoCoursesPage initialManagementTab="promotions" />;
       case "admin-video-course-detail":
         return adminVideoCourseId && /^\d+$/.test(adminVideoCourseId) ? (
           <AdminVideoCoursesPage
@@ -814,6 +875,7 @@ const showHeaderFooter =
         <AuthProvider>
           <CurrencyProvider>
             <PresenceWatcher />
+            <CartCountAuthWatcher />
             <div className="min-h-screen flex flex-col bg-white dark:bg-gray-900">
               <Toaster position="top-right" richColors />
 
@@ -892,6 +954,17 @@ function PresenceWatcher() {
       window.removeEventListener("beforeunload", handleBeforeUnload);
       postStatus("offline");
     };
+  }, [user?.id]);
+
+  return null;
+}
+
+function CartCountAuthWatcher() {
+  const { user } = useAuth();
+
+  useEffect(() => {
+    if (typeof window === "undefined") return;
+    window.dispatchEvent(new CustomEvent("cart:changed"));
   }, [user?.id]);
 
   return null;

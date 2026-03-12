@@ -21,8 +21,29 @@ export async function POST(req: Request) {
     const cartItemId = (body as Record<string, unknown>).cartItemId;
     const id = Number(cartItemId);
 
-    if (!Number.isFinite(id) || id <= 0) {
+    if (!Number.isFinite(id) || id === 0) {
       return Response.json({ error: "cartItemId required" }, { status: 400 });
+    }
+
+    if (id < 0) {
+      const courseCartItemId = Math.abs(Math.floor(id));
+      const [courseRows] = await db.query<CartItemOwnerRow[]>(
+        `
+        SELECT id
+        FROM video_course_cart_items
+        WHERE id = ? AND user_id = ?
+        LIMIT 1
+        `,
+        [courseCartItemId, auth.userId]
+      );
+      if (courseRows.length === 0) {
+        return Response.json({ error: "Not found" }, { status: 404 });
+      }
+      await db.query<ResultSetHeader>(
+        "DELETE FROM video_course_cart_items WHERE id = ? AND user_id = ?",
+        [courseCartItemId, auth.userId]
+      );
+      return Response.json({ success: true });
     }
 
     // ensure belongs to this user

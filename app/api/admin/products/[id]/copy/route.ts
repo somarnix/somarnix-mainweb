@@ -16,6 +16,7 @@ type ProductRow = RowDataPacket & {
   is_unlimited_stock: number;
   image_url: string | null;
   is_active: number;
+  mode?: "license" | "inventory" | null;
   category_name?: string;
 };
 
@@ -31,6 +32,7 @@ type VariantRow = RowDataPacket & {
   price: number | string | null;
   khqr: string | null;
   usdqr: string | null;
+  units_per_qty?: number | null;
   is_active: number | null;
 };
 
@@ -62,6 +64,16 @@ export async function POST(
     const hasDeviceType = variantColSet.has("device_type");
     const hasDeviceLimit = variantColSet.has("device_limit");
     const hasUnlimitedDevice = variantColSet.has("is_unlimited_device");
+    const hasUnitsPerQty = variantColSet.has("units_per_qty");
+    const [modeCols] = await db.query<RowDataPacket[]>(
+      `
+      SELECT 1
+      FROM information_schema.columns
+      WHERE table_schema = DATABASE() AND table_name = 'products' AND column_name = 'mode'
+      LIMIT 1
+      `
+    );
+    const hasProductsMode = modeCols.length > 0;
 
     const [rows] = await db.query<ProductRow[]>(
       `
@@ -75,6 +87,7 @@ export async function POST(
         p.level,
         p.stock_qty,
         p.is_unlimited_stock,
+        ${hasProductsMode ? "p.mode," : "NULL AS mode,"}
         p.image_url,
         p.is_active,
         c.name AS category_name
@@ -95,6 +108,8 @@ export async function POST(
     const suffix = `copy-${Date.now()}`;
     const newSlug = `${product.slug}-${suffix}`;
     const newTitle = `${product.title} (Copy)`;
+    const copiedMode =
+      String(product.mode ?? "").toLowerCase() === "license" ? "license" : "inventory";
 
     await db.query("START TRANSACTION");
 
@@ -109,10 +124,11 @@ export async function POST(
         level,
         stock_qty,
         is_unlimited_stock,
+        ${hasProductsMode ? "mode," : ""}
         image_url,
         is_active
       )
-      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ${hasProductsMode ? "?," : ""} ?, ?)
       `,
       [
         product.category_id,
@@ -123,6 +139,7 @@ export async function POST(
         product.level,
         product.stock_qty,
         product.is_unlimited_stock,
+        ...(hasProductsMode ? [copiedMode] : []),
         product.image_url,
         0,
       ]
@@ -165,6 +182,7 @@ export async function POST(
         khqr,
         usdqr,
         is_active
+        ${hasUnitsPerQty ? ", units_per_qty" : ""}
       FROM product_variants
       WHERE product_id = ?
       ORDER BY id ASC
@@ -183,6 +201,7 @@ export async function POST(
         khqr,
         usdqr,
         is_active
+        ${hasUnitsPerQty ? ", units_per_qty" : ""}
       FROM product_variants
       WHERE product_id = ?
       ORDER BY id ASC
@@ -194,10 +213,13 @@ export async function POST(
       const values: Array<unknown> = [];
       const withDeviceColumns =
         isTools || (hasDeviceLabel && hasDeviceType && hasDeviceLimit && hasUnlimitedDevice);
+      const withUnitsPerQty = !isTools && hasUnitsPerQty;
       const placeholders = variantRows.map(() =>
         withDeviceColumns
           ? "(?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)"
-          : "(?, ?, ?, ?, ?, ?, ?, ?, ?)"
+          : withUnitsPerQty
+            ? "(?, ?, ?, ?, ?, ?, ?, ?, ?, ?)"
+            : "(?, ?, ?, ?, ?, ?, ?, ?, ?)"
       );
 
       variantRows.forEach((variant) => {
@@ -224,6 +246,7 @@ export async function POST(
           variant.duration_label,
           variant.duration_note,
           variant.duration_days,
+          ...(withUnitsPerQty ? [Math.max(1, Number(variant.units_per_qty ?? 1))] : []),
           variant.original_price ?? 0,
           variant.price ?? 0,
           variant.khqr ?? "/paymentQR/khmer_qr.jpg",
@@ -258,6 +281,7 @@ export async function POST(
           duration_label,
           duration_note,
           duration_days,
+          ${withUnitsPerQty ? "units_per_qty," : ""}
           original_price,
           price,
           khqr,

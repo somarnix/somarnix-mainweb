@@ -76,11 +76,67 @@ type SubscriptionPlan = {
   is_active: number;
 };
 
+type PromotionComboItem = {
+  item_type: "course" | "tool" | "product";
+  item_id: number;
+  variant_id?: number | null;
+  qty?: number;
+};
+
+type PromotionCombo = {
+  id: number;
+  title: string;
+  description?: string | null;
+  price: number | string;
+  original_price?: number | string | null;
+  thumbnail_url?: string | null;
+  khqr?: string | null;
+  usdqr?: string | null;
+  start_at?: string | null;
+  end_at?: string | null;
+  is_active: number;
+  items: PromotionComboItem[];
+};
+
+type PromotionFormItem = {
+  row_id: string;
+  item_type: "course" | "tool" | "product";
+  item_id: number | null;
+  variant_id: number | null;
+  qty: number;
+};
+
+type ProductRecord = {
+  id: number;
+  title: string;
+  mode?: "license" | "inventory" | null;
+  category_name?: string | null;
+  is_active?: number;
+};
+
+type ProductVariantRecord = {
+  id: number;
+  duration_label?: string | null;
+  duration_days?: number | null;
+  price?: number | string | null;
+  is_active?: number;
+};
+
 type QrImageOption = {
   filename: string;
   label: string;
   url: string;
 };
+
+function makePromotionFormItem(seed?: Partial<Omit<PromotionFormItem, "row_id">>): PromotionFormItem {
+  return {
+    row_id: `${Date.now()}-${Math.random().toString(36).slice(2, 9)}`,
+    item_type: seed?.item_type ?? "tool",
+    item_id: seed?.item_id ?? null,
+    variant_id: seed?.variant_id ?? null,
+    qty: Math.max(1, Math.floor(seed?.qty ?? 1)),
+  };
+}
 
 function formatMoney(value: number | string | null | undefined) {
   const n = typeof value === "string" ? Number(value) : typeof value === "number" ? value : NaN;
@@ -96,6 +152,21 @@ function parseErrorMessage(data: unknown, fallback: string): string {
   return fallback;
 }
 
+function toDateTimeLocalValue(value: string | null | undefined): string {
+  if (!value) return "";
+  const normalized = String(value).replace(" ", "T");
+  const date = new Date(normalized);
+  if (Number.isNaN(date.getTime())) {
+    return normalized.length >= 16 ? normalized.slice(0, 16) : "";
+  }
+  const year = date.getFullYear();
+  const month = String(date.getMonth() + 1).padStart(2, "0");
+  const day = String(date.getDate()).padStart(2, "0");
+  const hours = String(date.getHours()).padStart(2, "0");
+  const minutes = String(date.getMinutes()).padStart(2, "0");
+  return `${year}-${month}-${day}T${hours}:${minutes}`;
+}
+
 const DEFAULT_KH_QR = "/paymentQR/khmer_qr.jpg";
 const USD_QR_NONE = "none";
 
@@ -109,9 +180,11 @@ function splitFeatureLines(value?: string | null): string[] {
 
 export default function AdminVideoCoursesPage({
   courseId,
+  initialManagementTab = "courses",
   onBack,
 }: {
   courseId?: number;
+  initialManagementTab?: "courses" | "subscriptions" | "promotions";
   onBack?: () => void;
 } = {}) {
   const GLOBAL_LOGIN_MAX_DEVICES = 10;
@@ -170,6 +243,8 @@ export default function AdminVideoCoursesPage({
   const [usdQrLoading, setUsdQrLoading] = useState(false);
   const [usdQrUploading, setUsdQrUploading] = useState(false);
   const usdQrUploadInputRef = useRef<HTMLInputElement | null>(null);
+  const promotionCoursePlansLoadedRef = useRef<Set<number>>(new Set());
+  const promotionProductVariantsLoadedRef = useRef<Set<number>>(new Set());
 
   const [subName, setSubName] = useState("");
   const [subDuration, setSubDuration] = useState("");
@@ -182,11 +257,57 @@ export default function AdminVideoCoursesPage({
   const [subKhqr, setSubKhqr] = useState(DEFAULT_KH_QR);
   const [subUsdqr, setSubUsdqr] = useState(USD_QR_NONE);
   const [editingSubscription, setEditingSubscription] = useState<SubscriptionPlan | null>(null);
-  const [managementTab, setManagementTab] = useState<"courses" | "subscriptions">("courses");
+  const [managementTab, setManagementTab] = useState<"courses" | "subscriptions" | "promotions">(
+    initialManagementTab
+  );
+  const [promotions, setPromotions] = useState<PromotionCombo[]>([]);
+  const [promotionTitle, setPromotionTitle] = useState("");
+  const [promotionDescription, setPromotionDescription] = useState("");
+  const [promotionPrice, setPromotionPrice] = useState("");
+  const [promotionOriginalPrice, setPromotionOriginalPrice] = useState("");
+  const [promotionThumbnail, setPromotionThumbnail] = useState("");
+  const [promotionKhqr, setPromotionKhqr] = useState(DEFAULT_KH_QR);
+  const [promotionUsdqr, setPromotionUsdqr] = useState(USD_QR_NONE);
+  const [promotionStartAt, setPromotionStartAt] = useState("");
+  const [promotionEndAt, setPromotionEndAt] = useState("");
+  const [promotionItems, setPromotionItems] = useState<PromotionFormItem[]>([
+    makePromotionFormItem({ item_type: "tool" }),
+  ]);
+  const [promotionProducts, setPromotionProducts] = useState<ProductRecord[]>([]);
+  const [promotionCoursePlans, setPromotionCoursePlans] = useState<Record<number, CoursePlan[]>>({});
+  const [promotionProductVariants, setPromotionProductVariants] = useState<
+    Record<number, ProductVariantRecord[]>
+  >({});
+  const [promotionActive, setPromotionActive] = useState(true);
+  const [editingPromotion, setEditingPromotion] = useState<PromotionCombo | null>(null);
+  const [savingPromotion, setSavingPromotion] = useState(false);
+  const [promotionPanel, setPromotionPanel] = useState<"form" | "results">("form");
 
   const selectedCourse = useMemo(
     () => courses.find((c) => c.id === selectedId) ?? null,
     [courses, selectedId]
+  );
+  const activePromotionCourses = useMemo(
+    () => courses.filter((course) => Number(course.is_active) === 1),
+    [courses]
+  );
+  const activeToolProducts = useMemo(
+    () =>
+      promotionProducts.filter((product) => {
+        const mode = String(product.mode || "").toLowerCase();
+        const category = String(product.category_name || "").toLowerCase();
+        return Number(product.is_active ?? 1) === 1 && (mode === "license" || category === "tools");
+      }),
+    [promotionProducts]
+  );
+  const activeInventoryProducts = useMemo(
+    () =>
+      promotionProducts.filter((product) => {
+        const mode = String(product.mode || "").toLowerCase();
+        const category = String(product.category_name || "").toLowerCase();
+        return Number(product.is_active ?? 1) === 1 && mode !== "license" && category !== "tools";
+      }),
+    [promotionProducts]
   );
 
   const loadCourses = async () => {
@@ -249,9 +370,164 @@ export default function AdminVideoCoursesPage({
     setSubscriptionPlans(res.ok ? data.plans ?? [] : []);
   };
 
+  const loadPromotions = async () => {
+    const res = await fetch("/api/admin/promotions", { credentials: "include" });
+    const data: unknown = await res.json().catch(() => ({}));
+    if (!res.ok) {
+      toast.error(parseErrorMessage(data, "Failed to load promotions"));
+      setPromotions([]);
+      return;
+    }
+    const rows =
+      typeof data === "object" && data !== null && "promotions" in data
+        ? (data as { promotions?: unknown }).promotions
+        : [];
+    setPromotions(Array.isArray(rows) ? (rows as PromotionCombo[]) : []);
+  };
+
+  const loadPromotionProducts = async () => {
+    const res = await fetch("/api/admin/products", { credentials: "include" });
+    const data: unknown = await res.json().catch(() => ({}));
+    if (!res.ok) {
+      toast.error(parseErrorMessage(data, "Failed to load products"));
+      setPromotionProducts([]);
+      return;
+    }
+    const rows =
+      typeof data === "object" && data !== null && "products" in data
+        ? (data as { products?: unknown }).products
+        : [];
+    setPromotionProducts(Array.isArray(rows) ? (rows as ProductRecord[]) : []);
+  };
+
+  const resetPromotionForm = () => {
+    setEditingPromotion(null);
+    setPromotionTitle("");
+    setPromotionDescription("");
+    setPromotionPrice("");
+    setPromotionOriginalPrice("");
+    setPromotionThumbnail("");
+    setPromotionKhqr(DEFAULT_KH_QR);
+    setPromotionUsdqr(USD_QR_NONE);
+    setPromotionStartAt("");
+    setPromotionEndAt("");
+    setPromotionItems([makePromotionFormItem({ item_type: "tool" })]);
+    setPromotionActive(true);
+  };
+
+  const savePromotion = async () => {
+    const items = promotionItems
+      .map((item) => ({
+        item_type: item.item_type,
+        item_id: Number(item.item_id),
+        variant_id: item.variant_id === null ? null : Number(item.variant_id),
+        qty: Math.max(1, Number(item.qty) || 1),
+      }))
+      .filter(
+        (item) =>
+          ["course", "tool", "product"].includes(item.item_type) &&
+          Number.isFinite(item.item_id) &&
+          item.item_id > 0
+      ) as PromotionComboItem[];
+    if (!promotionTitle.trim()) {
+      throw new Error("Promotion title is required");
+    }
+    const priceNum = Number(promotionPrice);
+    if (!Number.isFinite(priceNum) || priceNum < 0) {
+      throw new Error("Invalid promotion price");
+    }
+    const originalRaw = promotionOriginalPrice.trim();
+    const originalNum = originalRaw === "" ? null : Number(originalRaw);
+    if (originalNum !== null && (!Number.isFinite(originalNum) || originalNum < 0)) {
+      throw new Error("Invalid promotion original price");
+    }
+    if (items.length === 0) {
+      throw new Error("Add at least one combo item");
+    }
+    const startAtRaw = promotionStartAt.trim();
+    const endAtRaw = promotionEndAt.trim();
+    if (startAtRaw && endAtRaw) {
+      const startMs = new Date(startAtRaw).getTime();
+      const endMs = new Date(endAtRaw).getTime();
+      if (Number.isFinite(startMs) && Number.isFinite(endMs) && endMs < startMs) {
+        throw new Error("End time must be after start time");
+      }
+    }
+    const hasMissingCoursePlan = items.some(
+      (item) => item.item_type === "course" && (item.variant_id === null || item.variant_id === undefined)
+    );
+    if (hasMissingCoursePlan) {
+      throw new Error("Each course item must select a plan");
+    }
+    const hasMissingProductVariant = items.some(
+      (item) => (item.item_type === "tool" || item.item_type === "product") && item.variant_id === null
+    );
+    if (hasMissingProductVariant) {
+      throw new Error("Each tool/product item must select a variant");
+    }
+
+    const payload = {
+      title: promotionTitle.trim(),
+      description: promotionDescription.trim() || null,
+      price: priceNum,
+      original_price: originalNum,
+      thumbnail_url: promotionThumbnail.trim() || null,
+      khqr: promotionKhqr.trim() || DEFAULT_KH_QR,
+      usdqr: promotionUsdqr.trim() || USD_QR_NONE,
+      start_at: startAtRaw || null,
+      end_at: endAtRaw || null,
+      is_active: promotionActive ? 1 : 0,
+      items,
+    };
+
+    const endpoint = editingPromotion
+      ? `/api/admin/promotions/${editingPromotion.id}`
+      : "/api/admin/promotions";
+    const method = editingPromotion ? "PUT" : "POST";
+
+    const res = await fetch(endpoint, {
+      method,
+      headers: { "Content-Type": "application/json" },
+      credentials: "include",
+      body: JSON.stringify(payload),
+    });
+    const data: unknown = await res.json().catch(() => ({}));
+    if (!res.ok) {
+      throw new Error(parseErrorMessage(data, "Failed to save promotion"));
+    }
+  };
+
+  const addPromotionItem = () => {
+    setPromotionItems((prev) => [...prev, makePromotionFormItem({ item_type: "tool" })]);
+  };
+
+  const removePromotionItem = (rowId: string) => {
+    setPromotionItems((prev) => {
+      const next = prev.filter((item) => item.row_id !== rowId);
+      return next.length > 0 ? next : [makePromotionFormItem({ item_type: "tool" })];
+    });
+  };
+
+  const updatePromotionItem = (
+    rowId: string,
+    patch: Partial<Omit<PromotionFormItem, "row_id">>
+  ) => {
+    setPromotionItems((prev) =>
+      prev.map((item) => {
+        if (item.row_id !== rowId) return item;
+        return {
+          ...item,
+          ...patch,
+        };
+      })
+    );
+  };
+
   useEffect(() => {
     void loadCourses();
     void loadSubscriptionPlans();
+    void loadPromotions();
+    void loadPromotionProducts();
     void loadUsdQrOptions();
   }, []);
 
@@ -265,11 +541,101 @@ export default function AdminVideoCoursesPage({
     if (courseId) setManagementTab("courses");
   }, [courseId]);
   useEffect(() => {
+    if (courseId) return;
+    setManagementTab(initialManagementTab);
+  }, [courseId, initialManagementTab]);
+  useEffect(() => {
     if (!selectedId) return;
     void loadSections(selectedId);
     void loadLessons(selectedId);
     void loadPlans(selectedId);
   }, [selectedId]);
+
+  useEffect(() => {
+    const loadMissing = async () => {
+      for (const item of promotionItems) {
+        if (!item.item_id || item.item_id <= 0) continue;
+        if (item.item_type === "course") {
+          if (promotionCoursePlansLoadedRef.current.has(item.item_id)) continue;
+          promotionCoursePlansLoadedRef.current.add(item.item_id);
+          const res = await fetch(`/api/admin/video-courses/${item.item_id}/plans`, {
+            credentials: "include",
+          });
+          const data: unknown = await res.json().catch(() => ({}));
+          if (!res.ok) {
+            toast.error(parseErrorMessage(data, "Failed to load course plans"));
+            continue;
+          }
+          const rows =
+            typeof data === "object" && data !== null && "plans" in data
+              ? (data as { plans?: unknown }).plans
+              : [];
+          setPromotionCoursePlans((prev) => ({
+            ...prev,
+            [item.item_id as number]: Array.isArray(rows) ? (rows as CoursePlan[]) : [],
+          }));
+          continue;
+        }
+        if (promotionProductVariantsLoadedRef.current.has(item.item_id)) continue;
+        promotionProductVariantsLoadedRef.current.add(item.item_id);
+        const res = await fetch(`/api/admin/products/${item.item_id}/variants`, {
+          credentials: "include",
+        });
+        const data: unknown = await res.json().catch(() => ({}));
+        if (!res.ok) {
+          toast.error(parseErrorMessage(data, "Failed to load variants"));
+          continue;
+        }
+        const rows =
+          typeof data === "object" && data !== null && "variants" in data
+            ? (data as { variants?: unknown }).variants
+            : [];
+        setPromotionProductVariants((prev) => ({
+          ...prev,
+          [item.item_id as number]: Array.isArray(rows) ? (rows as ProductVariantRecord[]) : [],
+        }));
+      }
+    };
+    void loadMissing();
+  }, [promotionItems]);
+
+  useEffect(() => {
+    for (const item of promotionItems) {
+      if (item.item_type === "course") continue;
+      if (item.variant_id !== null) continue;
+      if (!item.item_id) continue;
+      const variants = promotionProductVariants[item.item_id];
+      if (!variants || variants.length === 0) continue;
+      const active = variants.filter((variant) => Number(variant.is_active) === 1);
+      if (active.length === 0) continue;
+      setPromotionItems((prev) =>
+        prev.map((row) =>
+          row.row_id === item.row_id && row.variant_id === null
+            ? { ...row, variant_id: Number(active[0].id) }
+            : row
+        )
+      );
+    }
+  }, [promotionItems, promotionProductVariants]);
+
+  useEffect(() => {
+    for (const item of promotionItems) {
+      if (item.item_type !== "course") continue;
+      if (item.variant_id !== null) continue;
+      if (!item.item_id) continue;
+      const plans = promotionCoursePlans[item.item_id];
+      if (!plans || plans.length === 0) continue;
+      const active = plans.filter((plan) => Number(plan.is_active) === 1);
+      if (active.length === 0) continue;
+      setPromotionItems((prev) =>
+        prev.map((row) =>
+          row.row_id === item.row_id && row.variant_id === null
+            ? { ...row, variant_id: Number(active[0].id) }
+            : row
+        )
+      );
+    }
+  }, [promotionItems, promotionCoursePlans]);
 
   useEffect(() => {
     if (!selectedCourse) {
@@ -645,6 +1011,8 @@ export default function AdminVideoCoursesPage({
 
       if (typeof url === "string" && url.trim()) {
         setPlanUsdqr(url);
+        setSubUsdqr(url);
+        setPromotionUsdqr(url);
       }
 
       await loadUsdQrOptions();
@@ -813,39 +1181,59 @@ export default function AdminVideoCoursesPage({
     <div className="max-w-7xl mx-auto px-4 py-12">
       <div className="flex items-center justify-between">
         <div>
-          <h1 className="text-2xl font-bold">Video Courses</h1>
-          <p className="text-sm text-gray-500">Manage courses, lessons, and subscriptions.</p>
+          <h1 className="text-2xl font-bold">
+            {managementTab === "promotions" ? "Promotions" : "Video Courses"}
+          </h1>
+          <p className="text-sm text-gray-500">
+            {managementTab === "promotions"
+              ? "Manage promotion combos."
+              : "Manage courses, lessons, and subscriptions."}
+          </p>
         </div>
-        <button
-          onClick={() => setCreateOpen(true)}
-          className="px-4 py-2 rounded-lg bg-black text-white text-sm"
-        >
-          New Course
-        </button>
+        {managementTab !== "promotions" ? (
+          <button
+            onClick={() => setCreateOpen(true)}
+            className="px-4 py-2 rounded-lg bg-black text-white text-sm"
+          >
+            New Course
+          </button>
+        ) : null}
       </div>
       <div className="mt-3 flex flex-wrap gap-2">
-        <button
-          type="button"
-          onClick={() => setManagementTab("courses")}
-          className={`px-3 py-2 rounded-lg text-sm border ${
-            managementTab === "courses"
-              ? "bg-black text-white border-black"
-              : "bg-white text-gray-700 border-gray-200 hover:bg-gray-50"
-          }`}
-        >
-          Courses
-        </button>
-        <button
-          type="button"
-          onClick={() => setManagementTab("subscriptions")}
-          className={`px-3 py-2 rounded-lg text-sm border ${
-            managementTab === "subscriptions"
-              ? "bg-black text-white border-black"
-              : "bg-white text-gray-700 border-gray-200 hover:bg-gray-50"
-          }`}
-        >
-          Subscription plans (all courses)
-        </button>
+        {initialManagementTab !== "promotions" ? (
+          <>
+            <button
+              type="button"
+              onClick={() => setManagementTab("courses")}
+              className={`px-3 py-2 rounded-lg text-sm border ${
+                managementTab === "courses"
+                  ? "bg-black text-white border-black"
+                  : "bg-white text-gray-700 border-gray-200 hover:bg-gray-50"
+              }`}
+            >
+              Courses
+            </button>
+            <button
+              type="button"
+              onClick={() => setManagementTab("subscriptions")}
+              className={`px-3 py-2 rounded-lg text-sm border ${
+                managementTab === "subscriptions"
+                  ? "bg-black text-white border-black"
+                  : "bg-white text-gray-700 border-gray-200 hover:bg-gray-50"
+              }`}
+            >
+              Subscription plans (all courses)
+            </button>
+          </>
+        ) : null}
+        {initialManagementTab === "promotions" ? (
+          <button
+            type="button"
+            className="px-3 py-2 rounded-lg text-sm border bg-black text-white border-black"
+          >
+            Promotions
+          </button>
+        ) : null}
       </div>
 
       {error ? <div className="text-sm text-red-600">{error}</div> : null}
@@ -2069,6 +2457,467 @@ export default function AdminVideoCoursesPage({
           </div>
         </div>
       </div>
+      ) : null}
+
+      {managementTab === "promotions" ? (
+        <div className="rounded-xl border bg-white p-4 space-y-4">
+          <div className="flex flex-wrap items-center justify-between gap-2">
+            <h2 className="font-semibold text-gray-900">Promotion Combos</h2>
+            <div className="flex items-center gap-2">
+              <button
+                type="button"
+                className={`px-3 py-1.5 rounded-lg text-sm border ${
+                  promotionPanel === "form"
+                    ? "bg-black text-white border-black"
+                    : "bg-white text-gray-700 border-gray-200 hover:bg-gray-50"
+                }`}
+                onClick={() => setPromotionPanel("form")}
+              >
+                Promotion
+              </button>
+              <button
+                type="button"
+                className={`px-3 py-1.5 rounded-lg text-sm border ${
+                  promotionPanel === "results"
+                    ? "bg-black text-white border-black"
+                    : "bg-white text-gray-700 border-gray-200 hover:bg-gray-50"
+                }`}
+                onClick={() => setPromotionPanel("results")}
+              >
+                Promotion Result
+              </button>
+            </div>
+          </div>
+          <div className="grid gap-3 lg:grid-cols-2">
+            {promotionPanel === "form" ? (
+            <div className="space-y-3">
+              <input
+                className="border rounded-lg px-3 py-2 text-sm w-full"
+                value={promotionTitle}
+                onChange={(e) => setPromotionTitle(e.target.value)}
+                placeholder="Promotion title"
+              />
+              <textarea
+                className="border rounded-lg px-3 py-2 text-sm w-full min-h-[80px]"
+                value={promotionDescription}
+                onChange={(e) => setPromotionDescription(e.target.value)}
+                placeholder="Description"
+              />
+              <div className="grid gap-2 sm:grid-cols-2">
+                <input
+                  className="border rounded-lg px-3 py-2 text-sm"
+                  value={promotionPrice}
+                  onChange={(e) => setPromotionPrice(e.target.value)}
+                  placeholder="Combo price"
+                />
+                <input
+                  className="border rounded-lg px-3 py-2 text-sm"
+                  value={promotionOriginalPrice}
+                  onChange={(e) => setPromotionOriginalPrice(e.target.value)}
+                  placeholder="Original price (optional)"
+                />
+              </div>
+              <input
+                className="border rounded-lg px-3 py-2 text-sm w-full"
+                value={promotionThumbnail}
+                onChange={(e) => setPromotionThumbnail(e.target.value)}
+                placeholder="Thumbnail URL"
+              />
+              <div className="grid gap-2 sm:grid-cols-2">
+                <div>
+                  <div className="text-xs text-gray-600 mb-1">Start at (optional)</div>
+                  <input
+                    type="datetime-local"
+                    className="border rounded-lg px-3 py-2 text-sm w-full"
+                    value={promotionStartAt}
+                    onChange={(e) => setPromotionStartAt(e.target.value)}
+                  />
+                </div>
+                <div>
+                  <div className="text-xs text-gray-600 mb-1">End at (optional)</div>
+                  <input
+                    type="datetime-local"
+                    className="border rounded-lg px-3 py-2 text-sm w-full"
+                    value={promotionEndAt}
+                    onChange={(e) => setPromotionEndAt(e.target.value)}
+                  />
+                </div>
+              </div>
+              <label className="inline-flex items-center gap-2 text-sm text-gray-700">
+                <input
+                  type="checkbox"
+                  checked={promotionActive}
+                  onChange={(e) => setPromotionActive(e.target.checked)}
+                />
+                Active
+              </label>
+              <div className="rounded-lg border p-3 space-y-3">
+                <div className="text-sm font-medium text-gray-900">Promotion Payment QR</div>
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+                  <div>
+                    <div className="text-xs text-gray-600 mb-1">KHQR (Auto)</div>
+                    <div className="flex items-center gap-3">
+                      <img
+                        src={promotionKhqr || DEFAULT_KH_QR}
+                        alt="Promotion KHQR"
+                        className="w-16 h-16 rounded-lg border object-cover bg-white"
+                      />
+                      <div className="text-xs text-gray-500 break-all">
+                        {promotionKhqr || DEFAULT_KH_QR}
+                      </div>
+                    </div>
+                    <input
+                      className="mt-2 w-full border rounded-lg px-3 py-2 text-xs"
+                      value={promotionKhqr}
+                      onChange={(e) => setPromotionKhqr(e.target.value)}
+                      placeholder="/paymentQR/khmer_qr.jpg"
+                    />
+                  </div>
+                  <div>
+                    <div className="text-xs text-gray-600 mb-1">USD QR</div>
+                    <select
+                      value={promotionUsdqr}
+                      onChange={(e) => setPromotionUsdqr(e.target.value)}
+                      className="w-full border rounded-lg px-3 py-2 text-sm"
+                    >
+                      <option value={USD_QR_NONE}>None</option>
+                      {usdQrOptions.map((opt) => (
+                        <option key={`promo-usd-${opt.filename}`} value={opt.url}>
+                          {opt.label}
+                        </option>
+                      ))}
+                    </select>
+                    {promotionUsdqr !== USD_QR_NONE ? (
+                      <div className="mt-2 flex items-center gap-2">
+                        <img
+                          src={promotionUsdqr}
+                          alt="Promotion USD QR"
+                          className="w-14 h-14 rounded border object-cover bg-white"
+                        />
+                        <div className="text-[11px] text-gray-500 break-all">{promotionUsdqr}</div>
+                      </div>
+                    ) : (
+                      <div className="mt-2 text-[11px] text-gray-500">No USD QR selected.</div>
+                    )}
+                  </div>
+                </div>
+              </div>
+              <div className="rounded-lg border p-3 space-y-3">
+                <div className="flex items-center justify-between gap-2">
+                  <div className="text-sm font-medium text-gray-900">Combo Items</div>
+                  <button
+                    type="button"
+                    className="text-xs px-3 py-1.5 rounded border bg-white hover:bg-gray-100"
+                    onClick={addPromotionItem}
+                  >
+                    Add item
+                  </button>
+                </div>
+                {promotionItems.map((item) => {
+                  const itemIdValue = item.item_id ?? 0;
+                  const coursePlans =
+                    item.item_type === "course" && item.item_id
+                      ? (promotionCoursePlans[item.item_id] ?? [])
+                      : [];
+                  const productVariants =
+                    item.item_type !== "course" && item.item_id
+                      ? (promotionProductVariants[item.item_id] ?? [])
+                      : [];
+                  const itemProducts =
+                    item.item_type === "tool" ? activeToolProducts : activeInventoryProducts;
+                  return (
+                    <div key={item.row_id} className="rounded-lg border border-gray-200 p-3 space-y-2">
+                      <div className="grid gap-2 md:grid-cols-4">
+                        <select
+                          className="border rounded-lg px-3 py-2 text-sm"
+                          value={item.item_type}
+                          onChange={(e) => {
+                            const nextType = e.target.value as PromotionFormItem["item_type"];
+                            updatePromotionItem(item.row_id, {
+                              item_type: nextType,
+                              item_id: null,
+                              variant_id: null,
+                              qty: 1,
+                            });
+                          }}
+                        >
+                          <option value="course">Video course</option>
+                          <option value="tool">Tool</option>
+                          <option value="product">Product</option>
+                        </select>
+                        <select
+                          className="border rounded-lg px-3 py-2 text-sm md:col-span-2"
+                          value={itemIdValue}
+                          onChange={(e) => {
+                            const nextId = Number(e.target.value) || null;
+                            updatePromotionItem(item.row_id, {
+                              item_id: nextId,
+                              variant_id: null,
+                            });
+                          }}
+                        >
+                          <option value={0}>Select item</option>
+                          {item.item_type === "course"
+                            ? activePromotionCourses.map((course) => (
+                                <option key={`promo-course-${course.id}`} value={course.id}>
+                                  {course.title}
+                                </option>
+                              ))
+                            : itemProducts.map((product) => (
+                                <option key={`promo-product-${product.id}`} value={product.id}>
+                                  {product.title}
+                                </option>
+                              ))}
+                        </select>
+                        <input
+                          type="number"
+                          min={1}
+                          className="border rounded-lg px-3 py-2 text-sm"
+                          value={item.qty}
+                          onChange={(e) => {
+                            const nextQty = Math.max(1, Number(e.target.value) || 1);
+                            updatePromotionItem(item.row_id, { qty: nextQty });
+                          }}
+                          placeholder="Qty"
+                        />
+                      </div>
+                      <div className="grid gap-2 md:grid-cols-4">
+                        <select
+                          className="border rounded-lg px-3 py-2 text-sm md:col-span-3"
+                          value={item.variant_id ?? 0}
+                          onChange={(e) => {
+                            const nextVariant = Number(e.target.value);
+                            updatePromotionItem(item.row_id, {
+                              variant_id: nextVariant > 0 ? nextVariant : null,
+                            });
+                          }}
+                        >
+                          <option value={0}>
+                            {item.item_type === "course" ? "Select course plan" : "Select variant"}
+                          </option>
+                          {item.item_type === "course"
+                            ? coursePlans
+                                .filter((plan) => Number(plan.is_active) === 1)
+                                .map((plan) => (
+                                  <option key={`promo-plan-${plan.id}`} value={plan.id}>
+                                    {plan.name} ({formatMoney(plan.price)})
+                                  </option>
+                                ))
+                            : productVariants
+                                .filter((variant) => Number(variant.is_active) === 1)
+                                .map((variant) => (
+                                  <option key={`promo-variant-${variant.id}`} value={variant.id}>
+                                    {variant.duration_label || `Variant #${variant.id}`} (
+                                    {formatMoney(variant.price)})
+                                  </option>
+                                ))}
+                        </select>
+                        <button
+                          type="button"
+                          className="text-xs px-3 py-2 rounded border text-red-600"
+                          onClick={() => removePromotionItem(item.row_id)}
+                        >
+                          Remove
+                        </button>
+                      </div>
+                    </div>
+                  );
+                })}
+              </div>
+              <div className="flex flex-wrap gap-2">
+                <button
+                  type="button"
+                  className="px-3 py-2 rounded-lg bg-blue-600 text-white text-sm disabled:opacity-60"
+                  disabled={savingPromotion}
+                  onClick={async () => {
+                    try {
+                      setSavingPromotion(true);
+                      await savePromotion();
+                      await loadPromotions();
+                      toast.success(editingPromotion ? "Promotion updated" : "Promotion created");
+                      resetPromotionForm();
+                    } catch (err) {
+                      toast.error(err instanceof Error ? err.message : "Failed to save promotion");
+                    } finally {
+                      setSavingPromotion(false);
+                    }
+                  }}
+                >
+                  {savingPromotion
+                    ? "Saving..."
+                    : editingPromotion
+                      ? "Save changes"
+                      : "Add promotion"}
+                </button>
+                {editingPromotion ? (
+                  <button
+                    type="button"
+                    className="px-3 py-2 rounded-lg border text-sm"
+                    onClick={resetPromotionForm}
+                    disabled={savingPromotion}
+                  >
+                    Cancel edit
+                  </button>
+                ) : null}
+              </div>
+            </div>
+            ) : null}
+
+            {promotionPanel === "results" ? (
+            <div className="space-y-3">
+              {promotions.length === 0 ? (
+                <div className="text-sm text-gray-500">No promotions yet.</div>
+              ) : (
+                promotions.map((promo) => (
+                  <div key={promo.id} className="rounded-xl border border-gray-200 p-4 space-y-2">
+                    <div className="flex items-start justify-between gap-3">
+                      <div>
+                        <div className="font-semibold text-gray-900">{promo.title}</div>
+                        <div className="text-xs text-gray-500">
+                          {promo.items?.length ?? 0} items
+                        </div>
+                      </div>
+                      <span
+                        className={`rounded-full px-2 py-0.5 text-[11px] ${
+                          promo.is_active
+                            ? "bg-emerald-100 text-emerald-700"
+                            : "bg-gray-200 text-gray-600"
+                        }`}
+                      >
+                        {promo.is_active ? "Active" : "Disabled"}
+                      </span>
+                    </div>
+                    <div className="text-sm text-gray-600">
+                      {promo.description || "No description"}
+                    </div>
+                    <div className="text-sm text-gray-900 font-semibold">
+                      {formatMoney(promo.price)}
+                      {promo.original_price ? (
+                        <span className="ml-2 text-xs text-gray-400 line-through">
+                          {formatMoney(promo.original_price)}
+                        </span>
+                      ) : null}
+                    </div>
+                    <div className="text-[11px] text-gray-500">
+                      KHQR: {promo.khqr || DEFAULT_KH_QR} | USD: {promo.usdqr || USD_QR_NONE}
+                    </div>
+                    {promo.start_at || promo.end_at ? (
+                      <div className="text-[11px] text-gray-500">
+                        Window: {promo.start_at ? toDateTimeLocalValue(promo.start_at).replace("T", " ") : "now"} -{" "}
+                        {promo.end_at ? toDateTimeLocalValue(promo.end_at).replace("T", " ") : "no end"}
+                      </div>
+                    ) : null}
+                    <div className="flex flex-wrap gap-2">
+                      <button
+                        type="button"
+                        className="text-xs px-3 py-1.5 rounded border"
+                        onClick={() => {
+                          setPromotionPanel("form");
+                          setEditingPromotion(promo);
+                          setPromotionTitle(promo.title);
+                          setPromotionDescription(promo.description || "");
+                          setPromotionPrice(String(promo.price ?? ""));
+                          setPromotionOriginalPrice(
+                            promo.original_price === null || promo.original_price === undefined
+                              ? ""
+                              : String(promo.original_price)
+                          );
+                          setPromotionThumbnail(promo.thumbnail_url || "");
+                          setPromotionKhqr(promo.khqr || DEFAULT_KH_QR);
+                          setPromotionUsdqr(promo.usdqr || USD_QR_NONE);
+                          setPromotionStartAt(toDateTimeLocalValue(promo.start_at));
+                          setPromotionEndAt(toDateTimeLocalValue(promo.end_at));
+                          setPromotionActive(promo.is_active === 1);
+                          setPromotionItems(
+                            (promo.items ?? []).length > 0
+                              ? (promo.items ?? []).map((item) =>
+                                  makePromotionFormItem({
+                                    item_type: item.item_type,
+                                    item_id: Number(item.item_id),
+                                    variant_id:
+                                      item.variant_id === null || item.variant_id === undefined
+                                        ? null
+                                        : Number(item.variant_id),
+                                    qty: Math.max(1, Number(item.qty ?? 1)),
+                                  })
+                                )
+                              : [makePromotionFormItem({ item_type: "tool" })]
+                          );
+                        }}
+                      >
+                        Edit
+                      </button>
+                      <button
+                        type="button"
+                        className="text-xs px-3 py-1.5 rounded border"
+                        onClick={async () => {
+                          try {
+                            const res = await fetch(`/api/admin/promotions/${promo.id}`, {
+                              method: "PUT",
+                              headers: { "Content-Type": "application/json" },
+                              credentials: "include",
+                              body: JSON.stringify({
+                                title: promo.title,
+                                description: promo.description ?? null,
+                                price: Number(promo.price),
+                                original_price: promo.original_price ?? null,
+                                thumbnail_url: promo.thumbnail_url ?? null,
+                                khqr: promo.khqr ?? null,
+                                usdqr: promo.usdqr ?? null,
+                                start_at: promo.start_at ?? null,
+                                end_at: promo.end_at ?? null,
+                                is_active: promo.is_active ? 0 : 1,
+                                items: promo.items ?? [],
+                              }),
+                            });
+                            const data: unknown = await res.json().catch(() => ({}));
+                            if (!res.ok) {
+                              throw new Error(parseErrorMessage(data, "Failed to update promotion"));
+                            }
+                            await loadPromotions();
+                            toast.success(promo.is_active ? "Promotion disabled" : "Promotion enabled");
+                          } catch (err) {
+                            toast.error(err instanceof Error ? err.message : "Failed to update promotion");
+                          }
+                        }}
+                      >
+                        {promo.is_active ? "Disable" : "Enable"}
+                      </button>
+                      <button
+                        type="button"
+                        className="text-xs px-3 py-1.5 rounded border text-red-600"
+                        onClick={async () => {
+                          const ok = confirm("Delete this promotion?");
+                          if (!ok) return;
+                          try {
+                            const res = await fetch(`/api/admin/promotions/${promo.id}`, {
+                              method: "DELETE",
+                              credentials: "include",
+                            });
+                            const data: unknown = await res.json().catch(() => ({}));
+                            if (!res.ok) {
+                              throw new Error(parseErrorMessage(data, "Failed to delete promotion"));
+                            }
+                            await loadPromotions();
+                            if (editingPromotion?.id === promo.id) {
+                              resetPromotionForm();
+                            }
+                            toast.success("Promotion deleted");
+                          } catch (err) {
+                            toast.error(err instanceof Error ? err.message : "Failed to delete promotion");
+                          }
+                        }}
+                      >
+                        Remove
+                      </button>
+                    </div>
+                  </div>
+                ))
+              )}
+            </div>
+            ) : null}
+          </div>
+        </div>
       ) : null}
 
       {createOpen && (

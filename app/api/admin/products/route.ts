@@ -5,6 +5,21 @@ import type { ResultSetHeader, RowDataPacket } from "mysql2";
 
 export const runtime = "nodejs";
 
+async function hasColumn(tableName: string, columnName: string): Promise<boolean> {
+  const [rows] = await db.query<RowDataPacket[]>(
+    `
+    SELECT 1
+    FROM information_schema.columns
+    WHERE table_schema = DATABASE()
+      AND table_name = ?
+      AND column_name = ?
+    LIMIT 1
+    `,
+    [tableName, columnName]
+  );
+  return rows.length > 0;
+}
+
 /* =========================
    GET: LIST PRODUCTS (ADMIN)
 ========================= */
@@ -14,6 +29,11 @@ export async function GET(req: Request) {
     if (!auth || auth.role !== "admin") {
       return Response.json({ products: [], error: "Forbidden" }, { status: 403 });
     }
+
+    const hasProductsMode = await hasColumn("products", "mode");
+    const modeSelectExpr = hasProductsMode
+      ? "CASE WHEN LOWER(c.name) = 'tools' THEN 'license' WHEN p.mode IN ('license','inventory') THEN p.mode ELSE 'inventory' END AS mode,"
+      : "CASE WHEN LOWER(c.name) = 'tools' THEN 'license' ELSE 'inventory' END AS mode,";
 
     let rows: RowDataPacket[] = [];
     try {
@@ -28,6 +48,7 @@ export async function GET(req: Request) {
           p.level,
           p.stock_qty,
           p.is_unlimited_stock,
+          ${modeSelectExpr}
           p.order_fields_json,
           p.is_active,
           p.created_at,
@@ -68,6 +89,7 @@ export async function GET(req: Request) {
           p.level,
           p.stock_qty,
           p.is_unlimited_stock,
+          ${modeSelectExpr}
           p.order_fields_json,
           p.is_active,
           p.created_at,
@@ -116,6 +138,7 @@ export async function POST(req: Request) {
     const title = typeof b.title === "string" ? b.title.trim() : "";
     const slug = typeof b.slug === "string" ? b.slug.trim() : "";
     const categoryId = Number(b.category_id);
+    const requestedMode = typeof b.mode === "string" ? b.mode.trim().toLowerCase() : null;
 
     if (!title || !slug || !Number.isFinite(categoryId) || categoryId <= 0) {
       return Response.json({ error: "Invalid title, slug, or category" }, { status: 400 });
@@ -129,13 +152,32 @@ export async function POST(req: Request) {
       return Response.json({ error: "Slug already exists" }, { status: 409 });
     }
 
+    const [categoryRows] = await db.query<RowDataPacket[]>(
+      "SELECT name FROM product_categories WHERE id = ? LIMIT 1",
+      [categoryId]
+    );
+    if (categoryRows.length === 0) {
+      return Response.json({ error: "Category not found" }, { status: 400 });
+    }
+    const isToolsCategory = String(categoryRows[0].name ?? "").toLowerCase() === "tools";
+    const fallbackMode = isToolsCategory ? "license" : "inventory";
+    const finalMode =
+      requestedMode === "license" || requestedMode === "inventory" ? requestedMode : fallbackMode;
+    const hasProductsMode = await hasColumn("products", "mode");
+
     const [result] = await db.query<ResultSetHeader>(
-      `
-      INSERT INTO products
-        (title, slug, category_id, posted_by, is_active)
-      VALUES (?, ?, ?, ?, 1)
-      `,
-      [title, slug, categoryId, auth.userId]
+      hasProductsMode
+        ? `
+          INSERT INTO products
+            (title, slug, category_id, posted_by, is_active, mode)
+          VALUES (?, ?, ?, ?, 1, ?)
+          `
+        : `
+          INSERT INTO products
+            (title, slug, category_id, posted_by, is_active)
+          VALUES (?, ?, ?, ?, 1)
+          `,
+      hasProductsMode ? [title, slug, categoryId, auth.userId, finalMode] : [title, slug, categoryId, auth.userId]
     );
 
     return Response.json({ success: true, productId: result.insertId });

@@ -8,6 +8,7 @@ type ConversationListRow = RowDataPacket & {
   order_id: number;
   order_number: string;
   state: string | null;
+  result: string | null;
   user_id: number;
   buyer_name: string | null;
   buyer_email: string;
@@ -25,9 +26,15 @@ type ConversationListRow = RowDataPacket & {
   last_body: string | null;
   last_created_at: string | Date | null;
   last_is_admin: number | null;
+  last_sender_id: number | null;
+  last_sender_name: string | null;
+  last_sender_email: string | null;
   last_message_type: string | null;
   last_sticker_path: string | null;
-  seller_unread: number | null;
+  last_admin_sender_id: number | null;
+  last_admin_sender_name: string | null;
+  last_admin_sender_email: string | null;
+  viewer_unread: number | null;
   buyer_unread: number | null;
 };
 
@@ -53,6 +60,7 @@ export async function GET(req: NextRequest) {
         o.id AS order_id,
         o.order_number,
         o.state,
+        o.result,
         o.user_id,
         u.username AS buyer_name,
         u.email AS buyer_email,
@@ -70,9 +78,15 @@ export async function GET(req: NextRequest) {
         lm.body AS last_body,
         lm.created_at AS last_created_at,
         lm.is_admin AS last_is_admin,
+        lm.sender_id AS last_sender_id,
+        lm_sender.username AS last_sender_name,
+        lm_sender.email AS last_sender_email,
         lm.message_type AS last_message_type,
         lm.sticker_path AS last_sticker_path,
-        unread.seller_unread,
+        lam.last_admin_sender_id,
+        lam_user.username AS last_admin_sender_name,
+        lam_user.email AS last_admin_sender_email,
+        unread.viewer_unread,
         unread.buyer_unread
       FROM order_conversations c
       JOIN orders o ON o.id = c.order_id
@@ -98,6 +112,22 @@ export async function GET(req: NextRequest) {
           GROUP BY conversation_id
         ) m2 ON m2.conversation_id = m1.conversation_id AND m2.max_id = m1.id
       ) AS lm ON lm.conversation_id = c.id
+      LEFT JOIN users lm_sender ON lm_sender.id = lm.sender_id
+      LEFT JOIN (
+        SELECT
+          ma.conversation_id,
+          ma.sender_id AS last_admin_sender_id
+        FROM order_chat_messages ma
+        JOIN (
+          SELECT conversation_id, MAX(id) AS max_id
+          FROM order_chat_messages
+          WHERE is_admin = 1 AND deleted_at IS NULL
+          GROUP BY conversation_id
+        ) latest_admin
+          ON latest_admin.conversation_id = ma.conversation_id
+         AND latest_admin.max_id = ma.id
+      ) lam ON lam.conversation_id = c.id
+      LEFT JOIN users lam_user ON lam_user.id = lam.last_admin_sender_id
       LEFT JOIN (
         SELECT
           m.conversation_id,
@@ -109,10 +139,10 @@ export async function GET(req: NextRequest) {
           ) AS buyer_unread,
           SUM(
             CASE
-              WHEN m.seller_seen_at IS NULL AND m.deleted_at IS NULL AND m.sender_id <> seller_user.id
+              WHEN m.seller_seen_at IS NULL AND m.deleted_at IS NULL AND m.sender_id <> ?
                 THEN 1 ELSE 0
             END
-          ) AS seller_unread
+          ) AS viewer_unread
         FROM order_chat_messages m
         JOIN order_conversations c2 ON c2.id = m.conversation_id
         JOIN orders o ON o.id = c2.order_id
@@ -138,7 +168,7 @@ export async function GET(req: NextRequest) {
       ORDER BY COALESCE(c.last_message_at, lm.created_at, o.created_at) DESC, c.id DESC
       LIMIT 200
       `,
-      isAdmin ? [] : [auth.userId, auth.userId]
+      isAdmin ? [auth.userId] : [auth.userId, auth.userId, auth.userId]
     );
 
     const conversations = rows.map((row) => ({
@@ -146,6 +176,7 @@ export async function GET(req: NextRequest) {
       orderId: row.order_id,
       orderNumber: row.order_number,
       state: row.state,
+      result: row.result,
       buyer: {
         id: row.user_id,
         name: row.buyer_name,
@@ -175,13 +206,21 @@ export async function GET(req: NextRequest) {
       lastMessage: row.last_body,
       lastMessageType: row.last_message_type,
       lastStickerPath: row.last_sticker_path,
+      handlerAdminId:
+        row.last_admin_sender_id !== null && row.last_admin_sender_id !== undefined
+          ? Number(row.last_admin_sender_id)
+          : null,
+      handlerAdminName:
+        row.last_admin_sender_name && row.last_admin_sender_name.trim()
+          ? row.last_admin_sender_name.trim()
+          : row.last_admin_sender_email ?? null,
       lastMessageAt: formatDate(
         row.last_created_at ?? row.last_message_at ?? row.created_at
       ),
       lastMessageFromAdmin: row.last_is_admin === 1,
       unreadCount: Number(
         (isAdmin || row.seller_id === auth.userId
-          ? row.seller_unread
+          ? row.viewer_unread
           : row.buyer_unread) ?? 0
       ),
     }));

@@ -45,6 +45,7 @@ type Variant = {
   device_label?: string | null;
   device_limit?: number | null;
   is_unlimited_device?: 0 | 1 | null;
+  units_per_qty?: number | null;
 
   original_price?: number | null;
   price?: number | null;
@@ -68,6 +69,7 @@ type ProductDetail = {
 
   stock_qty?: number | null;
   is_unlimited_stock?: 0 | 1 | null;
+  mode?: "license" | "inventory" | null;
 
   avg_rating?: number | null;
   rating_count?: number;
@@ -233,15 +235,26 @@ export default function ProductDetailPage({
 
   /* ================= MODAL VARIANTS ================= */
   const modalVariants = useMemo(() => {
+    const categoryName = String(product?.category ?? "").toLowerCase();
+    const mode = String(product?.mode ?? (categoryName === "tools" ? "license" : "inventory"));
+    const isInventoryMode = mode === "inventory";
+    const isUnlimitedStock = Number(product?.is_unlimited_stock ?? 0) === 1;
+    const stockQty = Number(product?.stock_qty ?? 0);
+
     return (variants ?? [])
       .filter((v) => typeof v.id === "number" && v.id > 0)
       .map((v) => ({
         id: Number(v.id),
         label: v.duration_label || v.device_label || "Option",
         price: Number(v.price ?? 0),
+        unitsPerQty: Math.max(1, Math.floor(Number(v.units_per_qty ?? 1))),
+        isDisabled:
+          isInventoryMode &&
+          !isUnlimitedStock &&
+          stockQty < Math.max(1, Math.floor(Number(v.units_per_qty ?? 1))),
       }))
       .filter((v) => Number.isFinite(v.price));
-  }, [variants]);
+  }, [variants, product?.category, product?.mode, product?.is_unlimited_stock, product?.stock_qty]);
 
   const userReview = useMemo(() => {
     if (!user) return null;
@@ -292,7 +305,8 @@ export default function ProductDetailPage({
         const data = (await res.json()) as ApiResponse;
         if (!alive) return;
 
-        setProduct(data.product ?? null);
+        const productData = data.product ?? null;
+        setProduct(productData);
 
         const v = Array.isArray(data.variants) ? data.variants : [];
         setVariants(v);
@@ -300,8 +314,21 @@ export default function ProductDetailPage({
         setReviews(Array.isArray(data.reviews) ? data.reviews : []);
         setShowAllReviews(false);
 
-        const first = v[0];
-        setSelectedVariantId(first?.id ?? null);
+        const categoryName = String(productData?.category ?? "").toLowerCase();
+        const mode = String(
+          productData?.mode ?? (categoryName === "tools" ? "license" : "inventory")
+        );
+        const isInventoryMode = mode === "inventory";
+        const isUnlimitedStock = Number(productData?.is_unlimited_stock ?? 0) === 1;
+        const stockQty = Number(productData?.stock_qty ?? 0);
+
+        const firstAvailable = v.find((item) => {
+          const units = Math.max(1, Math.floor(Number(item.units_per_qty ?? 1)));
+          if (!isInventoryMode || isUnlimitedStock) return true;
+          return stockQty >= units;
+        });
+
+        setSelectedVariantId((firstAvailable ?? v[0])?.id ?? null);
       } catch (err: unknown) {
         if (!alive) return;
 
@@ -446,6 +473,8 @@ export default function ProductDetailPage({
     !product.is_unlimited_stock && typeof product.stock_qty === "number"
       ? product.stock_qty <= 0
       : false;
+  const hasBuyableVariant = modalVariants.some((v) => !v.isDisabled);
+  const isToolsCategory = String(product.category ?? "").toLowerCase() === "tools";
 
   const stockText = product.is_unlimited_stock
     ? "Unlimited stock"
@@ -779,7 +808,7 @@ export default function ProductDetailPage({
                   variant="outline"
                   className="w-full rounded-xl"
                   onClick={() => setShowAddModal(true)}
-                  disabled={modalVariants.length === 0 || isOutOfStock}
+                  disabled={modalVariants.length === 0 || isOutOfStock || !hasBuyableVariant}
                 >
                   <ShoppingCart className="w-4 h-4 mr-2" />
                   {isOutOfStock ? "Out of stock" : t("course.buyNow") || "Add to Cart"}
@@ -796,16 +825,33 @@ export default function ProductDetailPage({
                   <div className="space-y-2">
                     {variants.map((v) => {
                       const active = v.id === selectedVariantId;
+                      const unitsPerQty = Math.max(
+                        1,
+                        Math.floor(Number(v.units_per_qty ?? 1))
+                      );
+                      const categoryName = String(product.category ?? "").toLowerCase();
+                      const mode = String(
+                        product.mode ?? (categoryName === "tools" ? "license" : "inventory")
+                      );
+                      const unavailableByUnits =
+                        mode === "inventory" &&
+                        Number(product.is_unlimited_stock ?? 0) !== 1 &&
+                        Number(product.stock_qty ?? 0) < unitsPerQty;
 
                       return (
                         <button
                           key={v.id}
                           type="button"
-                          onClick={() => setSelectedVariantId(v.id)}
+                          onClick={() => {
+                            if (!unavailableByUnits) setSelectedVariantId(v.id);
+                          }}
+                          disabled={unavailableByUnits}
                           className={`w-full text-left rounded-xl border p-4 transition ${
                             active
                               ? "border-gray-900 bg-gray-50 dark:border-white dark:bg-gray-950"
-                              : "hover:bg-gray-50 dark:hover:bg-gray-950"
+                              : unavailableByUnits
+                                ? "opacity-60 cursor-not-allowed bg-gray-100 dark:bg-gray-900/50"
+                                : "hover:bg-gray-50 dark:hover:bg-gray-950"
                           }`}
                         >
                           <div className="flex items-center justify-between gap-3">
@@ -820,9 +866,21 @@ export default function ProductDetailPage({
                                   {v.duration_note || v.device_label}
                                 </div>
                               )}
-                              <div className="text-sm text-gray-600 dark:text-gray-300 mt-1">
-                                {formatToolVariantDeviceLabel(v)}
-                              </div>
+                              {!isToolsCategory ? (
+                                <div className="text-sm text-gray-600 dark:text-gray-300 mt-1">
+                                  You get: {unitsPerQty} unit{unitsPerQty > 1 ? "s" : ""}
+                                </div>
+                              ) : null}
+                              {isToolsCategory ? (
+                                <div className="text-sm text-gray-600 dark:text-gray-300 mt-1">
+                                  {formatToolVariantDeviceLabel(v)}
+                                </div>
+                              ) : null}
+                              {unavailableByUnits ? (
+                                <div className="text-sm text-red-600 mt-1">
+                                  Not enough stock (needs {unitsPerQty}, have {Number(product.stock_qty ?? 0)})
+                                </div>
+                              ) : null}
                             </div>
 
                             <div className="text-right">

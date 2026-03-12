@@ -118,6 +118,7 @@ export function Sidebar({
     { id: "admin-tools", label: "Tools", page: "admin-tools" },
     { id: "admin-tool-licenses", label: "License Tool", page: "admin-tool-licenses" },
     { id: "admin-video-courses", label: "Video Courses", page: "admin-video-courses" },
+    { id: "admin-video-courses-promotions", label: "  Promotions", page: "admin-video-courses-promotions" },
     { id: "admin-orders", label: "Orders", page: "admin-orders" },
     { id: "admin-users", label: "Users", page: "admin-users" },
     { id: "admin-test", label: "Payments", page: "admin-test" },

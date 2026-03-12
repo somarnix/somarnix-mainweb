@@ -49,6 +49,7 @@ type Variant = {
   device_type?: "any" | "pc" | "phone" | "both" | null;
   device_limit?: number | null;
   is_unlimited_device?: number | null;
+  units_per_qty?: number | null;
 
   original_price?: number | string | null;
   price?: number | string | null;
@@ -245,6 +246,7 @@ export default function AdminProductsPage({
 
   const [vOriginalPrice, setVOriginalPrice] = useState<string>("");
   const [vPrice, setVPrice] = useState<string>("");
+  const [vUnitsPerQty, setVUnitsPerQty] = useState<string>("1");
   const [vKhQr, setVKhQr] = useState<string>(DEFAULT_KH_QR);
   const [vUsdQr, setVUsdQr] = useState<string>(USD_QR_NONE);
 
@@ -641,6 +643,7 @@ export default function AdminProductsPage({
             : null;
         const device_limit = toNumberOrNull(r.device_limit);
         const is_unlimited_device = toNumberOrNull(r.is_unlimited_device);
+        const units_per_qty = toNumberOrNull(r.units_per_qty);
 
         const original_price = r.original_price as number | string | null;
         const price = r.price as number | string | null;
@@ -660,6 +663,7 @@ export default function AdminProductsPage({
           device_type,
           device_limit,
           is_unlimited_device,
+          units_per_qty,
           original_price,
           price,
           khqr,
@@ -737,6 +741,12 @@ export default function AdminProductsPage({
       return;
     }
     const finalDurationDays = isToolsMode ? (vAccessType === "months" ? dDays : null) : dDays;
+    const unitsPerQtyRaw = vUnitsPerQty.trim() ? Number(vUnitsPerQty) : 1;
+    if (!isToolsMode && (!Number.isFinite(unitsPerQtyRaw) || unitsPerQtyRaw < 1)) {
+      alert("Bundle units must be >= 1");
+      return;
+    }
+    const finalUnitsPerQty = isToolsMode ? 1 : Math.floor(unitsPerQtyRaw);
 
     const dLimit = vDeviceLimit.trim() ? Number(vDeviceLimit) : null;
     if (!isToolsMode && dLimit !== null && (!Number.isFinite(dLimit) || dLimit < 0)) {
@@ -773,6 +783,7 @@ export default function AdminProductsPage({
         is_unlimited_device: isToolsMode && vUnlimitedDevice ? 1 : 0,
         original_price: origNum,
         price: priceNum,
+        units_per_qty: finalUnitsPerQty,
         khqr: vKhQr && vKhQr.trim() ? vKhQr : DEFAULT_KH_QR,
         usdqr: vUsdQr && vUsdQr !== USD_QR_NONE ? vUsdQr : USD_QR_NONE,
       };
@@ -798,6 +809,7 @@ export default function AdminProductsPage({
       setVUnlimitedDevice(0);
       setVOriginalPrice("");
       setVPrice("");
+      setVUnitsPerQty("1");
       setVKhQr(DEFAULT_KH_QR);
       setVUsdQr(USD_QR_NONE);
 
@@ -896,6 +908,7 @@ export default function AdminProductsPage({
     setVUnlimitedDevice(0);
     setVOriginalPrice("");
     setVPrice("");
+    setVUnitsPerQty("1");
     setVKhQr(DEFAULT_KH_QR);
     setVUsdQr(USD_QR_NONE);
     setEditingVariant(null);
@@ -928,6 +941,7 @@ export default function AdminProductsPage({
     setVUnlimitedDevice(0);
     setVOriginalPrice("");
     setVPrice("");
+    setVUnitsPerQty("1");
     setVKhQr(DEFAULT_KH_QR);
     setVUsdQr(USD_QR_NONE);
     setEditingVariant(null);
@@ -2093,6 +2107,19 @@ export default function AdminProductsPage({
                           />
                         </div>
 
+                        {!isToolsMode ? (
+                          <div>
+                            <label className="text-xs text-gray-600">Bundle Units / Qty</label>
+                            <input
+                              type="number"
+                              min={1}
+                              value={vUnitsPerQty}
+                              onChange={(e) => setVUnitsPerQty(e.target.value)}
+                              className="mt-1 w-full border rounded-lg px-3 py-2 text-sm"
+                            />
+                          </div>
+                        ) : null}
+
                         <div className="md:col-span-2 rounded-xl border border-gray-200 bg-gray-50 p-3">
                           <div className="text-xs font-semibold text-gray-700 mb-3">
                             QR Payment
@@ -2195,9 +2222,10 @@ export default function AdminProductsPage({
     setVDeviceType("any");
     setVDeviceLimit("");
                             setVUnlimitedDevice(0);
-                            setVOriginalPrice("");
-                            setVPrice("");
-                            setVKhQr(DEFAULT_KH_QR);
+    setVOriginalPrice("");
+    setVPrice("");
+    setVUnitsPerQty("1");
+    setVKhQr(DEFAULT_KH_QR);
                             setVUsdQr(USD_QR_NONE);
                           }}
                         >
@@ -2227,6 +2255,17 @@ export default function AdminProductsPage({
                           const finalDurationDays = isToolsMode
                             ? (vAccessType === "months" ? durationDaysRaw : null)
                             : durationDaysRaw;
+                          const unitsPerQtyRaw = vUnitsPerQty.trim() ? Number(vUnitsPerQty) : 1;
+                          if (
+                            !isToolsMode &&
+                            (!Number.isFinite(unitsPerQtyRaw) || unitsPerQtyRaw < 1)
+                          ) {
+                            alert("Bundle units must be >= 1");
+                            return;
+                          }
+                          const finalUnitsPerQty = isToolsMode
+                            ? 1
+                            : Math.floor(unitsPerQtyRaw);
                           const deviceLimitRaw = vDeviceLimit.trim() ? Number(vDeviceLimit) : null;
                           let finalDeviceLimit: number | null = null;
                           if (isToolsMode) {
@@ -2256,6 +2295,7 @@ export default function AdminProductsPage({
                             is_unlimited_device: isToolsMode && vUnlimitedDevice ? 1 : 0,
                             original_price: Number(vOriginalPrice),
                             price: Number(vPrice),
+                            units_per_qty: finalUnitsPerQty,
                             khqr: vKhQr && vKhQr.trim() ? vKhQr : DEFAULT_KH_QR,
                             usdqr: vUsdQr && vUsdQr !== USD_QR_NONE ? vUsdQr : USD_QR_NONE,
                           };
@@ -2288,6 +2328,7 @@ export default function AdminProductsPage({
                             setVUnlimitedDevice(0);
                             setVOriginalPrice("");
                             setVPrice("");
+                            setVUnitsPerQty("1");
                             setVKhQr(DEFAULT_KH_QR);
                             setVUsdQr(USD_QR_NONE);
 
@@ -2349,7 +2390,11 @@ export default function AdminProductsPage({
                                         ? `Unlimited (max ${GLOBAL_MAX_DEVICES})`
                                         : Math.max(1, Number(v.device_limit ?? 1))}
                                     </div>
-                                  ) : null}
+                                  ) : (
+                                    <div className="text-[11px] text-gray-500 mt-1">
+                                      Bundle units: {Math.max(1, Number(v.units_per_qty ?? 1))}
+                                    </div>
+                                  )}
                                 </td>
 
                                 <td className="p-2">
@@ -2408,6 +2453,11 @@ export default function AdminProductsPage({
           v.original_price != null ? String(v.original_price) : ""
         );
         setVPrice(v.price != null ? String(v.price) : "");
+        setVUnitsPerQty(
+          typeof v.units_per_qty === "number" && Number.isFinite(v.units_per_qty)
+            ? String(Math.max(1, Math.floor(v.units_per_qty)))
+            : "1"
+        );
         setVKhQr(v.khqr ?? DEFAULT_KH_QR);
         setVUsdQr(v.usdqr ?? USD_QR_NONE);
       }}

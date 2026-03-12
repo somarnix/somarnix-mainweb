@@ -57,6 +57,20 @@ async function hasAllDeviceColumns(): Promise<boolean> {
   return DEVICE_FIELDS.every((field) => present.has(field));
 }
 
+async function hasUnitsPerQtyColumn(): Promise<boolean> {
+  const [rows] = await db.query<RowDataPacket[]>(
+    `
+    SELECT 1
+    FROM information_schema.columns
+    WHERE table_schema = DATABASE()
+      AND table_name = 'product_variants'
+      AND column_name = 'units_per_qty'
+    LIMIT 1
+    `
+  );
+  return rows.length > 0;
+}
+
 async function isToolsProduct(productId: number): Promise<boolean> {
   const [rows] = await db.query<RowDataPacket[]>(
     `
@@ -101,6 +115,7 @@ export async function PUT(req: Request, ctx: RouteCtx) {
     const toolsProduct = await isToolsProduct(productId);
     const tableName = toolsProduct ? "tool_variants" : "product_variants";
     const withDeviceColumns = toolsProduct ? true : await hasAllDeviceColumns();
+    const withUnitsPerQty = toolsProduct ? false : await hasUnitsPerQtyColumn();
 
     const sets: string[] = [];
     const values: Array<string | number | null> = [];
@@ -202,6 +217,28 @@ export async function PUT(req: Request, ctx: RouteCtx) {
       }
       sets.push("price = ?");
       values.push(v);
+    }
+
+    if (!withUnitsPerQty && "units_per_qty" in b && !toolsProduct) {
+      const attempted = b.units_per_qty === null ? null : toIntOrNull(b.units_per_qty);
+      if (attempted !== null && attempted !== 1) {
+        return Response.json(
+          {
+            error:
+              "units_per_qty column is missing. Run sql/2026-02-12-product-mode-units-per-qty.sql",
+          },
+          { status: 400 }
+        );
+      }
+    }
+
+    if (withUnitsPerQty && "units_per_qty" in b) {
+      const v = b.units_per_qty === null ? null : toIntOrNull(b.units_per_qty);
+      if (v === null || v < 1) {
+        return Response.json({ error: "Invalid units_per_qty" }, { status: 400 });
+      }
+      sets.push("units_per_qty = ?");
+      values.push(Math.floor(v));
     }
 
     if ("khqr" in b) {

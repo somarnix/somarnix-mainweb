@@ -1,0 +1,178 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>Icon Generator</title>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            padding: 20px;
+            background: #f0f0f0;
+        }
+        .canvas-container {
+            display: flex;
+            gap: 20px;
+            flex-wrap: wrap;
+            margin: 20px 0;
+        }
+        canvas {
+            border: 2px solid #333;
+            background: white;
+        }
+        button {
+            padding: 10px 20px;
+            font-size: 16px;
+            background: #667eea;
+            color: white;
+            border: none;
+            border-radius: 5px;
+            cursor: pointer;
+            margin: 5px;
+        }
+        button:hover {
+            background: #5568d3;
+        }
+        .instructions {
+            background: white;
+            padding: 15px;
+            border-radius: 8px;
+            margin-bottom: 20px;
+        }
+        h1 { color: #667eea; }
+    </style>
+</head>
+<body>
+    <h1>🎬 Extension Icon Generator</h1>
+    
+    <div class="instructions">
+        <h3>Instructions:</h3>
+        <ol>
+            <li>Open this file in your browser</li>
+            <li>Click "Generate Icons" button</li>
+            <li>Right-click each icon and "Save image as..."</li>
+            <li>Save as icon16.png, icon48.png, icon128.png</li>
+        </ol>
+    </div>
+
+    <button onclick="generateIcons()">Generate Icons</button>
+    <button onclick="downloadAll()">Download All Icons</button>
+    
+    <div class="canvas-container">
+        <div>
+            <h3>16x16</h3>
+            <canvas id="icon16" width="16" height="16"></canvas>
+        </div>
+        <div>
+            <h3>48x48</h3>
+            <canvas id="icon48" width="48" height="48"></canvas>
+        </div>
+        <div>
+            <h3>128x128</h3>
+            <canvas id="icon128" width="128" height="128"></canvas>
+        </div>
+    </div>
+
+    <script>
+        function drawIcon(canvas, size) {
+            const ctx = canvas.getContext('2d');
+            
+            // Background gradient
+            const gradient = ctx.createLinearGradient(0, 0, size, size);
+            gradient.addColorStop(0, '#667eea');
+            gradient.addColorStop(1, '#764ba2');
+            ctx.fillStyle = gradient;
+            ctx.fillRect(0, 0, size, size);
+            
+            // Draw play button / video icon
+            ctx.fillStyle = 'white';
+            
+            if (size === 16) {
+                // Simple play triangle for 16x16
+                ctx.beginPath();
+                ctx.moveTo(5, 4);
+                ctx.lineTo(5, 12);
+                ctx.lineTo(12, 8);
+                ctx.closePath();
+                ctx.fill();
+            } else if (size === 48) {
+                // Camera/video icon for 48x48
+                // Camera body
+                ctx.fillRect(8, 16, 24, 18);
+                // Lens circle
+                ctx.beginPath();
+                ctx.arc(20, 25, 6, 0, Math.PI * 2);
+                ctx.fill();
+                // Play triangle
+                ctx.beginPath();
+                ctx.moveTo(30, 20);
+                ctx.lineTo(30, 30);
+                ctx.lineTo(38, 25);
+                ctx.closePath();
+                ctx.fill();
+                // Viewfinder
+                ctx.strokeStyle = 'white';
+                ctx.lineWidth = 2;
+                ctx.strokeRect(12, 10, 8, 6);
+            } else {
+                // Detailed icon for 128x128
+                // Camera body
+                ctx.fillRect(20, 40, 70, 50);
+                // Lens
+                ctx.beginPath();
+                ctx.arc(55, 65, 18, 0, Math.PI * 2);
+                ctx.fill();
+                // Inner lens
+                ctx.fillStyle = '#667eea';
+                ctx.beginPath();
+                ctx.arc(55, 65, 10, 0, Math.PI * 2);
+                ctx.fill();
+                // Play button
+                ctx.fillStyle = 'white';
+                ctx.beginPath();
+                ctx.moveTo(75, 50);
+                ctx.lineTo(75, 80);
+                ctx.lineTo(100, 65);
+                ctx.closePath();
+                ctx.fill();
+                // Viewfinder
+                ctx.strokeStyle = 'white';
+                ctx.lineWidth = 3;
+                ctx.strokeRect(30, 25, 20, 15);
+                // Magic sparkles
+                ctx.fillStyle = '#ffeb3b';
+                ctx.font = 'bold 24px Arial';
+                ctx.fillText('✨', 95, 30);
+                ctx.fillText('✨', 10, 95);
+            }
+        }
+
+        function generateIcons() {
+            drawIcon(document.getElementById('icon16'), 16);
+            drawIcon(document.getElementById('icon48'), 48);
+            drawIcon(document.getElementById('icon128'), 128);
+        }
+
+        function downloadCanvas(canvas, filename) {
+            const link = document.createElement('a');
+            link.download = filename;
+            link.href = canvas.toDataURL('image/png');
+            link.click();
+        }
+
+        function downloadAll() {
+            generateIcons();
+            setTimeout(() => {
+                downloadCanvas(document.getElementById('icon16'), 'icon16.png');
+            }, 100);
+            setTimeout(() => {
+                downloadCanvas(document.getElementById('icon48'), 'icon48.png');
+            }, 200);
+            setTimeout(() => {
+                downloadCanvas(document.getElementById('icon128'), 'icon128.png');
+            }, 300);
+        }
+
+        // Auto-generate on load
+        window.onload = generateIcons;
+    </script>
+</body>
+</html>

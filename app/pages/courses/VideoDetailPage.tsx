@@ -454,6 +454,43 @@ export function VideoDetailPage({
       return;
     }
 
+    if (type === "course") {
+      if (!course?.id) {
+        toast.error("Course not found");
+        return;
+      }
+      try {
+        setPurchaseLoading(true);
+        const res = await fetch("/api/cart/add-video-course", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            courseId: Number(course.id),
+            planId: Number(plan.id),
+            qty: 1,
+          }),
+        });
+        const data = await res.json().catch(() => ({}));
+        if (!res.ok) {
+          throw new Error(
+            (data && typeof data.error === "string" ? data.error : null) ||
+              "Failed to add course to cart"
+          );
+        }
+        toast.success("Course added to cart");
+        if (typeof window !== "undefined") {
+          window.dispatchEvent(new CustomEvent("cart:changed"));
+        }
+        onNavigate("cart");
+      } catch (err) {
+        const message = err instanceof Error ? err.message : "Failed to add course to cart";
+        toast.error(message);
+      } finally {
+        setPurchaseLoading(false);
+      }
+      return;
+    }
+
     const label =
       type === "course"
         ? `Course plan - ${plan.name}`
@@ -919,8 +956,8 @@ export function VideoDetailPage({
                     {lifetimeCoursePurchased
                       ? "Lifetime already purchased"
                       : access?.has_course_access
-                        ? "Upgrade this course"
-                        : "Buy this course"}
+                        ? "Add upgrade to cart"
+                        : "Add course to cart"}
                   </button>
                 </div>
               )}

@@ -25,6 +25,7 @@ import { Button } from "../../components/ui/button";
 import { Pagination } from "../../components/Pagination";
 import { useLanguage } from "../../contexts/LanguageContext";
 import { useAuth } from "../../contexts/AuthContext";
+import { toast } from "sonner";
 
 type PresenceInfo = {
   status: string | null;
@@ -44,11 +45,14 @@ type ConversationSummary = {
   orderId: number;
   orderNumber: string;
   state: string | null;
+  result?: "none" | "done" | "failed" | null;
   lastMessage: string | null;
   lastMessageAt: string | null;
   lastMessageFromAdmin: boolean;
   lastMessageType?: "text" | "sticker" | "emoji" | null;
   lastStickerPath?: string | null;
+  handlerAdminId?: number | null;
+  handlerAdminName?: string | null;
   buyer: Participant & { id: number; email: string };
   seller: Participant;
   unreadCount: number;
@@ -62,6 +66,7 @@ type ChatStateFilter =
   | "completed"
   | "cancelled"
   | "resolution";
+type ChatActivityFilter = "all" | "online" | "offline" | "read" | "unread";
 
 function normalizeOrderState(state: string | null): Exclude<ChatStateFilter, "all"> | "unknown" {
   const normalized = (state ?? "").toLowerCase();
@@ -96,26 +101,53 @@ function getOrderStateLabel(state: string | null): string {
 function getOrderStateBadgeClass(state: string | null): string {
   const normalized = (state ?? "").toLowerCase();
   const base =
-    "inline-flex items-center rounded-full px-3 py-1 text-xs font-semibold";
+    "inline-flex items-center rounded-full border px-2.5 py-0.5 text-[11px] font-semibold leading-5 shadow-sm";
   if (normalized === "completed") {
-    return `${base} bg-emerald-100 text-emerald-700`;
+    return `${base} border-emerald-200 bg-emerald-50 text-emerald-700`;
   }
   if (normalized === "cancelled" || normalized === "canceled") {
-    return `${base} bg-rose-100 text-rose-700`;
+    return `${base} border-rose-200 bg-rose-50 text-rose-700`;
   }
   if (normalized === "resolution") {
-    return `${base} bg-red-100 text-red-700`;
+    return `${base} border-red-200 bg-red-50 text-red-700`;
   }
   if (normalized === "approved" || normalized === "delivering") {
-    return `${base} bg-blue-100 text-blue-700`;
+    return `${base} border-blue-200 bg-blue-50 text-blue-700`;
   }
-  return `${base} bg-slate-100 text-slate-700`;
+  return `${base} border-slate-200 bg-slate-50 text-slate-700`;
+}
+
+function getNoteResultLabel(result?: string | null): string {
+  const normalized = (result ?? "").toLowerCase();
+  if (normalized === "done") return "Done";
+  if (normalized === "failed") return "Cancel";
+  return "Not yet";
+}
+
+function getNoteResultBadgeClass(result?: string | null): string {
+  const normalized = (result ?? "").toLowerCase();
+  const base = "inline-flex items-center rounded-full border px-2.5 py-0.5 text-[11px] font-semibold leading-5 shadow-sm";
+  if (normalized === "done") return `${base} border-emerald-200 bg-emerald-50 text-emerald-700`;
+  if (normalized === "failed") return `${base} border-rose-200 bg-rose-50 text-rose-700`;
+  return `${base} border-gray-200 bg-gray-50 text-gray-700`;
+}
+
+function getPaymentBadgeClass(state?: string | null): string {
+  const base = "inline-flex items-center rounded-full border px-2.5 py-0.5 text-[11px] font-semibold leading-5 shadow-sm";
+  const normalized = (state ?? "").toLowerCase();
+  if (normalized === "approved") return `${base} border-blue-200 bg-blue-50 text-blue-700`;
+  if (normalized === "declined") return `${base} border-rose-200 bg-rose-50 text-rose-700`;
+  return `${base} border-amber-200 bg-amber-50 text-amber-700`;
 }
 
 type ConversationDetail = {
   id: number;
   orderId: number;
   orderNumber: string;
+  state?: string | null;
+  result?: "none" | "done" | "failed" | null;
+  paymentState?: "waiting" | "approved" | "declined" | null;
+  paymentReviewNote?: string | null;
   topic: string;
   lastMessageAt: string | null;
   buyer: Participant & { id: number; email: string };
@@ -261,6 +293,8 @@ export function ChatPage({
   const [sending, setSending] = useState(false);
   const [searchTerm, setSearchTerm] = useState("");
   const [activeStateFilter, setActiveStateFilter] = useState<ChatStateFilter>("all");
+  const [activeActivityFilter, setActiveActivityFilter] =
+    useState<ChatActivityFilter>("all");
   const [currentPage, setCurrentPage] = useState(1);
   const [emojiOpen, setEmojiOpen] = useState(false);
   const [stickerOpen, setStickerOpen] = useState(false);
@@ -274,6 +308,7 @@ export function ChatPage({
   const [editingValue, setEditingValue] = useState("");
   const [savingEditId, setSavingEditId] = useState<number | null>(null);
   const [pinningMessageId, setPinningMessageId] = useState<number | null>(null);
+  const [updatingNote, setUpdatingNote] = useState(false);
   const messageListRef = useRef<HTMLDivElement | null>(null);
   const queryHandledRef = useRef(false);
 
@@ -299,13 +334,39 @@ export function ChatPage({
     return conversations.filter((conv) => {
       const state = normalizeOrderState(conv.state);
       if (activeStateFilter !== "all" && state !== activeStateFilter) return false;
+      const counterpart = isAdmin ? conv.buyer : conv.seller;
+      const online = isPresenceOnline(counterpart?.presence);
+      const unread = Number(conv.unreadCount ?? 0) > 0;
+      if (activeActivityFilter === "online" && !online) return false;
+      if (activeActivityFilter === "offline" && online) return false;
+      if (activeActivityFilter === "unread" && !unread) return false;
+      if (activeActivityFilter === "read" && unread) return false;
       if (!term) return true;
       const buyerMatch = conv.buyer.name?.toLowerCase().includes(term);
       const sellerMatch = conv.seller.name?.toLowerCase().includes(term);
       const orderMatch = conv.orderNumber.toLowerCase().includes(term);
       return buyerMatch || sellerMatch || orderMatch;
     });
-  }, [conversations, searchTerm, activeStateFilter]);
+  }, [conversations, searchTerm, activeStateFilter, activeActivityFilter, isAdmin]);
+  const conversationActivityCounts = useMemo(() => {
+    const counts: Record<ChatActivityFilter, number> = {
+      all: conversations.length,
+      online: 0,
+      offline: 0,
+      read: 0,
+      unread: 0,
+    };
+    for (const conv of conversations) {
+      const counterpart = isAdmin ? conv.buyer : conv.seller;
+      const online = isPresenceOnline(counterpart?.presence);
+      const unread = Number(conv.unreadCount ?? 0) > 0;
+      if (online) counts.online += 1;
+      else counts.offline += 1;
+      if (unread) counts.unread += 1;
+      else counts.read += 1;
+    }
+    return counts;
+  }, [conversations, isAdmin]);
   const totalPages = Math.max(1, Math.ceil(filteredConversations.length / ITEMS_PER_PAGE));
   const pagedConversations = useMemo(() => {
     const start = (currentPage - 1) * ITEMS_PER_PAGE;
@@ -373,6 +434,15 @@ export function ChatPage({
           orderId: Number(raw.orderId ?? raw.order_id ?? 0),
           orderNumber: String(raw.orderNumber ?? raw.order_number ?? ""),
           state: raw.state ?? null,
+          result: raw.result ?? null,
+          handlerAdminId:
+            raw.handlerAdminId === null || raw.handlerAdminId === undefined
+              ? null
+              : Number(raw.handlerAdminId),
+          handlerAdminName:
+            typeof raw.handlerAdminName === "string" && raw.handlerAdminName.trim()
+              ? raw.handlerAdminName.trim()
+              : null,
           lastMessage: raw.lastMessage ?? raw.last_body ?? null,
           lastMessageAt: raw.lastMessageAt ?? raw.last_created_at ?? null,
           lastMessageFromAdmin: !!(
@@ -656,6 +726,47 @@ export function ChatPage({
     }
   };
 
+  const handleUpdateAdminNote = async (next: "none" | "done" | "failed") => {
+    if (!isAdmin || !selectedConversation || updatingNote) return;
+    const currentState = (selectedConversation.state ??
+      "pending") as
+      | "pending"
+      | "approved"
+      | "delivering"
+      | "completed"
+      | "cancelled"
+      | "resolution";
+    try {
+      setUpdatingNote(true);
+      const res = await fetch("/api/admin/orders/update", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          orderId: selectedConversation.orderId,
+          state: currentState,
+          result: next,
+        }),
+      });
+      const data = await res.json().catch(() => ({}));
+      if (!res.ok) {
+        throw new Error(
+          (data && typeof data.error === "string" ? data.error : null) ||
+            "Failed to update note"
+        );
+      }
+      setSelectedConversation((prev) =>
+        prev ? { ...prev, result: next } : prev
+      );
+      toast.success("Note updated");
+      void refreshConversations();
+    } catch (err) {
+      const msg = err instanceof Error ? err.message : "Failed to update note";
+      toast.error(msg);
+    } finally {
+      setUpdatingNote(false);
+    }
+  };
+
   const handleStartEdit = (message: ChatMessage) => {
     setEditingMessageId(message.id);
     setEditingValue(message.body);
@@ -753,7 +864,7 @@ export function ChatPage({
 
   useEffect(() => {
     setCurrentPage(1);
-  }, [activeStateFilter, searchTerm, conversations.length]);
+  }, [activeStateFilter, activeActivityFilter, searchTerm, conversations.length]);
 
   useEffect(() => {
     if (currentPage > totalPages) {
@@ -854,6 +965,74 @@ export function ChatPage({
                 className="pl-9"
               />
             </div>
+            <div className="mb-4 flex flex-wrap gap-2">
+              {(
+                [
+                  { key: "all", label: lang === "km" ? "ទាំងអស់" : "All" },
+                  { key: "online", label: lang === "km" ? "អនឡាញ" : "Online" },
+                  { key: "offline", label: lang === "km" ? "ក្រៅបណ្តាញ" : "Offline" },
+                  { key: "read", label: lang === "km" ? "បានអាន" : "Read" },
+                  { key: "unread", label: lang === "km" ? "មិនទាន់អាន" : "Unread" },
+                ] as Array<{ key: ChatActivityFilter; label: string }>
+              ).map((tab) => {
+                const active = activeActivityFilter === tab.key;
+                const count = conversationActivityCounts[tab.key] ?? 0;
+                return (
+                  <button
+                    key={tab.key}
+                    onClick={() => setActiveActivityFilter(tab.key)}
+                    className={`inline-flex items-center gap-2 rounded-full border px-3 py-1.5 text-xs font-semibold transition ${
+                      tab.key === "all"
+                        ? active
+                          ? "border-blue-800 bg-blue-800 text-white shadow-sm"
+                          : "border-blue-200 bg-blue-50 text-blue-700 hover:bg-blue-100"
+                        : tab.key === "online"
+                          ? active
+                            ? "border-emerald-700 bg-emerald-700 text-white shadow-sm"
+                            : "border-emerald-200 bg-emerald-50 text-emerald-700 hover:bg-emerald-100"
+                          : tab.key === "offline"
+                            ? active
+                              ? "border-gray-700 bg-gray-700 text-white shadow-sm"
+                              : "border-gray-200 bg-gray-100 text-gray-700 hover:bg-gray-200"
+                            : tab.key === "read"
+                              ? active
+                                ? "border-amber-600 bg-amber-600 text-white shadow-sm"
+                                : "border-amber-200 bg-amber-50 text-amber-700 hover:bg-amber-100"
+                              : active
+                                ? "border-rose-700 bg-rose-700 text-white shadow-sm"
+                                : "border-rose-200 bg-rose-50 text-rose-700 hover:bg-rose-100"
+                    }`}
+                  >
+                    <span>{tab.label}</span>
+                    <span
+                      className={`inline-flex min-w-[20px] items-center justify-center rounded-full px-1.5 py-0.5 text-[10px] ${
+                        tab.key === "all"
+                          ? active
+                            ? "bg-white/25 text-white"
+                            : "bg-blue-100 text-blue-700"
+                          : tab.key === "online"
+                            ? active
+                              ? "bg-white/25 text-white"
+                              : "bg-emerald-100 text-emerald-700"
+                            : tab.key === "offline"
+                              ? active
+                                ? "bg-white/25 text-white"
+                                : "bg-gray-200 text-gray-700"
+                              : tab.key === "read"
+                                ? active
+                                  ? "bg-white/25 text-white"
+                                  : "bg-amber-100 text-amber-700"
+                                : active
+                                  ? "bg-white/25 text-white"
+                                  : "bg-rose-100 text-rose-700"
+                      }`}
+                    >
+                      {count}
+                    </span>
+                  </button>
+                );
+              })}
+            </div>
 
             {conversationsError && (
               <div className="flex items-center gap-2 text-sm text-red-600 dark:text-red-400 mb-4">
@@ -927,6 +1106,16 @@ export function ChatPage({
                             <span className={getOrderStateBadgeClass(conv.state)}>
                               {getOrderStateLabel(conv.state)}
                             </span>
+                            {isAdmin ? (
+                              <span className={getNoteResultBadgeClass(conv.result)}>
+                                {getNoteResultLabel(conv.result)}
+                              </span>
+                            ) : null}
+                            {isAdmin && conv.handlerAdminName ? (
+                              <span className="inline-flex items-center rounded-full border border-violet-200 bg-violet-50 px-2.5 py-0.5 text-[11px] font-semibold leading-5 text-violet-700 shadow-sm">
+                                {conv.handlerAdminName}
+                              </span>
+                            ) : null}
                           </div>
                           <div
                             className={`mt-1 text-xs line-clamp-2 ${
@@ -1019,6 +1208,59 @@ export function ChatPage({
                       {lang === "km" ? "លេខបញ្ជាទិញ" : "Order"}{" "}
                       {selectedConversation.orderNumber}
                     </p>
+                    {isAdmin ? (
+                      <div className="mt-1 flex flex-wrap items-center gap-1.5">
+                        <span className={getPaymentBadgeClass(selectedConversation.paymentState)}>
+                          Payment: {selectedConversation.paymentState ?? "waiting"}
+                        </span>
+                        <span className={getNoteResultBadgeClass(selectedConversation.result)}>
+                          Note: {getNoteResultLabel(selectedConversation.result)}
+                        </span>
+                        <div className="ml-1 flex flex-wrap items-center gap-1">
+                          <button
+                            type="button"
+                            disabled={updatingNote}
+                            onClick={() => handleUpdateAdminNote("done")}
+                            className={`inline-flex items-center rounded-full border px-2.5 py-0.5 text-[11px] font-semibold leading-5 shadow-sm disabled:opacity-50 ${
+                              String(selectedConversation.result ?? "none").toLowerCase() === "done"
+                                ? "border-emerald-700 bg-emerald-700 text-white"
+                                : "border-emerald-200 bg-emerald-50 text-emerald-700 hover:bg-emerald-100"
+                            }`}
+                          >
+                            Done
+                          </button>
+                          <button
+                            type="button"
+                            disabled={updatingNote}
+                            onClick={() => handleUpdateAdminNote("none")}
+                            className={`inline-flex items-center rounded-full border px-2.5 py-0.5 text-[11px] font-semibold leading-5 shadow-sm disabled:opacity-50 ${
+                              String(selectedConversation.result ?? "none").toLowerCase() === "none"
+                                ? "border-gray-700 bg-gray-700 text-white"
+                                : "border-gray-200 bg-gray-50 text-gray-700 hover:bg-gray-100"
+                            }`}
+                          >
+                            Not yet
+                          </button>
+                          <button
+                            type="button"
+                            disabled={updatingNote}
+                            onClick={() => handleUpdateAdminNote("failed")}
+                            className={`inline-flex items-center rounded-full border px-2.5 py-0.5 text-[11px] font-semibold leading-5 shadow-sm disabled:opacity-50 ${
+                              String(selectedConversation.result ?? "none").toLowerCase() === "failed"
+                                ? "border-rose-700 bg-rose-700 text-white"
+                                : "border-rose-200 bg-rose-50 text-rose-700 hover:bg-rose-100"
+                            }`}
+                          >
+                            Cancel
+                          </button>
+                        </div>
+                        {selectedConversation.paymentReviewNote ? (
+                          <span className="text-[11px] text-gray-500">
+                            Note: {selectedConversation.paymentReviewNote}
+                          </span>
+                        ) : null}
+                      </div>
+                    ) : null}
                   </div>
                 </div>
                 <div className="flex gap-2">
@@ -1542,3 +1784,4 @@ export function ChatPage({
     </div>
   );
 }
+

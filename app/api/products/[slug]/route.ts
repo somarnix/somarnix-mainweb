@@ -14,6 +14,7 @@ type ProductDetailRow = RowDataPacket & {
   posted_by: number;
   stock_qty: number;
   is_unlimited_stock: 0 | 1;
+  mode: "license" | "inventory";
   image_url: string | null;
   is_active: 0 | 1;
   order_fields_json: string | null;
@@ -39,6 +40,7 @@ type VariantRow = RowDataPacket & {
   device_label: string | null;
   device_limit: number | null;
   is_unlimited_device: 0 | 1;
+  units_per_qty: number;
   original_price: number;
   price: number;
   khqr: string | null;
@@ -74,17 +76,39 @@ async function hasAllDeviceColumns(): Promise<boolean> {
   );
 }
 
+async function hasColumn(tableName: string, columnName: string): Promise<boolean> {
+  const [rows] = await db.query<RowDataPacket[]>(
+    `
+    SELECT 1
+    FROM information_schema.columns
+    WHERE table_schema = DATABASE()
+      AND table_name = ?
+      AND column_name = ?
+    LIMIT 1
+    `,
+    [tableName, columnName]
+  );
+  return rows.length > 0;
+}
+
 export async function GET(
   req: Request,
   ctx: { params: Promise<{ slug: string }> }
 ) {
   try {
     const { slug } = await ctx.params;
+    const hasProductsMode = await hasColumn("products", "mode");
+    const hasVariantUnitsPerQty = await hasColumn("product_variants", "units_per_qty");
+    const modeExpr = hasProductsMode
+      ? "CASE WHEN LOWER(c.name) = 'tools' THEN 'license' WHEN p.mode IN ('license','inventory') THEN p.mode ELSE 'inventory' END"
+      : "CASE WHEN LOWER(c.name) = 'tools' THEN 'license' ELSE 'inventory' END";
+    const unitsPerQtyExpr = hasVariantUnitsPerQty ? "COALESCE(units_per_qty, 1)" : "1";
 
     const [pRows] = await db.query<ProductDetailRow[]>(
       `
       SELECT
         p.*,
+        ${modeExpr} AS mode,
         c.name AS category,
         u.email AS posted_by_email,
         CONCAT_WS(' ', NULLIF(TRIM(u.first_name),''), NULLIF(TRIM(u.last_name),'')) AS posted_by_name,
@@ -123,6 +147,7 @@ export async function GET(
           SELECT
             id, duration_label, duration_note, duration_days,
             device_label, device_limit, is_unlimited_device,
+            1 AS units_per_qty,
             original_price, price,
             khqr, usdqr
           FROM tool_variants
@@ -147,6 +172,7 @@ export async function GET(
             SELECT
               id, duration_label, duration_note, duration_days,
               device_label, device_limit, is_unlimited_device,
+              ${unitsPerQtyExpr} AS units_per_qty,
               original_price, price,
               khqr, usdqr
             FROM product_variants
@@ -159,6 +185,7 @@ export async function GET(
               NULL AS device_label,
               NULL AS device_limit,
               0 AS is_unlimited_device,
+              ${unitsPerQtyExpr} AS units_per_qty,
               original_price, price,
               khqr, usdqr
             FROM product_variants
@@ -176,6 +203,7 @@ export async function GET(
       rating_count: Number(product.rating_count),
       stock_qty: Number(product.stock_qty),
       is_unlimited_stock: Number(product.is_unlimited_stock) as 0 | 1,
+      mode: String(product.mode) === "license" ? "license" : "inventory",
       buyers_count: Number(product.buyers_count ?? 0),
     };
 
@@ -184,6 +212,7 @@ export async function GET(
       original_price: Number(v.original_price),
       price: Number(v.price),
       is_unlimited_device: Number(v.is_unlimited_device) as 0 | 1,
+      units_per_qty: Math.max(1, Math.floor(Number(v.units_per_qty ?? 1))),
       duration_days: v.duration_days === null ? null : Number(v.duration_days),
       device_limit: v.device_limit === null ? null : Number(v.device_limit),
       khqr: v.khqr,

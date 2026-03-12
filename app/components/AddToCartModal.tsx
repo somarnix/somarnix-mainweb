@@ -1,6 +1,6 @@
 // app/components/AddToCartModal.tsx
 import { useMemo, useState } from "react";
-import { X, Plus, Minus, ShoppingCart } from "lucide-react";
+import { X, ShoppingCart } from "lucide-react";
 import { Button } from "./ui/button";
 import { useLanguage } from "../contexts/LanguageContext";
 import { useCurrency } from "../contexts/CurrencyContext";
@@ -10,6 +10,8 @@ type ProductVariant = {
   id: number;
   label: string; // e.g. "10 Days", "1 Month", "1 Year"
   price: number;
+  unitsPerQty?: number;
+  isDisabled?: boolean;
 };
 
 type Product = {
@@ -46,9 +48,9 @@ export function AddToCartModal({
 
   // ✅ safe first variant
   const firstVariant = variants?.[0] ?? null;
+  const firstEnabledVariant = variants.find((v) => !v.isDisabled) ?? firstVariant;
 
-  const [variantId, setVariantId] = useState<number | null>(firstVariant?.id ?? null);
-  const [quantity, setQuantity] = useState<number>(1);
+  const [variantId, setVariantId] = useState<number | null>(firstEnabledVariant?.id ?? null);
   const [submitting, setSubmitting] = useState<boolean>(false);
   const [orderValues, setOrderValues] = useState<Record<string, string>>({});
 
@@ -56,15 +58,12 @@ export function AddToCartModal({
     if (!variantId) return null;
     return variants.find((v) => v.id === variantId) ?? null;
   }, [variantId, variants]);
+  const selectedDisabled = !!selectedVariant?.isDisabled;
 
   const totalPrice = useMemo(() => {
     const price = selectedVariant?.price ?? 0;
-    return price * quantity;
-  }, [selectedVariant?.price, quantity]);
-
-  const handleQuantityChange = (delta: number) => {
-    setQuantity((q) => Math.max(1, q + delta));
-  };
+    return price;
+  }, [selectedVariant?.price]);
 
   const normalizedOrderFields = Array.isArray(orderFields) ? orderFields : [];
 
@@ -80,6 +79,10 @@ export function AddToCartModal({
 
     if (!selectedVariant?.id) {
       toast.error("Please select an option");
+      return;
+    }
+    if (selectedDisabled) {
+      toast.error("Not enough stock for this option");
       return;
     }
 
@@ -104,7 +107,7 @@ export function AddToCartModal({
         body: JSON.stringify({
           productId: product.id,
           variantId: selectedVariant.id,
-          qty: quantity,
+          qty: 1,
           orderInfo: normalizedOrderFields.reduce<Record<string, string>>((acc, f) => {
             const value = orderValues[f.key];
             if (value && value.trim()) acc[f.key] = value.trim();
@@ -235,18 +238,33 @@ export function AddToCartModal({
               <div className="space-y-2">
                 {variants.map((v) => {
                   const active = v.id === selectedVariant.id;
+                  const disabled = !!v.isDisabled;
                   return (
                     <button
                       key={v.id}
                       type="button"
-                      onClick={() => setVariantId(v.id)}
+                      onClick={() => {
+                        if (!disabled) setVariantId(v.id);
+                      }}
+                      disabled={disabled}
                       className={`w-full p-4 rounded-lg border-2 flex justify-between transition ${
                         active
                           ? "border-blue-600 bg-blue-50 dark:bg-blue-900/20"
-                          : "border-gray-200 dark:border-gray-700 hover:bg-gray-50 dark:hover:bg-gray-900/30"
+                          : disabled
+                            ? "border-gray-200 dark:border-gray-700 bg-gray-100 dark:bg-gray-900/50 opacity-60 cursor-not-allowed"
+                            : "border-gray-200 dark:border-gray-700 hover:bg-gray-50 dark:hover:bg-gray-900/30"
                       }`}
                     >
-                      <span className="font-bold">{v.label}</span>
+                      <span className="text-left">
+                        <span className="block font-bold">
+                          {v.label}
+                          {disabled ? " (Not enough stock)" : ""}
+                        </span>
+                        <span className="block text-xs text-gray-500">
+                          You get: {Math.max(1, Number(v.unitsPerQty ?? 1))} unit
+                          {Math.max(1, Number(v.unitsPerQty ?? 1)) > 1 ? "s" : ""}
+                        </span>
+                      </span>
                       <span className="font-bold">{formatPrice(v.price)}</span>
                     </button>
                   );
@@ -254,46 +272,9 @@ export function AddToCartModal({
               </div>
             </div>
 
-            {/* Quantity */}
-            <div>
-              <label className="block text-sm font-semibold mb-2">
-                {t("modal.quantity") || "Quantity"}
-              </label>
-
-              <div className="flex items-center gap-3">
-                <div className="flex items-center border rounded-lg overflow-hidden">
-                  <button
-                    type="button"
-                    onClick={() => handleQuantityChange(-1)}
-                    disabled={quantity <= 1 || submitting}
-                    className="p-2 disabled:opacity-50"
-                    aria-label="Decrease"
-                  >
-                    <Minus className="w-4 h-4" />
-                  </button>
-
-                  <span className="px-4 font-bold">{quantity}</span>
-
-                  <button
-                    type="button"
-                    onClick={() => handleQuantityChange(1)}
-                    disabled={submitting}
-                    className="p-2 disabled:opacity-50"
-                    aria-label="Increase"
-                  >
-                    <Plus className="w-4 h-4" />
-                  </button>
-                </div>
-
-                <div className="flex-1 text-right">
-                  <div className="text-xs text-gray-500">
-                    {t("modal.total") || "Total"}
-                  </div>
-                  <div className="text-xl font-bold text-blue-600">
-                    {formatPrice(totalPrice)}
-                  </div>
-                </div>
-              </div>
+            <div className="text-right">
+              <div className="text-xs text-gray-500">{t("modal.total") || "Total"}</div>
+              <div className="text-xl font-bold text-blue-600">{formatPrice(totalPrice)}</div>
             </div>
           </div>
 
@@ -311,7 +292,7 @@ export function AddToCartModal({
             <Button
               onClick={handleAddToCart}
               className="flex-1 bg-gradient-to-r from-blue-600 to-purple-600"
-              disabled={submitting}
+              disabled={submitting || selectedDisabled}
             >
               <ShoppingCart className="w-4 h-4 mr-2" />
               {submitting ? "Adding..." : t("modal.confirm") || "Add"}

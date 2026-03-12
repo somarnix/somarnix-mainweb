@@ -1,6 +1,6 @@
 // app\components\Header.tsx
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
-import { ShoppingCart, Menu, X, User, Globe, Moon, Sun, LogOut, Settings, BookOpen, Wallet, DollarSign, Package, FileText, Layers, ChevronRight, Facebook, Youtube, Send, MessageCircle, Loader2, Smile, SmilePlus, Sticker, Pin, ArrowLeft, MoreVertical, Edit3, Trash2, Check, Bell } from 'lucide-react';
+import { ShoppingCart, Menu, X, User, Globe, Moon, Sun, LogOut, Settings, BookOpen, Wallet, DollarSign, Package, FileText, Layers, ChevronRight, Facebook, Youtube, Send, MessageCircle, Loader2, Smile, SmilePlus, Sticker, Pin, ArrowLeft, MoreVertical, Edit3, Trash2, Check, Bell, Search } from 'lucide-react';
 import { Button } from './ui/button';
 import { useLanguage } from '../contexts/LanguageContext';
 import { useTheme } from '../contexts/ThemeContext';
@@ -48,6 +48,9 @@ type HeaderChatSummary = {
   orderId: number;
   orderNumber: string;
   state?: string | null;
+  result?: string | null;
+  handlerAdminId?: number | null;
+  handlerAdminName?: string | null;
   buyer: HeaderChatParticipant;
   seller: HeaderChatParticipant;
   sellerName?: string | null;
@@ -59,6 +62,7 @@ type HeaderChatSummary = {
   lastStickerPath?: string | null;
   unreadCount: number;
 };
+type ChatWidgetActivityFilter = "all" | "online" | "offline" | "read" | "unread";
 
 type MessageReaction = {
   emoji: string;
@@ -144,6 +148,9 @@ export function Header({
   const [chatWidgetMessages, setChatWidgetMessages] = useState<HeaderChatMessage[]>([]);
   const [chatWidgetInput, setChatWidgetInput] = useState("");
   const [chatWidgetError, setChatWidgetError] = useState<string | null>(null);
+  const [chatWidgetSearchTerm, setChatWidgetSearchTerm] = useState("");
+  const [chatWidgetActivityFilter, setChatWidgetActivityFilter] =
+    useState<ChatWidgetActivityFilter>("all");
   const [chatWidgetSending, setChatWidgetSending] = useState(false);
   const [chatWidgetMessagesLoading, setChatWidgetMessagesLoading] = useState(false);
   const [chatWidgetEmojiOpen, setChatWidgetEmojiOpen] = useState(false);
@@ -187,6 +194,50 @@ export function Header({
     activePartyFallback.slice(0, 2).toUpperCase();
   const activePartyAvatar = activeParty?.avatarUrl ?? null;
   const activePartyOnline = activeParty?.online ?? false;
+  const chatWidgetActivityCounts = useMemo(() => {
+    const counts: Record<ChatWidgetActivityFilter, number> = {
+      all: chatWidgetConversations.length,
+      online: 0,
+      offline: 0,
+      read: 0,
+      unread: 0,
+    };
+    for (const conv of chatWidgetConversations) {
+      const counterpart = isAdmin ? conv.buyer : conv.seller;
+      const online = isAdmin
+        ? !!counterpart?.online
+        : typeof conv.sellerOnline === "boolean"
+          ? !!conv.sellerOnline
+          : !!counterpart?.online;
+      const unread = Number(conv.unreadCount ?? 0) > 0;
+      if (online) counts.online += 1;
+      else counts.offline += 1;
+      if (unread) counts.unread += 1;
+      else counts.read += 1;
+    }
+    return counts;
+  }, [chatWidgetConversations, isAdmin]);
+  const filteredChatWidgetConversations = useMemo(() => {
+    const term = chatWidgetSearchTerm.trim().toLowerCase();
+    return chatWidgetConversations.filter((conv) => {
+      const counterpart = isAdmin ? conv.buyer : conv.seller;
+      const online = isAdmin
+        ? !!counterpart?.online
+        : typeof conv.sellerOnline === "boolean"
+          ? !!conv.sellerOnline
+          : !!counterpart?.online;
+      const unread = Number(conv.unreadCount ?? 0) > 0;
+      if (chatWidgetActivityFilter === "online" && !online) return false;
+      if (chatWidgetActivityFilter === "offline" && online) return false;
+      if (chatWidgetActivityFilter === "unread" && !unread) return false;
+      if (chatWidgetActivityFilter === "read" && unread) return false;
+      if (!term) return true;
+      const buyerText = `${conv.buyer?.name ?? ""} ${conv.buyer?.email ?? ""}`.toLowerCase();
+      const sellerText = `${conv.seller?.name ?? ""} ${conv.seller?.email ?? ""}`.toLowerCase();
+      const orderText = String(conv.orderNumber ?? "").toLowerCase();
+      return buyerText.includes(term) || sellerText.includes(term) || orderText.includes(term);
+    });
+  }, [chatWidgetConversations, chatWidgetSearchTerm, chatWidgetActivityFilter, isAdmin]);
   const emojiQuickList = ["😀", "😂", "😍", "😎", "🙏", "👍", "🔥", "🎉"];
 
   useEffect(() => {
@@ -361,6 +412,15 @@ const mapSummary = (raw: any): HeaderChatSummary => {
     orderId: Number(raw.orderId ?? raw.order_id ?? 0),
     orderNumber: String(raw.orderNumber ?? raw.order_number ?? ''),
     state: raw.state ?? null,
+    result: raw.result ?? null,
+    handlerAdminId:
+      raw.handlerAdminId === null || raw.handlerAdminId === undefined
+        ? null
+        : Number(raw.handlerAdminId),
+    handlerAdminName:
+      typeof raw.handlerAdminName === "string" && raw.handlerAdminName.trim()
+        ? raw.handlerAdminName.trim()
+        : null,
     buyer,
     seller,
     lastMessage: raw.lastMessage ?? raw.last_body ?? null,
@@ -391,20 +451,36 @@ const getChatOrderStateLabel = (state?: string | null) => {
 const getChatOrderStateBadgeClass = (state?: string | null) => {
   const normalized = (state ?? "").toLowerCase();
   const base =
-    "inline-flex items-center rounded-full px-3 py-1 text-xs font-semibold";
+    "inline-flex items-center rounded-full border px-2.5 py-0.5 text-[11px] font-semibold leading-5 shadow-sm";
   if (normalized === "completed") {
-    return `${base} bg-emerald-100 text-emerald-700`;
+    return `${base} border-emerald-200 bg-emerald-50 text-emerald-700`;
   }
   if (normalized === "cancelled" || normalized === "canceled") {
-    return `${base} bg-rose-100 text-rose-700`;
+    return `${base} border-rose-200 bg-rose-50 text-rose-700`;
   }
   if (normalized === "resolution") {
-    return `${base} bg-red-100 text-red-700`;
+    return `${base} border-red-200 bg-red-50 text-red-700`;
   }
   if (normalized === "approved" || normalized === "delivering") {
-    return `${base} bg-blue-100 text-blue-700`;
+    return `${base} border-blue-200 bg-blue-50 text-blue-700`;
   }
-  return `${base} bg-slate-100 text-slate-700`;
+  return `${base} border-slate-200 bg-slate-50 text-slate-700`;
+};
+
+const getChatNoteLabel = (result?: string | null) => {
+  const normalized = (result ?? "").toLowerCase();
+  if (normalized === "done") return "Done";
+  if (normalized === "failed") return "Cancel";
+  return "Not yet";
+};
+
+const getChatNoteBadgeClass = (result?: string | null) => {
+  const normalized = (result ?? "").toLowerCase();
+  const base =
+    "inline-flex items-center rounded-full border px-2.5 py-0.5 text-[11px] font-semibold leading-5 shadow-sm";
+  if (normalized === "done") return `${base} border-emerald-200 bg-emerald-50 text-emerald-700`;
+  if (normalized === "failed") return `${base} border-rose-200 bg-rose-50 text-rose-700`;
+  return `${base} border-gray-200 bg-gray-50 text-gray-700`;
 };
 
   const loadWidgetConversations = async (
@@ -475,6 +551,8 @@ const getChatOrderStateBadgeClass = (state?: string | null) => {
       const next = !prev;
       if (next) {
         loadWidgetConversations();
+        setChatWidgetSearchTerm("");
+        setChatWidgetActivityFilter("all");
         setChatWidgetReactionFor(null);
         setChatWidgetEmojiOpen(false);
         setChatWidgetStickerOpen(false);
@@ -1329,20 +1407,99 @@ const getChatOrderStateBadgeClass = (state?: string | null) => {
                         {language === "km" ? "??????????" : "View all"}
                       </Button>
                     </div>
+                    <div className="px-4 pt-3 pb-2 border-b border-gray-100 dark:border-gray-800 space-y-2">
+                      <div className="relative">
+                        <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-gray-400" />
+                        <input
+                          value={chatWidgetSearchTerm}
+                          onChange={(e) => setChatWidgetSearchTerm(e.target.value)}
+                          placeholder={language === "km" ? "ស្វែងរក Order ឬ Email" : "Search order or email"}
+                          className="w-full h-9 rounded-lg border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-900 pl-8 pr-2 text-xs text-gray-900 dark:text-gray-100 focus:outline-none focus:ring-2 focus:ring-blue-500"
+                        />
+                      </div>
+                      <div className="flex flex-wrap gap-1.5">
+                        {(
+                          [
+                            { key: "all", label: language === "km" ? "ទាំងអស់" : "All" },
+                            { key: "online", label: language === "km" ? "អនឡាញ" : "Online" },
+                            { key: "offline", label: language === "km" ? "ក្រៅបណ្តាញ" : "Offline" },
+                            { key: "read", label: language === "km" ? "បានអាន" : "Read" },
+                            { key: "unread", label: language === "km" ? "មិនទាន់អាន" : "Unread" },
+                          ] as Array<{ key: ChatWidgetActivityFilter; label: string }>
+                        ).map((tab) => {
+                          const active = chatWidgetActivityFilter === tab.key;
+                          const count = chatWidgetActivityCounts[tab.key] ?? 0;
+                          return (
+                            <button
+                              key={`chat-widget-${tab.key}`}
+                              onClick={() => setChatWidgetActivityFilter(tab.key)}
+                              className={`inline-flex items-center gap-1.5 rounded-full border px-2 py-1 text-[10px] font-semibold transition ${
+                                tab.key === "all"
+                                  ? active
+                                    ? "border-blue-800 bg-blue-800 text-white shadow-sm"
+                                    : "border-blue-200 bg-blue-50 text-blue-700 hover:bg-blue-100"
+                                  : tab.key === "online"
+                                    ? active
+                                      ? "border-emerald-700 bg-emerald-700 text-white shadow-sm"
+                                      : "border-emerald-200 bg-emerald-50 text-emerald-700 hover:bg-emerald-100"
+                                    : tab.key === "offline"
+                                      ? active
+                                        ? "border-gray-700 bg-gray-700 text-white shadow-sm"
+                                        : "border-gray-200 bg-gray-100 text-gray-700 hover:bg-gray-200"
+                                      : tab.key === "read"
+                                        ? active
+                                          ? "border-amber-600 bg-amber-600 text-white shadow-sm"
+                                          : "border-amber-200 bg-amber-50 text-amber-700 hover:bg-amber-100"
+                                        : active
+                                          ? "border-rose-700 bg-rose-700 text-white shadow-sm"
+                                          : "border-rose-200 bg-rose-50 text-rose-700 hover:bg-rose-100"
+                              }`}
+                            >
+                              <span>{tab.label}</span>
+                              <span
+                                className={`inline-flex min-w-[16px] items-center justify-center rounded-full px-1 py-0.5 text-[9px] ${
+                                  tab.key === "all"
+                                    ? active
+                                      ? "bg-white/25 text-white"
+                                      : "bg-blue-100 text-blue-700"
+                                    : tab.key === "online"
+                                      ? active
+                                        ? "bg-white/25 text-white"
+                                        : "bg-emerald-100 text-emerald-700"
+                                      : tab.key === "offline"
+                                        ? active
+                                          ? "bg-white/25 text-white"
+                                          : "bg-gray-200 text-gray-700"
+                                        : tab.key === "read"
+                                          ? active
+                                            ? "bg-white/25 text-white"
+                                            : "bg-amber-100 text-amber-700"
+                                          : active
+                                            ? "bg-white/25 text-white"
+                                            : "bg-rose-100 text-rose-700"
+                                }`}
+                              >
+                                {count}
+                              </span>
+                            </button>
+                          );
+                        })}
+                      </div>
+                    </div>
                     <div className="p-4 space-y-2 max-h-80 overflow-y-auto">
                       {chatWidgetLoading ? (
                         <div className="flex items-center gap-2 text-sm text-gray-500">
                           <Loader2 className="w-4 h-4 animate-spin" />
                           {language === "km" ? "??????????..." : "Loading..."}
                         </div>
-                      ) : chatWidgetConversations.length === 0 ? (
+                      ) : filteredChatWidgetConversations.length === 0 ? (
                         <div className="text-sm text-gray-500">
                           {language === "km"
                             ? "???????????????????????"
                             : "No conversations yet."}
                         </div>
                       ) : (
-                        chatWidgetConversations.map((conv) => {
+                        filteredChatWidgetConversations.map((conv) => {
                           const isActive =
                             chatWidgetActive !== null &&
                             chatWidgetActive.orderId === conv.orderId;
@@ -1418,6 +1575,16 @@ const getChatOrderStateBadgeClass = (state?: string | null) => {
                                     <span className={getChatOrderStateBadgeClass(conv.state)}>
                                       {getChatOrderStateLabel(conv.state)}
                                     </span>
+                                    {isAdmin ? (
+                                      <span className={getChatNoteBadgeClass(conv.result)}>
+                                        {getChatNoteLabel(conv.result)}
+                                      </span>
+                                    ) : null}
+                                    {isAdmin && conv.handlerAdminName ? (
+                                      <span className="inline-flex items-center rounded-full border border-violet-200 bg-violet-50 px-2.5 py-0.5 text-[11px] font-semibold leading-5 text-violet-700 shadow-sm">
+                                        {conv.handlerAdminName}
+                                      </span>
+                                    ) : null}
                                   </div>
                                   <div
                                     className={`mt-1 text-xs line-clamp-2 ${

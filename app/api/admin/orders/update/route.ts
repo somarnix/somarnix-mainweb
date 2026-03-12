@@ -17,7 +17,7 @@ function deriveResultFromState(state: State): Result {
 }
 
 type OrderRow = RowDataPacket & { state: State; stock_reserved?: number | null };
-type OrderItemRow = RowDataPacket & { product_id: number; qty: number };
+type OrderItemRow = RowDataPacket & { product_id: number; required_units: number };
 type ToolOrderItemRow = RowDataPacket & {
   order_item_id: number;
   product_id: number;
@@ -58,6 +58,53 @@ function normalizeMaxDevices(limit: number | null, isUnlimited: number | null): 
   const n = Number(limit ?? 0);
   if (!Number.isFinite(n) || n <= 0) return 1;
   return Math.floor(n);
+}
+
+async function hasColumn(tableName: string, columnName: string): Promise<boolean> {
+  const [rows] = await db.query<RowDataPacket[]>(
+    `
+    SELECT 1
+    FROM information_schema.columns
+    WHERE table_schema = DATABASE()
+      AND table_name = ?
+      AND column_name = ?
+    LIMIT 1
+    `,
+    [tableName, columnName]
+  );
+  return rows.length > 0;
+}
+
+async function listInventoryUnitsByProduct(orderId: number): Promise<OrderItemRow[]> {
+  const hasProductsMode = await hasColumn("products", "mode");
+  const hasOrderUnitsPerQty = await hasColumn("order_items", "units_per_qty");
+  const hasVariantUnitsPerQty = await hasColumn("product_variants", "units_per_qty");
+  const modeExpr = hasProductsMode
+    ? "CASE WHEN LOWER(pc.name) = 'tools' THEN 'license' WHEN p.mode IN ('license','inventory') THEN p.mode ELSE 'inventory' END"
+    : "CASE WHEN LOWER(pc.name) = 'tools' THEN 'license' ELSE 'inventory' END";
+  const unitsPerQtyExpr = hasOrderUnitsPerQty
+    ? "GREATEST(1, COALESCE(oi.units_per_qty, 1))"
+    : hasVariantUnitsPerQty
+      ? "GREATEST(1, COALESCE(pv.units_per_qty, 1))"
+      : "1";
+
+  const [rows] = await db.query<OrderItemRow[]>(
+    `
+    SELECT
+      oi.product_id,
+      SUM(GREATEST(0, oi.qty) * ${unitsPerQtyExpr}) AS required_units
+    FROM order_items oi
+    JOIN products p ON p.id = oi.product_id
+    JOIN product_categories pc ON pc.id = p.category_id
+    LEFT JOIN product_variants pv ON pv.id = oi.variant_id
+    WHERE oi.order_id = ?
+      AND p.is_unlimited_stock = 0
+      AND (${modeExpr}) = 'inventory'
+    GROUP BY oi.product_id
+    `,
+    [orderId]
+  );
+  return rows;
 }
 
 async function getToolOrderItems(orderId: number): Promise<ToolOrderItemRow[]> {
@@ -393,19 +440,11 @@ export async function POST(req: Request) {
   }
 
   if (body.state === "completed" && previousState !== "completed" && !stockReserved) {
-    const [items] = await db.query<OrderItemRow[]>(
-      `
-      SELECT oi.product_id, oi.qty
-      FROM order_items oi
-      JOIN products p ON p.id = oi.product_id
-      WHERE oi.order_id = ? AND p.is_unlimited_stock = 0
-      `,
-      [body.orderId]
-    );
+    const items = await listInventoryUnitsByProduct(body.orderId);
 
     for (const item of items) {
-      const qty = Number(item.qty ?? 0);
-      if (!Number.isFinite(qty) || qty <= 0) continue;
+      const requiredUnits = Number(item.required_units ?? 0);
+      if (!Number.isFinite(requiredUnits) || requiredUnits <= 0) continue;
 
       await db.query<ResultSetHeader>(
         `
@@ -413,7 +452,7 @@ export async function POST(req: Request) {
         SET stock_qty = GREATEST(0, stock_qty - ?)
         WHERE id = ? AND is_unlimited_stock = 0
         `,
-        [qty, item.product_id]
+        [requiredUnits, item.product_id]
       );
     }
 
@@ -474,26 +513,18 @@ export async function POST(req: Request) {
       [body.orderId]
     );
 
-    const [items] = await db.query<OrderItemRow[]>(
-      `
-      SELECT oi.product_id, oi.qty
-      FROM order_items oi
-      JOIN products p ON p.id = oi.product_id
-      WHERE oi.order_id = ? AND p.is_unlimited_stock = 0
-      `,
-      [body.orderId]
-    );
+    const items = await listInventoryUnitsByProduct(body.orderId);
 
     for (const item of items) {
-      const qty = Number(item.qty ?? 0);
-      if (!Number.isFinite(qty) || qty <= 0) continue;
+      const requiredUnits = Number(item.required_units ?? 0);
+      if (!Number.isFinite(requiredUnits) || requiredUnits <= 0) continue;
       await db.query<ResultSetHeader>(
         `
         UPDATE products
         SET stock_qty = stock_qty + ?
         WHERE id = ? AND is_unlimited_stock = 0
         `,
-        [qty, item.product_id]
+        [requiredUnits, item.product_id]
       );
     }
 
@@ -504,26 +535,18 @@ export async function POST(req: Request) {
   }
 
   if (body.state === "resolution" && previousState !== "resolution" && stockReserved) {
-    const [items] = await db.query<OrderItemRow[]>(
-      `
-      SELECT oi.product_id, oi.qty
-      FROM order_items oi
-      JOIN products p ON p.id = oi.product_id
-      WHERE oi.order_id = ? AND p.is_unlimited_stock = 0
-      `,
-      [body.orderId]
-    );
+    const items = await listInventoryUnitsByProduct(body.orderId);
 
     for (const item of items) {
-      const qty = Number(item.qty ?? 0);
-      if (!Number.isFinite(qty) || qty <= 0) continue;
+      const requiredUnits = Number(item.required_units ?? 0);
+      if (!Number.isFinite(requiredUnits) || requiredUnits <= 0) continue;
       await db.query<ResultSetHeader>(
         `
         UPDATE products
         SET stock_qty = stock_qty + ?
         WHERE id = ? AND is_unlimited_stock = 0
         `,
-        [qty, item.product_id]
+        [requiredUnits, item.product_id]
       );
     }
 

@@ -19,7 +19,23 @@ type ProductRow = RowDataPacket & {
   min_price: number | null; // may come as string depending mysql2 config
   min_original_price: number | null; // may come as string depending mysql2 config
   variant_count: number;
+  mode: "license" | "inventory";
 };
+
+async function hasColumn(tableName: string, columnName: string): Promise<boolean> {
+  const [rows] = await db.query<RowDataPacket[]>(
+    `
+    SELECT 1
+    FROM information_schema.columns
+    WHERE table_schema = DATABASE()
+      AND table_name = ?
+      AND column_name = ?
+    LIMIT 1
+    `,
+    [tableName, columnName]
+  );
+  return rows.length > 0;
+}
 
 export async function GET(req: Request) {
   try {
@@ -47,10 +63,15 @@ export async function GET(req: Request) {
     }
 
     const where = whereParts.join(" AND ");
+    const hasProductsMode = await hasColumn("products", "mode");
+    const modeExpr = hasProductsMode
+      ? "CASE WHEN LOWER(c.name) = 'tools' THEN 'license' WHEN p.mode IN ('license','inventory') THEN p.mode ELSE 'inventory' END"
+      : "CASE WHEN LOWER(c.name) = 'tools' THEN 'license' ELSE 'inventory' END";
 
     const sql = `
       SELECT
         p.id, p.title, p.slug, p.level, p.image_url, p.stock_qty, p.is_unlimited_stock,
+        ${modeExpr} AS mode,
         c.name AS category,
         u.email AS posted_by_email,
         u.id AS posted_by_id,

@@ -8,6 +8,9 @@ type OrderRow = RowDataPacket & {
   order_number: string;
   user_id: number;
   state: string | null;
+  result: string | null;
+  payment_state: string | null;
+  payment_review_note: string | null;
   delivery_title: string | null;
   delivery_message: string | null;
   delivered_at: string | Date | null;
@@ -154,6 +157,9 @@ async function fetchOrder(orderId: number) {
       o.order_number,
       o.user_id,
       o.state,
+      o.result,
+      o.payment_state,
+      o.payment_review_note,
       o.delivery_title,
       o.delivery_message,
       o.delivered_at,
@@ -379,6 +385,10 @@ export async function GET(
         id: conversation.id,
         orderId: order.id,
         orderNumber: order.order_number,
+        state: order.state,
+        result: order.result ?? "none",
+        paymentState: order.payment_state ?? "waiting",
+        paymentReviewNote: order.payment_review_note ?? null,
         topic: conversation.topic,
         lastMessageAt:
           conversation.last_message_at instanceof Date
@@ -505,8 +515,18 @@ export async function POST(
     const [insert] = await db.query<ResultSetHeader>(
       `
       INSERT INTO order_chat_messages
-        (conversation_id, sender_id, is_admin, body, attachment_url, message_type, sticker_path)
-      VALUES (?, ?, ?, ?, ?, ?, ?)
+        (
+          conversation_id,
+          sender_id,
+          is_admin,
+          body,
+          attachment_url,
+          message_type,
+          sticker_path,
+          buyer_seen_at,
+          seller_seen_at
+        )
+      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
       `,
       [
         conversation.id,
@@ -516,6 +536,8 @@ export async function POST(
         attachmentUrl,
         messageType,
         stickerPath,
+        isOwner ? new Date() : null,
+        isOwner ? null : new Date(),
       ]
     );
 

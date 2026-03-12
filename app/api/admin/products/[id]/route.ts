@@ -5,6 +5,21 @@ import type { ResultSetHeader, RowDataPacket } from "mysql2";
 
 export const runtime = "nodejs";
 
+async function hasColumn(tableName: string, columnName: string): Promise<boolean> {
+  const [rows] = await db.query<RowDataPacket[]>(
+    `
+    SELECT 1
+    FROM information_schema.columns
+    WHERE table_schema = DATABASE()
+      AND table_name = ?
+      AND column_name = ?
+    LIMIT 1
+    `,
+    [tableName, columnName]
+  );
+  return rows.length > 0;
+}
+
 /* =========================
    PUT: UPDATE PRODUCT (ADMIN)
 ========================= */
@@ -64,6 +79,19 @@ export async function PUT(
       }
       sets.push("category_id = ?");
       values.push(categoryId);
+    }
+
+    if ("mode" in b) {
+      const hasProductsMode = await hasColumn("products", "mode");
+      if (!hasProductsMode) {
+        return Response.json({ error: "products.mode column is missing" }, { status: 400 });
+      }
+      const mode = typeof b.mode === "string" ? b.mode.trim().toLowerCase() : "";
+      if (!["license", "inventory"].includes(mode)) {
+        return Response.json({ error: "Invalid mode" }, { status: 400 });
+      }
+      sets.push("mode = ?");
+      values.push(mode);
     }
 
     if ("level" in b) {

@@ -51,6 +51,20 @@ async function hasAllDeviceColumns(): Promise<boolean> {
   return DEVICE_COLUMNS.every((column) => present.has(column));
 }
 
+async function hasUnitsPerQtyColumn(): Promise<boolean> {
+  const [rows] = await db.query<RowDataPacket[]>(
+    `
+    SELECT 1
+    FROM information_schema.columns
+    WHERE table_schema = DATABASE()
+      AND table_name = 'product_variants'
+      AND column_name = 'units_per_qty'
+    LIMIT 1
+    `
+  );
+  return rows.length > 0;
+}
+
 async function isToolsProduct(productId: number): Promise<boolean> {
   const [rows] = await db.query<RowDataPacket[]>(
     `
@@ -85,6 +99,7 @@ export async function GET(req: Request, ctx: RouteCtx) {
     const toolsProduct = await isToolsProduct(productId);
     const tableName = toolsProduct ? "tool_variants" : "product_variants";
     const withDeviceColumns = toolsProduct ? true : await hasAllDeviceColumns();
+    const withUnitsPerQty = toolsProduct ? false : await hasUnitsPerQtyColumn();
 
     const [rows] = await db.query<RowDataPacket[]>(
       withDeviceColumns
@@ -99,6 +114,7 @@ export async function GET(req: Request, ctx: RouteCtx) {
             v.device_type,
             v.device_limit,
             v.is_unlimited_device,
+            ${withUnitsPerQty ? "v.units_per_qty" : "1 AS units_per_qty"},
             v.original_price,
             v.price,
             v.khqr,
@@ -120,6 +136,7 @@ export async function GET(req: Request, ctx: RouteCtx) {
             'any' AS device_type,
             NULL AS device_limit,
             0 AS is_unlimited_device,
+            ${withUnitsPerQty ? "v.units_per_qty" : "1 AS units_per_qty"},
             v.original_price,
             v.price,
             v.khqr,
@@ -189,6 +206,7 @@ export async function POST(req: Request, ctx: RouteCtx) {
 
     const original_price = toNumOrNull(b.original_price);
     const price = toNumOrNull(b.price);
+    const units_per_qty_raw = toIntOrNull(b.units_per_qty);
     const khqr =
       typeof b.khqr === "string" && b.khqr.trim() ? b.khqr.trim() : DEFAULT_KH_QR;
     const usdqr =
@@ -215,6 +233,9 @@ export async function POST(req: Request, ctx: RouteCtx) {
     }
 
     const toolsProduct = await isToolsProduct(productId);
+    if (!toolsProduct && units_per_qty_raw !== null && units_per_qty_raw < 1) {
+      return Response.json({ error: "Invalid units_per_qty" }, { status: 400 });
+    }
     if (toolsProduct && !is_unlimited_device) {
       if (
         device_limit === null ||
@@ -235,6 +256,20 @@ export async function POST(req: Request, ctx: RouteCtx) {
         : device_limit;
     const tableName = toolsProduct ? "tool_variants" : "product_variants";
     const withDeviceColumns = toolsProduct ? true : await hasAllDeviceColumns();
+    const withUnitsPerQty = toolsProduct ? false : await hasUnitsPerQtyColumn();
+    if (!toolsProduct && !withUnitsPerQty && units_per_qty_raw !== null && units_per_qty_raw !== 1) {
+      return Response.json(
+        {
+          error:
+            "units_per_qty column is missing. Run sql/2026-02-12-product-mode-units-per-qty.sql",
+        },
+        { status: 400 }
+      );
+    }
+    const finalUnitsPerQty =
+      !toolsProduct && units_per_qty_raw !== null
+        ? Math.max(1, Math.floor(units_per_qty_raw))
+        : 1;
 
     const [result] = await db.query<ResultSetHeader>(
       withDeviceColumns
@@ -244,22 +279,24 @@ export async function POST(req: Request, ctx: RouteCtx) {
               product_id,
               duration_label, duration_note, duration_days,
               device_label, device_type, device_limit, is_unlimited_device,
+              ${withUnitsPerQty ? "units_per_qty," : ""}
               original_price, price,
               khqr, usdqr,
               is_active
             )
-          VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 1)
+          VALUES (?, ?, ?, ?, ?, ?, ?, ?, ${withUnitsPerQty ? "?, " : ""}?, ?, ?, ?, 1)
         `
         : `
           INSERT INTO ${tableName}
             (
               product_id,
               duration_label, duration_note, duration_days,
+              ${withUnitsPerQty ? "units_per_qty," : ""}
               original_price, price,
               khqr, usdqr,
               is_active
             )
-          VALUES (?, ?, ?, ?, ?, ?, ?, ?, 1)
+          VALUES (?, ?, ?, ?, ${withUnitsPerQty ? "?, " : ""}?, ?, ?, ?, 1)
         `,
       withDeviceColumns
         ? [
@@ -271,6 +308,7 @@ export async function POST(req: Request, ctx: RouteCtx) {
             device_type,
             finalDeviceLimit,
             is_unlimited_device,
+            ...(withUnitsPerQty ? [finalUnitsPerQty] : []),
             original_price,
             price,
             khqr,
@@ -281,6 +319,7 @@ export async function POST(req: Request, ctx: RouteCtx) {
             duration_label,
             duration_note,
             duration_days,
+            ...(withUnitsPerQty ? [finalUnitsPerQty] : []),
             original_price,
             price,
             khqr,
