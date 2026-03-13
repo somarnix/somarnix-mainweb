@@ -57,7 +57,7 @@ export function resolveOrderStatus(
   }
 
   if (result === "failed") {
-    return state === "cancelled" ? "cancelled" : "resolution";
+    return "resolution";
   }
 
   return state;

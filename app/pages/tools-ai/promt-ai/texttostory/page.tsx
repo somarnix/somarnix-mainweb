@@ -362,18 +362,7 @@ export default function TextToStoryPage() {
 
   const handleStoryCharacterChange = (
     index: number,
-    field:
-      | "name"
-      | "appearance"
-      | "gender"
-      | "typegender"
-      | "size"
-      | "age"
-      | "role"
-      | "outfit"
-      | "accessories"
-      | "expression"
-      | "colors",
+    field: keyof CharacterDraft,
     value: string
   ) => {
     setStoryCharactersDraft((prev) =>
@@ -662,7 +651,7 @@ export default function TextToStoryPage() {
             title: String(item?.title || "").trim(),
             detail: String(item?.detail || item?.story || "").trim(),
           }))
-          .filter((item) => item.title || item.detail)
+          .filter((item: { title: string; detail: string }) => item.title || item.detail)
           .slice(0, 5);
       } else {
         ideas = parseStoryIdeasText(text).slice(0, 5);

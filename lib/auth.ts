@@ -142,7 +142,7 @@ export async function getAuthUser(req: Request): Promise<AuthUser | null> {
       }
     }
 
-    const authUser = {
+    const authUser: AuthUser = {
       userId: Number(user.id),
       role: user.role === "admin" ? "admin" : "user",
     };
