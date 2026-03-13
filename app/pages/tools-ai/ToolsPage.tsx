@@ -6,6 +6,7 @@ import { useLanguage } from "../../contexts/LanguageContext";
 import { SlugFilter } from "../../components/filters/SlugFilter";
 import { Pagination } from "../../components/Pagination";
 import { Search } from "../../components/Search";
+import { normalizeProductListResponse } from "../../../lib/products";
 
 /* ================= DB TYPE ================= */
 type DbTool = {
@@ -43,7 +44,7 @@ export function ToolsPage({ onOpenProductDetail }: { onOpenProductDetail: (slug:
   useEffect(() => {
     fetch("/api/products?category=tools")
       .then((res) => res.json())
-      .then((data) => setTools(data ?? []))
+      .then((data) => setTools(normalizeProductListResponse(data) as DbTool[]))
       .finally(() => setLoading(false));
   }, []);
 

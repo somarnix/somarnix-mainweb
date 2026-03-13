@@ -16,6 +16,7 @@ import { Countdown } from "../../components/Countdown";
 import { useLanguage } from "../../contexts/LanguageContext";
 import { useAuth } from "../../contexts/AuthContext";
 import { toast } from "sonner";
+import { normalizeProductListResponse } from "../../../lib/products";
 
 /* ================= TYPES ================= */
 
@@ -70,7 +71,7 @@ export default function HomePage({ onNavigate, onOpenProductDetail }: HomePagePr
   const [promotions, setPromotions] = useState<PromotionCombo[]>([]);
   const [loading, setLoading] = useState(true);
   const [promotionLoading, setPromotionLoading] = useState(true);
-  const [nowMs, setNowMs] = useState(() => Date.now());
+  const [nowMs, setNowMs] = useState<number | null>(null);
   const [promotionSubmitting, setPromotionSubmitting] = useState<Record<number, boolean>>({});
 
   /* ---------- Load featured products ---------- */
@@ -83,7 +84,7 @@ export default function HomePage({ onNavigate, onOpenProductDetail }: HomePagePr
         const data = await res.json();
 
         if (mounted) {
-          setFeatured(Array.isArray(data) ? data : data.products ?? []);
+          setFeatured(normalizeProductListResponse(data) as DbProduct[]);
         }
       } catch (err) {
         console.error("Failed to load products", err);
@@ -208,6 +209,7 @@ export default function HomePage({ onNavigate, onOpenProductDetail }: HomePagePr
   };
 
   useEffect(() => {
+    setNowMs(Date.now());
     const timer = window.setInterval(() => {
       setNowMs(Date.now());
     }, 1000);
@@ -429,10 +431,10 @@ export default function HomePage({ onNavigate, onOpenProductDetail }: HomePagePr
   );
 }
 
-function formatCountdown(endAt: string, nowMs: number): string {
+function formatCountdown(endAt: string, nowMs: number | null): string {
   const endMs = new Date(String(endAt).replace(" ", "T")).getTime();
   if (!Number.isFinite(endMs)) return "-";
-  const diff = Math.max(0, endMs - nowMs);
+  const diff = Math.max(0, endMs - (nowMs ?? 0));
   const totalSeconds = Math.floor(diff / 1000);
   const days = Math.floor(totalSeconds / 86400);
   const hours = Math.floor((totalSeconds % 86400) / 3600);

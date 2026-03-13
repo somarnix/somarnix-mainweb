@@ -19,6 +19,8 @@
 
 # production
 /build
+/extension-dist/
+/.flow-chrome-runtime/
 
 # misc
 .DS_Store

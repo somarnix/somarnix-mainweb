@@ -31,9 +31,6 @@ function toDate(value: Date | string | null): Date | null {
 
 export async function GET(req: Request) {
   const auth = await getAuthUser(req);
-  if (!auth) {
-    return NextResponse.json({ valid: false, reason: "login_required" }, { status: 401 });
-  }
 
   const url = new URL(req.url);
   const slug = (url.searchParams.get("slug") || "").trim();
@@ -50,7 +47,11 @@ export async function GET(req: Request) {
   if (!payload) {
     return NextResponse.json({ valid: false, reason: "invalid_token" }, { status: 403 });
   }
-  if (payload.userId !== auth.userId || payload.slug !== slug || payload.deviceId !== deviceId) {
+  if (
+    (auth && payload.userId !== auth.userId) ||
+    payload.slug !== slug ||
+    payload.deviceId !== deviceId
+  ) {
     return NextResponse.json({ valid: false, reason: "token_mismatch" }, { status: 403 });
   }
 

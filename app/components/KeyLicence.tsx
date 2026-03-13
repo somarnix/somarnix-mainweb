@@ -19,6 +19,8 @@ type KeyLicenceProps = {
   title?: string;
   className?: string;
   showStatusInCard?: boolean;
+  licenseKeyStorageKey?: string;
+  onLicenseKeyChange?: (licenseKey: string) => void;
   onChange?: (state: KeyLicenceState) => void;
   children?: (state: KeyLicenceState) => React.ReactNode;
 };
@@ -46,6 +48,8 @@ export default function KeyLicence({
   title = "License access",
   className = "",
   showStatusInCard = true,
+  licenseKeyStorageKey,
+  onLicenseKeyChange,
   onChange,
   children,
 }: KeyLicenceProps) {
@@ -60,6 +64,26 @@ export default function KeyLicence({
   const [activating, setActivating] = useState(false);
 
   const tokenStorageKey = useMemo(() => getLicenseTokenKey(toolSlug), [toolSlug]);
+  const keyStorageKey = useMemo(
+    () => licenseKeyStorageKey || `${tokenStorageKey}_key`,
+    [licenseKeyStorageKey, tokenStorageKey]
+  );
+
+  useEffect(() => {
+    if (typeof window === "undefined") return;
+    const savedLicenseKey = window.localStorage.getItem(keyStorageKey) || "";
+    setLicenseKey(savedLicenseKey);
+  }, [keyStorageKey]);
+
+  useEffect(() => {
+    onLicenseKeyChange?.(licenseKey);
+    if (typeof window === "undefined") return;
+    if (licenseKey.trim()) {
+      window.localStorage.setItem(keyStorageKey, licenseKey);
+      return;
+    }
+    window.localStorage.removeItem(keyStorageKey);
+  }, [keyStorageKey, licenseKey, onLicenseKeyChange]);
 
   useEffect(() => {
     const id = getDeviceId();
@@ -135,8 +159,10 @@ export default function KeyLicence({
       }
       if (typeof window !== "undefined") {
         window.localStorage.setItem(tokenStorageKey, data.token);
+        window.localStorage.setItem(keyStorageKey, licenseKey.trim());
       }
       setToken(data.token);
+      setLicenseKey(licenseKey.trim());
       setStatus("ready");
       setExpiresAt(typeof data?.expiresAt === "string" ? data.expiresAt : null);
       setMaxDevices(Number.isFinite(Number(data?.maxDevices)) ? Number(data.maxDevices) : null);
@@ -162,7 +188,6 @@ export default function KeyLicence({
     setMaxDevices(null);
     setDeviceCount(null);
     setError(null);
-    setLicenseKey("");
   };
 
   const state = useMemo<KeyLicenceState>(

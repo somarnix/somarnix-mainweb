@@ -39,6 +39,8 @@ label {
 }
 
 input[type="text"],
+input[readonly],
+input[type="number"],
 select,
 textarea {
   width: 100%;
@@ -48,6 +50,11 @@ textarea {
   font-size: 13px;
   font-family: inherit;
   transition: border-color 0.3s;
+}
+
+input[readonly] {
+  background: #f7f7fb;
+  color: #666;
 }
 
 input[type="text"]:focus,
@@ -144,6 +151,16 @@ small {
   display: flex;
   gap: 10px;
   margin-bottom: 15px;
+}
+
+.grid {
+  display: grid;
+  gap: 12px;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+}
+
+.grid .section {
+  margin-bottom: 8px;
 }
 
 .btn {

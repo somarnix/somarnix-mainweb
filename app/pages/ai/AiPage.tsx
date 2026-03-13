@@ -8,6 +8,7 @@ import { useLanguage } from "../../contexts/LanguageContext";
 import { SlugFilter } from "../../components/filters/SlugFilter";
 import { Pagination } from "../../components/Pagination";
 import { Search } from "../../components/Search";
+import { normalizeProductListResponse } from "../../../lib/products";
 
 type DbCourse = {
   id: number;
@@ -44,7 +45,7 @@ export function AiPage({ onOpenProductDetail }: { onOpenProductDetail: (slug: st
   useEffect(() => {
     fetch("/api/products?category=ai")
       .then((res) => res.json())
-      .then((data) => setCourses(data ?? []))
+      .then((data) => setCourses(normalizeProductListResponse(data) as DbCourse[]))
       .finally(() => setLoading(false));
   }, []);
 

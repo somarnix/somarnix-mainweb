@@ -17,6 +17,16 @@ type UserItem = {
   username: string | null;
 };
 
+type ToolPurchaseItem = {
+  order_id: number;
+  order_number: string | null;
+  product_id: number;
+  user_id: number;
+  user_email: string;
+  user_username: string | null;
+  created_at: string | null;
+};
+
 type License = {
   id: number;
   order_id: number | null;
@@ -41,6 +51,7 @@ type ApiResponse = {
   tools?: Tool[];
   users?: UserItem[];
   licenses?: License[];
+  toolPurchases?: ToolPurchaseItem[];
   error?: string;
 };
 const MONTH_OPTIONS = [
@@ -68,6 +79,7 @@ export default function AdminToolLicensesPage() {
   const [tools, setTools] = useState<Tool[]>([]);
   const [users, setUsers] = useState<UserItem[]>([]);
   const [licenses, setLicenses] = useState<License[]>([]);
+  const [toolPurchases, setToolPurchases] = useState<ToolPurchaseItem[]>([]);
 
   const [productId, setProductId] = useState("");
   const [userId, setUserId] = useState("");
@@ -94,14 +106,48 @@ export default function AdminToolLicensesPage() {
   const [hbResult, setHbResult] = useState("");
   const [tokenOutput, setTokenOutput] = useState("");
 
-  const filteredUsers = useMemo(() => {
+  const purchasesForSelectedTool = useMemo(() => {
+    const toolId = Number(productId);
+    if (!Number.isFinite(toolId) || toolId <= 0) return [];
+    return toolPurchases.filter((item) => item.product_id === toolId);
+  }, [toolPurchases, productId]);
+
+  const buyerOptions = useMemo(() => {
     const q = userQuery.trim().toLowerCase();
-    if (!q) return users;
-    return users.filter((u) => {
+    const scopedUsers =
+      purchasesForSelectedTool.length > 0
+        ? Array.from(
+            new Map(
+              purchasesForSelectedTool.map((item) => [
+                item.user_id,
+                {
+                  id: item.user_id,
+                  email: item.user_email,
+                  username: item.user_username,
+                },
+              ])
+            ).values()
+          )
+        : users;
+    if (!q) return scopedUsers;
+    return scopedUsers.filter((u) => {
       const name = (u.username || "").toLowerCase();
       return name.includes(q) || u.email.toLowerCase().includes(q) || String(u.id).includes(q);
     });
-  }, [users, userQuery]);
+  }, [purchasesForSelectedTool, userQuery, users]);
+
+  const latestPurchaseForSelection = useMemo(() => {
+    const toolId = Number(productId);
+    const buyerId = Number(userId);
+    if (!Number.isFinite(toolId) || toolId <= 0 || !Number.isFinite(buyerId) || buyerId <= 0) {
+      return null;
+    }
+    return (
+      toolPurchases.find(
+        (item) => item.product_id === toolId && item.user_id === buyerId
+      ) || null
+    );
+  }, [toolPurchases, productId, userId]);
 
   const getYearMonthKey = (value?: string | null) => {
     const raw = String(value || "").trim();
@@ -243,6 +289,7 @@ export default function AdminToolLicensesPage() {
       setTools(Array.isArray(data.tools) ? data.tools : []);
       setUsers(Array.isArray(data.users) ? data.users : []);
       setLicenses(Array.isArray(data.licenses) ? data.licenses : []);
+      setToolPurchases(Array.isArray(data.toolPurchases) ? data.toolPurchases : []);
       if (!productId && data.tools && data.tools[0]) {
         setProductId(String(data.tools[0].id));
       }
@@ -259,6 +306,24 @@ export default function AdminToolLicensesPage() {
   useEffect(() => {
     void load();
   }, [load]);
+
+  useEffect(() => {
+    if (buyerOptions.length === 0) return;
+    const hasCurrentBuyer = buyerOptions.some((u) => String(u.id) === userId);
+    if (!hasCurrentBuyer) {
+      setUserId(String(buyerOptions[0].id));
+    }
+  }, [buyerOptions, userId]);
+
+  useEffect(() => {
+    if (!latestPurchaseForSelection) return;
+    const nextOrderValue = String(
+      latestPurchaseForSelection.order_number || latestPurchaseForSelection.order_id
+    );
+    if (orderId !== nextOrderValue) {
+      setOrderId(nextOrderValue);
+    }
+  }, [latestPurchaseForSelection, orderId]);
 
   const createLicense = async () => {
     setSaving(true);
@@ -643,26 +708,30 @@ export default function AdminToolLicensesPage() {
               onChange={(e) => setUserId(e.target.value)}
               className="w-full border rounded-lg px-3 py-2"
             >
-              {filteredUsers.map((u) => (
+              {buyerOptions.map((u) => (
                 <option key={u.id} value={String(u.id)}>
                   {u.username || "user"} - {u.email} (#{u.id})
                 </option>
               ))}
             </select>
+            <p className="mt-1 text-xs text-gray-500">
+              Buyers auto-filter from the selected tool purchase list.
+            </p>
           </div>
 
           <div>
             <label className="block text-sm text-gray-600 mb-1">
-              Order ID (auto from tool if empty)
+              Order number (auto from buyer)
             </label>
             <input
-              type="number"
-              min={1}
               value={orderId}
               onChange={(e) => setOrderId(e.target.value)}
-              placeholder="ex: 1770371330803632"
+              placeholder="ex: 1773413439467175"
               className="w-full border rounded-lg px-3 py-2"
             />
+            <p className="mt-1 text-xs text-gray-500">
+              Choosing a buyer fills the latest matching order number automatically.
+            </p>
           </div>
 
           <div>

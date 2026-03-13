@@ -10,7 +10,7 @@ type AccessResponse = {
   product?: { id: number; slug: string; title: string };
 };
 
-const TOOL_PRODUCT_SLUG = "tooldownloadvideo";
+const DEFAULT_TOOL_PRODUCT_SLUG = "tooldownloadvideo";
 
 function getDeviceId(): string {
   if (typeof window === "undefined") return "";
@@ -25,7 +25,8 @@ function getDeviceId(): string {
   return id;
 }
 
-export default function ToolDownload() {
+export default function ToolDownload({ toolSlug }: { toolSlug?: string }) {
+  const resolvedToolSlug = (toolSlug || DEFAULT_TOOL_PRODUCT_SLUG).trim() || DEFAULT_TOOL_PRODUCT_SLUG;
   const [deviceId] = useState(() => getDeviceId());
   const [status, setStatus] = useState<"loading" | "ready" | "blocked">("loading");
   const [info, setInfo] = useState<AccessResponse | null>(null);
@@ -45,7 +46,7 @@ export default function ToolDownload() {
     const load = async () => {
       try {
         const res = await fetch(
-          `/api/tools/access?slug=${encodeURIComponent(TOOL_PRODUCT_SLUG)}&deviceId=${encodeURIComponent(
+          `/api/tools/access?slug=${encodeURIComponent(resolvedToolSlug)}&deviceId=${encodeURIComponent(
             deviceId
           )}`,
           { credentials: "include" }
@@ -64,7 +65,7 @@ export default function ToolDownload() {
     return () => {
       mounted = false;
     };
-  }, [deviceId]);
+  }, [deviceId, resolvedToolSlug]);
 
   if (status === "loading") {
     return <div className="p-6 text-gray-500">Loading tool access...</div>;
@@ -97,7 +98,7 @@ export default function ToolDownload() {
           ) : (
             <button
               className="px-4 py-2 rounded-lg bg-black text-white text-sm"
-              onClick={() => (window.location.href = `/products/${TOOL_PRODUCT_SLUG}`)}
+              onClick={() => (window.location.href = `/product/${resolvedToolSlug}`)}
             >
               Buy Tool
             </button>
@@ -110,7 +111,7 @@ export default function ToolDownload() {
   return (
     <div className="p-6 space-y-4">
       <h1 className="text-2xl font-semibold">Tool Download</h1>
-      <KeyLicence toolSlug={TOOL_PRODUCT_SLUG} title="Tool license" onChange={setLicenseState} />
+      <KeyLicence toolSlug={resolvedToolSlug} title="Tool license" onChange={setLicenseState} />
       {licenseState.status === "ready" ? (
         <div className="rounded-xl border border-gray-200 bg-white p-4 text-sm text-gray-600">
           Access granted. Put your download tool UI here.

@@ -179,6 +179,20 @@ function isToolsCategoryName(name: string | null | undefined): boolean {
   return (name ?? "").trim().toLowerCase() === "tools";
 }
 
+function normalizeToolSlugInput(value: string): string {
+  return value
+    .toLowerCase()
+    .trim()
+    .replace(/[_\s]+/g, "-")
+    .replace(/[^a-z0-9-]+/g, "-")
+    .replace(/-+/g, "-")
+    .replace(/^-+|-+$/g, "");
+}
+
+function getNormalizedSlugForMode(value: string, toolsMode: boolean): string {
+  return toolsMode ? normalizeToolSlugInput(value) : value.trim();
+}
+
 /* ================= PAGE ================= */
 
 export default function AdminProductsPage({
@@ -543,8 +557,9 @@ export default function AdminProductsPage({
 
   const createProduct = async () => {
     try {
+      const slug = getNormalizedSlugForMode(cSlug, isToolsMode);
       if (!cTitle.trim()) throw new Error("Title is required");
-      if (!cSlug.trim()) throw new Error("Slug is required");
+      if (!slug) throw new Error("Slug is required");
       if (!cCategoryId || cCategoryId <= 0) {
         throw new Error("Invalid category. Please select a category.");
       }
@@ -553,7 +568,7 @@ export default function AdminProductsPage({
 
       const payload = {
         title: cTitle.trim(),
-        slug: cSlug.trim(),
+        slug,
         category_id: Number(cCategoryId),
       };
 
@@ -1001,10 +1016,12 @@ export default function AdminProductsPage({
 
     try {
       setSaving(true);
+      const slug = getNormalizedSlugForMode(fSlug, isToolsMode);
+      if (!slug) throw new Error("Slug is required");
 
       const payload = {
         title: fTitle.trim(),
-        slug: fSlug.trim(),
+        slug,
         category_id: Number(fCategoryId),
         level: fLevel,
         stock_qty: Number(fStockQty),
@@ -1568,9 +1585,18 @@ export default function AdminProductsPage({
                 <label className="text-xs text-gray-600">Slug</label>
                 <input
                   value={cSlug}
-                  onChange={(e) => setCSlug(e.target.value)}
+                  onChange={(e) =>
+                    setCSlug(isToolsMode ? normalizeToolSlugInput(e.target.value) : e.target.value)
+                  }
+                  placeholder={isToolsMode ? "promt-ai" : undefined}
                   className="mt-1 w-full border rounded-lg px-3 py-2 text-sm"
                 />
+                {isToolsMode ? (
+                  <p className="mt-1 text-xs text-gray-500">
+                    For tools, slug must match the folder name in <code>app/pages/tools-ai</code>.
+                    Example: <code>promt-ai</code>, <code>video-editor</code>, <code>dog</code>.
+                  </p>
+                ) : null}
               </div>
 
               <div className="md:col-span-2">
@@ -1652,9 +1678,18 @@ export default function AdminProductsPage({
                 <label className="text-xs text-gray-600">Slug</label>
                 <input
                   value={fSlug}
-                  onChange={(e) => setFSlug(e.target.value)}
+                  onChange={(e) =>
+                    setFSlug(isToolsMode ? normalizeToolSlugInput(e.target.value) : e.target.value)
+                  }
+                  placeholder={isToolsMode ? "promt-ai" : undefined}
                   className="mt-1 w-full border rounded-lg px-3 py-2 text-sm"
                 />
+                {isToolsMode ? (
+                  <p className="mt-1 text-xs text-gray-500">
+                    Tool slug is the route link: <code>/tools-ai/{fSlug || "your-tool"}</code>.
+                    Keep it the same as the tool folder name.
+                  </p>
+                ) : null}
               </div>
 
               <div>

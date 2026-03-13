@@ -1,0 +1,108 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Google Flow Extension</title>
+  <link rel="stylesheet" href="popup.css">
+</head>
+<body>
+  <div class="container">
+    <h1>Auto Flow Generator</h1>
+
+    <div class="section">
+      <p style="font-size: 13px; color: #555; line-height: 1.5;">
+        Activate the license once from your Edugroit website, then run prompts directly from this popup.
+      </p>
+    </div>
+
+    <div id="licenseStatus" class="status warning">Checking synced website license...</div>
+
+    <div class="section">
+      <label for="toolSlug">Tool slug</label>
+      <input id="toolSlug" type="text" readonly>
+      <small>The website controls the active tool license for this extension.</small>
+    </div>
+
+    <div class="grid">
+      <div class="section">
+        <label for="deviceId">Device ID</label>
+        <input id="deviceId" type="text" readonly>
+      </div>
+      <div class="section">
+        <label for="expiresAt">License expires</label>
+        <input id="expiresAt" type="text" readonly>
+      </div>
+    </div>
+
+    <div class="section">
+      <label for="projectId">Project ID</label>
+      <input id="projectId" type="text" placeholder="47f0ebc5-63bc-4352-9edf-7b89e5e03efd">
+      <small>Paste the Google Flow project ID and the project URL updates automatically.</small>
+    </div>
+
+    <div class="section">
+      <label for="projectUrl">Google Flow Project URL</label>
+      <input id="projectUrl" type="text" placeholder="https://labs.google/fx/tools/flow/project/...">
+    </div>
+
+    <div class="section">
+      <label for="promptInput">Prompt queue</label>
+      <textarea id="promptInput" placeholder="One prompt per line"></textarea>
+    </div>
+
+    <div class="grid">
+      <div class="section">
+        <label for="mediaType">Media type</label>
+        <select id="mediaType">
+          <option value="video">Video</option>
+          <option value="image">Image</option>
+        </select>
+      </div>
+      <div class="section">
+        <label for="model">Model</label>
+        <select id="model"></select>
+      </div>
+      <div class="section">
+        <label for="videoMode">Video mode</label>
+        <select id="videoMode">
+          <option value="Ingredients">Ingredients</option>
+          <option value="Frames">Frames</option>
+          <option value="Text to Video">Text to Video</option>
+        </select>
+      </div>
+      <div class="section">
+        <label for="orientation">Orientation</label>
+        <select id="orientation">
+          <option value="Portrait">Portrait</option>
+          <option value="Landscape">Landscape</option>
+          <option value="Square">Square</option>
+        </select>
+      </div>
+      <div class="section">
+        <label for="variantCount">Variant count</label>
+        <select id="variantCount">
+          <option value="1">1</option>
+          <option value="2">2</option>
+          <option value="3">3</option>
+          <option value="4">4</option>
+        </select>
+      </div>
+    </div>
+
+    <div class="button-group">
+      <button id="openWebsiteBtn" class="btn btn-primary">Open Website Flow Page</button>
+      <button id="openFlowBtn" class="btn btn-secondary">Open Google Flow</button>
+    </div>
+
+    <div class="button-group">
+      <button id="runBtn" class="btn btn-primary">Run Extension Automation</button>
+      <button id="stopBtn" class="btn btn-danger" disabled>Stop Extension</button>
+    </div>
+
+    <div id="status" class="status info">Ready.</div>
+  </div>
+
+  <script src="popup.js"></script>
+</body>
+</html>

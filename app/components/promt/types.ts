@@ -75,7 +75,8 @@ export type PromtAiTab =
   | "imgtotext"
   | "texttoimg"
   | "texttostory"
-  | "texttoscene";
+  | "texttoscene"
+  | "generateflow";
 
 export const GENDER_OPTIONS = ["unknown", "male", "female", "non-binary"];
 export const TYPE_GENDER_OPTIONS = [

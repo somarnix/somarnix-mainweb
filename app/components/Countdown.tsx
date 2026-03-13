@@ -72,14 +72,15 @@ function SplitTile({ label, value }: { label: string; value: string }) {
 }
 
 export function Countdown() {
-  const [nowMs, setNowMs] = useState(() => Date.now());
+  const [nowMs, setNowMs] = useState<number | null>(null);
 
   useEffect(() => {
+    setNowMs(Date.now());
     const timer = window.setInterval(() => setNowMs(Date.now()), 1000);
     return () => window.clearInterval(timer);
   }, []);
 
-  const remaining = useMemo(() => getRemainingSeconds(nowMs), [nowMs]);
+  const remaining = useMemo(() => getRemainingSeconds(nowMs ?? 0), [nowMs]);
   const hours = Math.floor(remaining / 3600);
   const minutes = Math.floor((remaining % 3600) / 60);
   const seconds = remaining % 60;

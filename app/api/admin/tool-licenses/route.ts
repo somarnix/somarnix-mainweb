@@ -18,6 +18,16 @@ type UserRow = RowDataPacket & {
   username: string | null;
 };
 
+type ToolPurchaseRow = RowDataPacket & {
+  order_id: number;
+  order_number: string | null;
+  product_id: number;
+  user_id: number;
+  user_email: string;
+  user_username: string | null;
+  created_at: string | Date | null;
+};
+
 type LicenseRow = RowDataPacket & {
   id: number;
   order_id: number | null;
@@ -201,17 +211,19 @@ async function resolveOrderIdFlexible(raw: number | string | null | undefined): 
   const asNumber = Number(raw);
   if (!Number.isFinite(asNumber) || asNumber <= 0) return null;
 
+  const rawText = String(raw).trim();
+
+  const [byNumber] = await db.query<RowDataPacket[]>(
+    `SELECT id FROM orders WHERE order_number = ? LIMIT 1`,
+    [rawText]
+  );
+  if (byNumber.length > 0) return Number(byNumber[0].id);
+
   const [byId] = await db.query<RowDataPacket[]>(
     `SELECT id FROM orders WHERE id = ? LIMIT 1`,
     [asNumber]
   );
   if (byId.length > 0) return Number(byId[0].id);
-
-  const [byNumber] = await db.query<RowDataPacket[]>(
-    `SELECT id FROM orders WHERE order_number = ? LIMIT 1`,
-    [String(raw)]
-  );
-  if (byNumber.length > 0) return Number(byNumber[0].id);
 
   return null;
 }
@@ -306,6 +318,30 @@ export async function GET(req: Request) {
       WHERE u.is_active = 1 AND u.deleted_at IS NULL
       ORDER BY u.created_at DESC
       LIMIT 200
+      `
+    );
+
+    const [toolPurchases] = await db.query<ToolPurchaseRow[]>(
+      `
+      SELECT
+        o.id AS order_id,
+        o.order_number,
+        oi.product_id,
+        u.id AS user_id,
+        u.email AS user_email,
+        u.username AS user_username,
+        o.created_at
+      FROM orders o
+      JOIN order_items oi ON oi.order_id = o.id
+      JOIN products p ON p.id = oi.product_id
+      JOIN product_categories pc ON pc.id = p.category_id
+      JOIN users u ON u.id = o.user_id
+      WHERE LOWER(pc.name) = 'tools'
+        AND p.is_active = 1
+        AND o.state IN ('approved', 'completed')
+        AND (o.result IS NULL OR o.result <> 'failed')
+      ORDER BY o.created_at DESC, o.id DESC, oi.id DESC
+      LIMIT 500
       `
     );
 
@@ -443,7 +479,7 @@ export async function GET(req: Request) {
       });
     }
 
-    return Response.json({ tools: withDefaults, users, licenses });
+    return Response.json({ tools: withDefaults, users, licenses, toolPurchases });
   } catch (error) {
     const message = error instanceof Error ? error.message : String(error);
     return Response.json({ error: "Server error", detail: message }, { status: 500 });

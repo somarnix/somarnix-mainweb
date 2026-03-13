@@ -6,6 +6,7 @@ import { useLanguage } from "../../contexts/LanguageContext";
 import { SlugFilter } from "../../components/filters/SlugFilter";
 import { Pagination } from "../../components/Pagination";
 import { Search } from "../../components/Search";
+import { normalizeProductListResponse } from "../../../lib/products";
 
 type DbGame = {
   id: number;
@@ -42,7 +43,7 @@ export function GamesPage({ onOpenProductDetail }: { onOpenProductDetail: (slug:
   useEffect(() => {
     fetch("/api/products?category=game")
       .then((res) => res.json())
-      .then((data) => setGames(data ?? []))
+      .then((data) => setGames(normalizeProductListResponse(data) as DbGame[]))
       .finally(() => setLoading(false));
   }, []);
 

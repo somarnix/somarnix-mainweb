@@ -1,0 +1,55 @@
+{
+  "manifest_version": 3,
+  "name": "Google Flow Auto Video Generator",
+  "version": "1.0.0",
+  "description": "Hybrid Google Flow helper using backend-generated micro tasks",
+  "permissions": [
+    "activeTab",
+    "contextMenus",
+    "notifications",
+    "scripting",
+    "storage",
+    "tabs"
+  ],
+  "host_permissions": [
+    "https://labs.google/*",
+    "https://edugroit.com/*",
+    "https://www.edugroit.com/*",
+    "https://*.edugroit.com/*",
+    "http://localhost:3000/*",
+    "https://localhost:3000/*",
+    "http://127.0.0.1:3000/*",
+    "https://127.0.0.1:3000/*"
+  ],
+  "content_scripts": [
+    {
+      "matches": [
+        "https://edugroit.com/*",
+        "https://www.edugroit.com/*",
+        "https://*.edugroit.com/*",
+        "http://localhost:3000/*",
+        "https://localhost:3000/*",
+        "http://127.0.0.1:3000/*",
+        "https://127.0.0.1:3000/*"
+      ],
+      "js": ["website-bridge.js"],
+      "run_at": "document_start"
+    }
+  ],
+  "action": {
+    "default_popup": "popup.html",
+    "default_icon": {
+      "16": "icon16.png",
+      "48": "icon48.png",
+      "128": "icon128.png"
+    }
+  },
+  "background": {
+    "service_worker": "background.js"
+  },
+  "icons": {
+    "16": "icon16.png",
+    "48": "icon48.png",
+    "128": "icon128.png"
+  }
+}

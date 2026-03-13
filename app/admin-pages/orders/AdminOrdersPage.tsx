@@ -135,6 +135,13 @@ function parseToolSlugFromText(value?: string | null): string {
   return "";
 }
 
+function getToolOptionLabel(tool: ToolProduct): string {
+  const slug = tool.slug.trim();
+  const title = tool.title.trim();
+  if (!title || title.toLowerCase() === slug.toLowerCase()) return slug;
+  return `${slug} (${title})`;
+}
+
 function getAdminStateLabel(state: OrderState): string {
   return getStatusLabel(state, "en");
 }
@@ -293,6 +300,7 @@ export default function AdminOrdersPage() {
                 slug: String(t.slug ?? ""),
               }))
               .filter((t) => t.id > 0 && t.slug)
+              .sort((a, b) => a.slug.localeCompare(b.slug))
           );
         }
       })
@@ -1138,11 +1146,14 @@ export default function AdminOrdersPage() {
                       <option value="">Select tool</option>
                       {tools.map(tool => (
                         <option key={tool.id} value={tool.slug}>
-                          {tool.title}
+                          {getToolOptionLabel(tool)}
                         </option>
                       ))}
                     </select>
                   </div>
+                  <p className="mt-1 text-xs text-gray-500">
+                    Tool access uses the slug route, for example <code>promt-ai</code> or <code>dog</code>.
+                  </p>
                 </div>
 
                 <input

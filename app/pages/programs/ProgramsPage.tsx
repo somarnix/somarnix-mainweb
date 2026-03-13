@@ -6,6 +6,7 @@ import { useLanguage } from "../../contexts/LanguageContext";
 import { SlugFilter } from "../../components/filters/SlugFilter";
 import { Pagination } from "../../components/Pagination";
 import { Search } from "../../components/Search";
+import { normalizeProductListResponse } from "../../../lib/products";
 
 type DbProgram = {
   id: number;
@@ -42,7 +43,7 @@ export function ProgramsPage({ onOpenProductDetail }: { onOpenProductDetail: (sl
   useEffect(() => {
     fetch("/api/products?category=program")
       .then((res) => res.json())
-      .then((data) => setPrograms(data ?? []))
+      .then((data) => setPrograms(normalizeProductListResponse(data) as DbProgram[]))
       .finally(() => setLoading(false));
   }, []);
 

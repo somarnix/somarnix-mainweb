@@ -5,6 +5,7 @@ import { useLanguage } from "../../contexts/LanguageContext";
 import { AllFilter } from "../../components/filters/AllFilter";
 import { Pagination } from "../../components/Pagination";
 import { Search } from "../../components/Search";
+import { normalizeProductListResponse } from "../../../lib/products";
 
 /* ================= DB TYPE ================= */
 type DbProduct = {
@@ -42,7 +43,7 @@ export function AllPage({ onOpenProductDetail }: { onOpenProductDetail: (slug: s
   useEffect(() => {
     fetch("/api/products")
       .then((res) => res.json())
-      .then((data) => setProducts(data ?? []))
+      .then((data) => setProducts(normalizeProductListResponse(data) as DbProduct[]))
       .finally(() => setLoading(false));
   }, []);
 

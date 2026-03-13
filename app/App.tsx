@@ -178,6 +178,16 @@ function normalizePath(pathname?: string | null): string {
   return pathname;
 }
 
+function normalizeToolRouteSlug(value?: string | null): string {
+  const slug = (value ?? "").trim().toLowerCase();
+  if (!slug) return "";
+  if (slug === "toolveo3") return "veo3";
+  if (slug === "videoeditor") return "video-editor";
+  if (slug === "translatevideo-ai") return "translatevideo";
+  if (slug === "prompt-ai") return "promt-ai";
+  return slug;
+}
+
 function resolveRoute(pathname?: string | null): RouteState {
   const normalized = normalizePath(pathname);
   const staticPage = STATIC_ROUTES[normalized];
@@ -432,7 +442,6 @@ export default function App() {
     if (typeof window === "undefined") return;
     const initial = resolveRoute(window.location.pathname);
     window.history.replaceState(initial, "", window.location.pathname + window.location.search);
-    setRouteState(initial);
 
     const handlePop = (event: PopStateEvent) => {
       event.stopImmediatePropagation();
@@ -685,15 +694,13 @@ export default function App() {
       case "tool-detail":
         if (!toolSlug) return <ToolsPage onOpenProductDetail={handleOpenProductDetail} />;
         {
-          const normalizedTool = toolSlug.toLowerCase();
-          if (normalizedTool === "toolveo3") return <Veo3 />;
-          if (normalizedTool === "tooldownloadvideo") return <ToolDownload />;
-          if (normalizedTool === "videoeditor" || normalizedTool === "video-editor")
-            return <VideoEditorPage />;
-          if (normalizedTool === "translatevideo-ai" || normalizedTool === "translatevideo")
+          const normalizedTool = normalizeToolRouteSlug(toolSlug);
+          if (normalizedTool === "veo3") return <Veo3 toolSlug={toolSlug} />;
+          if (normalizedTool === "tooldownloadvideo") return <ToolDownload toolSlug={toolSlug} />;
+          if (normalizedTool === "video-editor") return <VideoEditorPage toolSlug={toolSlug} />;
+          if (normalizedTool === "translatevideo")
             return <TranslateVideoAI />;
-          if (normalizedTool === "prompt-ai" || normalizedTool === "promt-ai")
-            return <PromtAi />;
+          if (normalizedTool === "promt-ai") return <PromtAi toolSlug={toolSlug} />;
         }
         return <ToolsPage onOpenProductDetail={handleOpenProductDetail} />;
 

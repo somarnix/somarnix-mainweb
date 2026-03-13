@@ -5,10 +5,11 @@ import KeyLicence, { type KeyLicenceState } from "@/app/components/KeyLicence";
 
 type Mode = "merge" | "split" | "edit";
 type EditAction = "compress" | "trim" | "convert" | "watermark-text";
-const TOOL_PRODUCT_SLUG =
+const DEFAULT_TOOL_PRODUCT_SLUG =
   process.env.NEXT_PUBLIC_VIDEO_EDITOR_TOOL_SLUG || "videoeditor";
 
-export default function VideoEditorPage() {
+export default function VideoEditorPage({ toolSlug }: { toolSlug?: string }) {
+  const resolvedToolSlug = (toolSlug || DEFAULT_TOOL_PRODUCT_SLUG).trim() || DEFAULT_TOOL_PRODUCT_SLUG;
   const [mode, setMode] = useState<Mode>("edit");
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -101,7 +102,7 @@ export default function VideoEditorPage() {
         method: "POST",
         headers: {
           Authorization: `Bearer ${licenseState.token}`,
-          "x-tool-slug": TOOL_PRODUCT_SLUG,
+          "x-tool-slug": resolvedToolSlug,
         },
         body: fd,
       });
@@ -125,7 +126,7 @@ export default function VideoEditorPage() {
 
   const handleDeactivateFromHeader = () => {
     if (typeof window !== "undefined") {
-      window.localStorage.removeItem(`gstech_tool_license_${TOOL_PRODUCT_SLUG}`);
+      window.localStorage.removeItem(`gstech_tool_license_${resolvedToolSlug}`);
     }
     setLicenseState({
       status: "missing",
@@ -239,7 +240,7 @@ export default function VideoEditorPage() {
             <section className="space-y-6">
               {licenseState.status !== "ready" ? (
                 <KeyLicence
-                  toolSlug={TOOL_PRODUCT_SLUG}
+                  toolSlug={resolvedToolSlug}
                   title="License"
                   showStatusInCard={false}
                   onChange={setLicenseState}

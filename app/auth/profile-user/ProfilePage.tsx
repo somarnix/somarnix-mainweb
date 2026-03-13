@@ -862,7 +862,10 @@ export function ProfilePage({ onNavigate, onOpenProductDetail, onOpenToolDetail,
 
   const stateCounts = overviewStats?.stateCounts ?? DEFAULT_STATE_COUNTS;
   const isToolPurchase = useCallback(
-    (item: PurchaseItem) => String(item.categoryName || "").toLowerCase() === "tools",
+    (item: PurchaseItem) => {
+      const category = String(item.categoryName || "").trim().toLowerCase();
+      return category === "tools" || category === "tool";
+    },
     []
   );
   const productPurchases = useMemo(
