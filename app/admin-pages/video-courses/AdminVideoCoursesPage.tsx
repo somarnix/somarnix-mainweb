@@ -2096,7 +2096,9 @@ export default function AdminVideoCoursesPage({
                             await updatePlan(plan.id, {
                               is_active: plan.is_active ? 0 : 1,
                             });
-                            await loadPlans(selectedId);
+                            if (selectedId) {
+                              await loadPlans(selectedId);
+                            }
                           } catch (err) {
                             toast.error(err instanceof Error ? err.message : "Failed to update plan");
                           }
@@ -2111,7 +2113,9 @@ export default function AdminVideoCoursesPage({
                           if (!ok) return;
                           try {
                             await deletePlan(plan.id);
-                            await loadPlans(selectedId);
+                            if (selectedId) {
+                              await loadPlans(selectedId);
+                            }
                           } catch (err) {
                             toast.error(err instanceof Error ? err.message : "Failed to delete plan");
                           }
@@ -2138,7 +2142,9 @@ export default function AdminVideoCoursesPage({
                                 khqr: planKhqr,
                                 usdqr: planUsdqr,
                               });
-                              await loadPlans(selectedId);
+                              if (selectedId) {
+                                await loadPlans(selectedId);
+                              }
                               setEditingPlan(null);
                               setPlanName("Lifetime");
                               setPlanAccessType("lifetime");

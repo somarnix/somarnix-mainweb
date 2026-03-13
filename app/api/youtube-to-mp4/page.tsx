@@ -1,18 +1,9 @@
 "use client";
 
 import { useState } from "react";
-import { Button } from "@/components/ui/button";
-import { Card, CardContent } from "@/components/ui/card";
+import { Button } from "@/app/components/ui/button";
+import { Card, CardContent } from "@/app/components/ui/card";
 import { Download, Play } from "lucide-react";
-import Header, { MenuItem } from "@/components/Header";
-
-// Menu réutilisé
-const menu: MenuItem[] = [
-  { title: "Script Tools" },
-  { title: "Podcast Tools" },
-  { title: "Pro Accounts", sub: ["Capcut Pro", "Express VPN", "ChatGPT Pro"] },
-  { title: "Background Sounds" },
-];
 
 export default function YoutubeToMp4() {
   const [url, setUrl] = useState("");
@@ -49,27 +40,21 @@ export default function YoutubeToMp4() {
   };
 
   return (
-    <div className="relative min-h-screen flex bg-gray-900 text-white font-sans">
-      {/* Header global */}
-      <Header menu={menu} />
-
-      {/* Main content */}
-      <main className="flex-1 flex flex-col items-center px-6 py-24 md:py-12 pt-[4rem] md:pt-12">
-        {/* Hero */}
-        <h1 className="text-5xl font-bold mb-4 text-center">YouTube to MP4</h1>
-        <p className="text-gray-300 mb-8 max-w-2xl text-center">
+    <main className="min-h-screen bg-gray-900 px-6 py-12 text-white">
+      <div className="mx-auto flex max-w-3xl flex-col items-center">
+        <h1 className="mb-4 text-center text-5xl font-bold">YouTube to MP4</h1>
+        <p className="mb-8 max-w-2xl text-center text-gray-300">
           Paste your YouTube video URL and download it as MP4 instantly.
         </p>
 
-        {/* Input URL */}
-        <Card className="bg-zinc-800 border-zinc-700 w-full max-w-xl mb-6">
+        <Card className="mb-6 w-full max-w-xl border-zinc-700 bg-zinc-800">
           <CardContent className="flex flex-col items-center p-6">
             <input
               type="text"
               placeholder="Paste YouTube URL here"
               value={url}
               onChange={(e) => setUrl(e.target.value)}
-              className="mb-4 w-full px-4 py-2 rounded bg-zinc-900 border border-zinc-700 text-white"
+              className="mb-4 w-full rounded border border-zinc-700 bg-zinc-900 px-4 py-2 text-white"
             />
             <Button size="lg" onClick={handleGenerate} disabled={loading || !url}>
               <Play className="mr-2" /> {loading ? "Starting..." : "Download MP4"}
@@ -77,14 +62,12 @@ export default function YoutubeToMp4() {
           </CardContent>
         </Card>
 
-        {/* Status message */}
         {statusMessage && <p className="mb-4 text-gray-300">{statusMessage}</p>}
 
-        {/* Download Link */}
         {downloadLink && (
-          <Card className="bg-zinc-800 border-zinc-700 w-full max-w-xl">
+          <Card className="w-full max-w-xl border-zinc-700 bg-zinc-800">
             <CardContent className="flex flex-col items-center">
-              <h2 className="text-2xl font-semibold mb-2">Download ready</h2>
+              <h2 className="mb-2 text-2xl font-semibold">Download ready</h2>
               <a
                 href={downloadLink}
                 className="flex items-center gap-2 text-indigo-400 hover:text-indigo-300"
@@ -96,7 +79,7 @@ export default function YoutubeToMp4() {
             </CardContent>
           </Card>
         )}
-      </main>
-    </div>
+      </div>
+    </main>
   );
 }

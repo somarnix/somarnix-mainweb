@@ -473,14 +473,15 @@ export function ProfilePage({ onNavigate, onOpenProductDetail, onOpenToolDetail,
   const startEditing = () => {
     if (!user) return;
     const full = `${user.firstName ?? ""} ${user.lastName ?? ""}`.trim();
-    const match = user.phone ? findCountryFromPhone(user.phone) : null;
+    const userPhone = user.phone || "";
+    const match = userPhone ? findCountryFromPhone(userPhone) : null;
     if (match) {
       setSelectedCountry(match.country);
       saveCountryToStorage(match.country);
     }
     const phoneNumber = match
-      ? user.phone.replace(/[^\d+]/g, "").slice(match.dial.length)
-      : user.phone || "";
+      ? userPhone.replace(/[^\d+]/g, "").slice(match.dial.length)
+      : userPhone;
     setEditForm({
       name: full || user.username || "",
       bio: user.bio || "",

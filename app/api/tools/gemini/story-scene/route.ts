@@ -85,6 +85,9 @@ export async function POST(req: Request) {
       },
     ],
   };
+  if (!geminiKey) {
+    return NextResponse.json({ error: "Gemini API key is missing" }, { status: 500 });
+  }
 
   const res = await fetch(
     `https://generativelanguage.googleapis.com/v1beta/models/${geminiModel}:generateContent`,
