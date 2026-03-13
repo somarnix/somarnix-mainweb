@@ -23,10 +23,7 @@ export function normalizePresence(
 ): PresenceInfo | undefined {
   const status = source?.status ?? fallbackStatus ?? null;
   const rawLastActive = source?.lastActiveAt ?? fallbackLastActive ?? null;
-  const lastActive =
-    rawLastActive instanceof Date
-      ? rawLastActive.toISOString()
-      : rawLastActive;
+  const lastActive = rawLastActive;
   if (!status && !lastActive) {
     return undefined;
   }

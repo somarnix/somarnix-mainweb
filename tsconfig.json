@@ -28,7 +28,8 @@
     "**/*.tsx",
     ".next/types/**/*.ts",
     ".next/dev/types/**/*.ts",
-    "**/*.mts"
-, "app/api/test-db/route.ts"  ],
-  "exclude": ["node_modules"]
+    "**/*.mts",
+    "app/api/test-db/route.ts"
+  ],
+  "exclude": ["node_modules", "ChatPage_from_map.tsx"]
 }

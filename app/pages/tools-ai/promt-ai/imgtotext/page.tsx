@@ -187,7 +187,7 @@ export default function ImgToTextPage() {
                     colors: normalizeUnknown(String(item?.colors || "")),
                   };
                 })
-                .filter((item) => item.description.trim().length > 0)
+                .filter((item: CharacterItem) => item.description.trim().length > 0)
                 .slice(0, declaredCount)
             );
           }
@@ -206,7 +206,7 @@ export default function ImgToTextPage() {
                   condition: scrub(String(item?.condition || "")),
                   colors: scrub(String(item?.colors || "")),
                 }))
-                .filter((item) => item.description.trim().length > 0)
+                .filter((item: ObjectItem) => item.description.trim().length > 0)
                 .slice(0, declaredCount)
             );
           }
@@ -363,7 +363,7 @@ export default function ImgToTextPage() {
               title: String(item?.title || "").trim(),
               story: String(item?.story || "").trim(),
             }))
-            .filter((item) => item.title || item.story)
+            .filter((item: { title: string; story: string }) => item.title || item.story)
             .slice(0, 5)
         );
       } else {

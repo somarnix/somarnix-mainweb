@@ -50,7 +50,7 @@ export function QRPaymentModal({
   ];
 
   const [paymentInfo, setPaymentInfo] = useState<PaymentInfo>({
-    userId: user?.id || '',
+    userId: user?.id != null ? String(user.id) : '',
     accountName: '',
     accountNumber: '',
     paymentApv: '',
@@ -58,7 +58,10 @@ export function QRPaymentModal({
     dateTimePay: ''
   });
   useEffect(() => {
-    setPaymentInfo((prev) => ({ ...prev, userId: user?.id || '' }));
+    setPaymentInfo((prev) => ({
+      ...prev,
+      userId: user?.id != null ? String(user.id) : '',
+    }));
   }, [user?.id]);
 
   const resolvedKhQr = khqrUrl && khqrUrl.trim() ? khqrUrl : DEFAULT_KH_QR;
@@ -68,6 +71,8 @@ export function QRPaymentModal({
     usdQrUrl.trim().toLowerCase() !== 'none'
       ? usdQrUrl
       : null;
+  const userDisplayName =
+    user?.firstName?.trim() || user?.username?.trim() || user?.email?.trim() || 'User';
   const [activeQrType, setActiveQrType] = useState<'khqr' | 'usdqr'>(
     resolvedKhQr ? 'khqr' : 'usdqr'
   );
@@ -205,7 +210,7 @@ export function QRPaymentModal({
                       </div>
                       <div className="flex-1">
                         <div className="font-bold text-gray-900 dark:text-white">
-                          {user.name}
+                          {userDisplayName}
                         </div>
                         <div className="text-sm text-gray-600 dark:text-gray-400">
                           {language === 'km' ? 'អត្តសញ្ញាណ' : 'User ID'}: {user.id}

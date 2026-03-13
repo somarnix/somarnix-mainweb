@@ -114,7 +114,10 @@ export function AllPage({ onOpenProductDetail }: { onOpenProductDetail: (slug: s
   );
 
   /* ================= CONTENT TYPES ================= */
-  const contentTypes = [
+  const contentTypes: Array<{
+    id: "all" | "ai" | "program" | "game" | "tools";
+    label: string;
+  }> = [
     { id: "all", label: t("filters.all") },
     { id: "ai", label: t("filters.ai") },
     { id: "program", label: t("filters.programs") },

@@ -491,10 +491,7 @@ export function VideoDetailPage({
       return;
     }
 
-    const label =
-      type === "course"
-        ? `Course plan - ${plan.name}`
-        : `Subscription - ${plan.name}`;
+    const label = `Subscription - ${plan.name}`;
 
     if (price <= 0) {
       await submitPurchase(type, plan.id, {

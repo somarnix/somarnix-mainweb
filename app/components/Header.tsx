@@ -189,6 +189,8 @@ export function Header({
   const activePartyName = chatWidgetActive
     ? resolveDisplayName(activeParty?.name, activeParty?.email) ?? activePartyFallback
     : null;
+  const accountDisplayName =
+    user?.firstName?.trim() || user?.username?.trim() || user?.email?.trim() || "User";
   const activePartyInitials =
     activePartyName?.slice(0, 2).toUpperCase() ??
     activePartyFallback.slice(0, 2).toUpperCase();
@@ -1500,9 +1502,7 @@ const getChatNoteBadgeClass = (result?: string | null) => {
                         </div>
                       ) : (
                         filteredChatWidgetConversations.map((conv) => {
-                          const isActive =
-                            chatWidgetActive !== null &&
-                            chatWidgetActive.orderId === conv.orderId;
+                          const isActive = false;
                           const counterpart = isAdmin ? conv.buyer : conv.seller;
                           const fallbackLabel = isAdmin
                             ? fallbackBuyerLabel
@@ -2133,7 +2133,7 @@ const getChatNoteBadgeClass = (result?: string | null) => {
                   {user.avatarUrl ? (
                     <img
                       src={user.avatarUrl}
-                      alt={user.name}
+                      alt={accountDisplayName}
                       className="w-8 h-8 rounded-full ring-2 ring-blue-500 object-cover"
                     />
                   ) : (
@@ -2159,7 +2159,7 @@ const getChatNoteBadgeClass = (result?: string | null) => {
                     <div className="absolute right-0 mt-2 w-48 bg-blue-600 dark:bg-blue-700 rounded-lg shadow-2xl overflow-hidden z-40">
                       {/* User Info Header */}
                       <div className="px-4 py-3 bg-blue-700 dark:bg-blue-800 border-b border-blue-500">
-                        <div className="text-xs font-bold text-white truncate">{user.name}</div>
+                        <div className="text-xs font-bold text-white truncate">{accountDisplayName}</div>
                         <div className="text-xs text-blue-200 truncate">
                           {language === 'km' ? 'អត្តសញ្ញាណ' : 'User ID'}: {user.id}
                         </div>
@@ -2229,7 +2229,7 @@ const getChatNoteBadgeClass = (result?: string | null) => {
                   {user.avatarUrl ? (
                     <img
                       src={user.avatarUrl}
-                      alt={user.name}
+                      alt={accountDisplayName}
                       className="w-8 h-8 rounded-full ring-2 ring-blue-500 object-cover"
                     />
                   ) : (

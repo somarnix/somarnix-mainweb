@@ -3,6 +3,13 @@ import { createContext, useContext, useState, useEffect, ReactNode } from 'react
 
 export type OrderStatus = 'pending' | 'approved' | 'delivering' | 'completed' | 'cancelled' | 'resolution';
 
+type Course = {
+  id?: string | number;
+  title?: string;
+  image?: string;
+  [key: string]: unknown;
+};
+
 export interface OrderItem {
   course: Course;
   duration: string;
