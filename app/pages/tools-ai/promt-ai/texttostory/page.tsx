@@ -590,7 +590,7 @@ export default function TextToStoryPage() {
             title: String(item?.title || "").trim(),
             one_line: String(item?.one_line || "").trim(),
           }))
-          .filter((item) => item.title || item.one_line)
+          .filter((item: { title: string; one_line: string }) => item.title || item.one_line)
           .slice(0, 1);
 
         if (normalized.length === 0) {

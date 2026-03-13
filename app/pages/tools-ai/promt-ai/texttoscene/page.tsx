@@ -748,7 +748,7 @@ export default function StoryToScenePage() {
         body: JSON.stringify({
           model: "instant",
           sceneCount,
-          prompt: buildPrompt(),
+          prompt: buildPrompt(1, sceneCount, ""),
         }),
       });
       const data = await res.json().catch(() => null);
