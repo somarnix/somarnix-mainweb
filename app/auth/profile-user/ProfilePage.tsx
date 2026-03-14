@@ -148,6 +148,19 @@ type LoginDeviceItem = {
   lastSeenAt: string | null;
 };
 
+type ApiKeyProviderId = "groq" | "openai" | "google" | "deepl";
+
+type ApiKeyStatus = {
+  configured: boolean;
+  masked: string | null;
+};
+
+type ApiKeysState = Record<ApiKeyProviderId, ApiKeyStatus>;
+
+type ApiKeysResponse = {
+  apiKeys?: Partial<ApiKeysState>;
+};
+
 const ITEMS_PER_PAGE = 5;
 const AVATARS: string[] = ["/Job Jik.jpg", "/Mrrecaps.png", "/Nut Roth Logo.png", "/Nut Roth.jpg"];
 
@@ -176,6 +189,13 @@ const STATUS_COLORS: Record<OrderStateKey, string> = {
   completed: "bg-emerald-500",
   cancelled: "bg-rose-500",
   resolution: "bg-purple-500",
+};
+
+const EMPTY_API_KEYS: ApiKeysState = {
+  groq: { configured: false, masked: null },
+  openai: { configured: false, masked: null },
+  google: { configured: false, masked: null },
+  deepl: { configured: false, masked: null },
 };
 
 const mapStateCounts = (
@@ -376,6 +396,17 @@ export function ProfilePage({ onNavigate, onOpenProductDetail, onOpenToolDetail,
   const [sendingOtp, setSendingOtp] = useState(false);
   const [removingDevice, setRemovingDevice] = useState(false);
   const [currentLoginDeviceId, setCurrentLoginDeviceId] = useState<string | null>(null);
+  const [apiKeys, setApiKeys] = useState<ApiKeysState>(EMPTY_API_KEYS);
+  const [apiKeyInputs, setApiKeyInputs] = useState<Record<ApiKeyProviderId, string>>({
+    groq: "",
+    openai: "",
+    google: "",
+    deepl: "",
+  });
+  const [apiKeysLoading, setApiKeysLoading] = useState(false);
+  const [apiKeysSaving, setApiKeysSaving] = useState(false);
+  const [apiKeysError, setApiKeysError] = useState<string | null>(null);
+  const [apiKeysMessage, setApiKeysMessage] = useState<string | null>(null);
 
   const translate = useCallback(
     (key: string, fallback: string) => {
@@ -419,6 +450,59 @@ export function ProfilePage({ onNavigate, onOpenProductDetail, onOpenToolDetail,
       });
     },
     [language]
+  );
+
+  const apiKeyProviders = useMemo(
+    () =>
+      [
+        {
+          id: "groq" as const,
+          label: "Groq",
+          placeholder: "gsk_...",
+          description: translate(
+            "profile.apiKeys.groq",
+            "Used for story, outline, and story-to-scene generation."
+          ),
+        },
+        {
+          id: "openai" as const,
+          label: "OpenAI",
+          placeholder: "sk-...",
+          description: translate(
+            "profile.apiKeys.openai",
+            "Used for OpenAI vision/image understanding tools."
+          ),
+        },
+        {
+          id: "google" as const,
+          label: "Google / Gemini",
+          placeholder: "AIza...",
+          description: translate(
+            "profile.apiKeys.google",
+            "Used for Gemini text, image, and translation features."
+          ),
+        },
+        {
+          id: "deepl" as const,
+          label: "DeepL",
+          placeholder: "your-deepl-key",
+          description: translate(
+            "profile.apiKeys.deepl",
+            "Used for DeepL subtitle translation."
+          ),
+        },
+      ] satisfies Array<{
+        id: ApiKeyProviderId;
+        label: string;
+        placeholder: string;
+        description: string;
+      }>,
+    [translate]
+  );
+
+  const hasPendingApiKeyChanges = useMemo(
+    () => Object.values(apiKeyInputs).some((value) => value.trim().length > 0),
+    [apiKeyInputs]
   );
 
   const goToProduct = useCallback(
@@ -775,6 +859,118 @@ export function ProfilePage({ onNavigate, onOpenProductDetail, onOpenToolDetail,
     [currentLoginDeviceId, fetchLoginDevices, otpCode]
   );
 
+  const fetchApiKeys = useCallback(async () => {
+    setApiKeysLoading(true);
+    setApiKeysError(null);
+    try {
+      const res = await fetch("/api/me/api-keys", {
+        cache: "no-store",
+        credentials: "include",
+      });
+      const data = (await res.json().catch(() => ({}))) as ApiKeysResponse & { error?: string };
+      if (!res.ok) {
+        throw new Error(data?.error || "Failed to load API keys");
+      }
+      setApiKeys({
+        groq: data.apiKeys?.groq ?? EMPTY_API_KEYS.groq,
+        openai: data.apiKeys?.openai ?? EMPTY_API_KEYS.openai,
+        google: data.apiKeys?.google ?? EMPTY_API_KEYS.google,
+        deepl: data.apiKeys?.deepl ?? EMPTY_API_KEYS.deepl,
+      });
+    } catch (error) {
+      const message = error instanceof Error ? error.message : String(error);
+      setApiKeysError(message || "Failed to load API keys.");
+    } finally {
+      setApiKeysLoading(false);
+    }
+  }, []);
+
+  const saveApiKeys = useCallback(async () => {
+    const payload: Record<string, string> = {};
+    (Object.keys(apiKeyInputs) as ApiKeyProviderId[]).forEach((provider) => {
+      const value = apiKeyInputs[provider].trim();
+      if (!value) return;
+      payload[`${provider}ApiKey`] = value;
+    });
+
+    if (Object.keys(payload).length === 0) return;
+
+    setApiKeysSaving(true);
+    setApiKeysError(null);
+    setApiKeysMessage(null);
+    try {
+      const res = await fetch("/api/me/api-keys", {
+        method: "PUT",
+        headers: { "Content-Type": "application/json" },
+        credentials: "include",
+        body: JSON.stringify(payload),
+      });
+      const data = (await res.json().catch(() => ({}))) as ApiKeysResponse & { error?: string };
+      if (!res.ok) {
+        throw new Error(data?.error || "Failed to save API keys");
+      }
+      setApiKeys({
+        groq: data.apiKeys?.groq ?? EMPTY_API_KEYS.groq,
+        openai: data.apiKeys?.openai ?? EMPTY_API_KEYS.openai,
+        google: data.apiKeys?.google ?? EMPTY_API_KEYS.google,
+        deepl: data.apiKeys?.deepl ?? EMPTY_API_KEYS.deepl,
+      });
+      setApiKeyInputs({
+        groq: "",
+        openai: "",
+        google: "",
+        deepl: "",
+      });
+      setApiKeysMessage(
+        translate(
+          "profile.apiKeys.saved",
+          "Your personal API keys were saved. New requests will use them first."
+        )
+      );
+    } catch (error) {
+      const message = error instanceof Error ? error.message : String(error);
+      setApiKeysError(message || "Failed to save API keys.");
+    } finally {
+      setApiKeysSaving(false);
+    }
+  }, [apiKeyInputs, translate]);
+
+  const removeApiKey = useCallback(
+    async (provider: ApiKeyProviderId) => {
+      setApiKeysSaving(true);
+      setApiKeysError(null);
+      setApiKeysMessage(null);
+      try {
+        const res = await fetch("/api/me/api-keys", {
+          method: "PUT",
+          headers: { "Content-Type": "application/json" },
+          credentials: "include",
+          body: JSON.stringify({ [`${provider}ApiKey`]: null }),
+        });
+        const data = (await res.json().catch(() => ({}))) as ApiKeysResponse & { error?: string };
+        if (!res.ok) {
+          throw new Error(data?.error || "Failed to remove API key");
+        }
+        setApiKeys({
+          groq: data.apiKeys?.groq ?? EMPTY_API_KEYS.groq,
+          openai: data.apiKeys?.openai ?? EMPTY_API_KEYS.openai,
+          google: data.apiKeys?.google ?? EMPTY_API_KEYS.google,
+          deepl: data.apiKeys?.deepl ?? EMPTY_API_KEYS.deepl,
+        });
+        setApiKeyInputs((prev) => ({ ...prev, [provider]: "" }));
+        setApiKeysMessage(
+          translate("profile.apiKeys.removed", "The saved API key was removed.")
+        );
+      } catch (error) {
+        const message = error instanceof Error ? error.message : String(error);
+        setApiKeysError(message || "Failed to remove API key.");
+      } finally {
+        setApiKeysSaving(false);
+      }
+    },
+    [translate]
+  );
+
   useEffect(() => {
     setCurrentLoginDeviceId(getLoginDeviceId());
   }, [getLoginDeviceId]);
@@ -783,6 +979,11 @@ export function ProfilePage({ onNavigate, onOpenProductDetail, onOpenToolDetail,
     if (!user || activeTab !== "settings") return;
     fetchLoginDevices();
   }, [activeTab, fetchLoginDevices, user]);
+
+  useEffect(() => {
+    if (!user || activeTab !== "settings") return;
+    fetchApiKeys();
+  }, [activeTab, fetchApiKeys, user]);
 
   useEffect(() => {
     if (!user) {
@@ -2235,6 +2436,121 @@ export function ProfilePage({ onNavigate, onOpenProductDetail, onOpenToolDetail,
                   </p>
                 </div>
               )}
+            </div>
+
+            <div className="bg-white dark:bg-gray-800 rounded-2xl p-6 shadow border border-gray-100 dark:border-gray-700 mb-6">
+              <div className="flex items-start gap-3">
+                <div className="p-2 rounded-full bg-blue-100 text-blue-600">
+                  <Shield className="w-5 h-5" />
+                </div>
+                <div className="min-w-0">
+                  <h3 className="font-semibold text-gray-900 dark:text-white">
+                    {translate("profile.apiKeys.title", "Personal API keys")}
+                  </h3>
+                  <p className="text-sm text-gray-500">
+                    {translate(
+                      "profile.apiKeys.description",
+                      "Save your own Groq, OpenAI, Google, or DeepL key. Your requests will use your saved key first, then fall back to the website default if you have not set one."
+                    )}
+                  </p>
+                </div>
+              </div>
+
+              {!!apiKeysMessage && (
+                <div className="mt-4 rounded-lg border border-emerald-200 bg-emerald-50 px-3 py-2 text-sm text-emerald-700">
+                  {apiKeysMessage}
+                </div>
+              )}
+              {!!apiKeysError && (
+                <div className="mt-4 rounded-lg border border-red-200 bg-red-50 px-3 py-2 text-sm text-red-700">
+                  {apiKeysError}
+                </div>
+              )}
+
+              <div className="mt-4 grid gap-4 md:grid-cols-2">
+                {apiKeyProviders.map((provider) => {
+                  const current = apiKeys[provider.id];
+                  return (
+                    <div
+                      key={provider.id}
+                      className="rounded-xl border border-gray-200 bg-gray-50 p-4 dark:border-gray-700 dark:bg-gray-900"
+                    >
+                      <div className="flex items-start justify-between gap-3">
+                        <div className="min-w-0">
+                          <div className="font-semibold text-gray-900 dark:text-white">
+                            {provider.label}
+                          </div>
+                          <p className="mt-1 text-xs text-gray-500">
+                            {provider.description}
+                          </p>
+                          <p className="mt-2 text-xs text-gray-500">
+                            {current.configured
+                              ? `${translate("profile.apiKeys.savedAs", "Saved as")}: ${current.masked || "****"}`
+                              : translate("profile.apiKeys.notSaved", "No personal key saved yet.")}
+                          </p>
+                        </div>
+                        {current.configured ? (
+                          <Button
+                            type="button"
+                            size="sm"
+                            variant="outline"
+                            onClick={() => void removeApiKey(provider.id)}
+                            disabled={apiKeysSaving}
+                          >
+                            {translate("profile.apiKeys.remove", "Remove")}
+                          </Button>
+                        ) : null}
+                      </div>
+
+                      <Input
+                        type="password"
+                        value={apiKeyInputs[provider.id]}
+                        onChange={(e) =>
+                          setApiKeyInputs((prev) => ({
+                            ...prev,
+                            [provider.id]: e.target.value,
+                          }))
+                        }
+                        placeholder={provider.placeholder}
+                        className="mt-3"
+                      />
+                    </div>
+                  );
+                })}
+              </div>
+
+              <div className="mt-4 flex flex-wrap items-center gap-3">
+                <Button
+                  type="button"
+                  onClick={() => void saveApiKeys()}
+                  disabled={apiKeysSaving || !hasPendingApiKeyChanges}
+                >
+                  {apiKeysSaving
+                    ? translate("profile.saving", "Saving...")
+                    : translate("profile.apiKeys.save", "Save API keys")}
+                </Button>
+                <Button
+                  type="button"
+                  variant="outline"
+                  onClick={() =>
+                    setApiKeyInputs({
+                      groq: "",
+                      openai: "",
+                      google: "",
+                      deepl: "",
+                    })
+                  }
+                  disabled={apiKeysSaving}
+                >
+                  {translate("profile.cancel", "Cancel")}
+                </Button>
+                {apiKeysLoading ? (
+                  <span className="inline-flex items-center gap-2 text-sm text-gray-500">
+                    <Loader2 className="h-4 w-4 animate-spin" />
+                    {translate("profile.loading", "Loading...")}
+                  </span>
+                ) : null}
+              </div>
             </div>
 
             <div className="grid gap-6 md:grid-cols-2">

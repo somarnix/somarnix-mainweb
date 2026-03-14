@@ -1,5 +1,7 @@
 import { NextResponse } from "next/server";
 
+import { resolveApiKeyFromRequest } from "@/lib/user-api-keys";
+
 const GROQ_MODEL_MAP: Record<string, string> = {
   instant: "llama-3.1-8b-instant",
   versatile: "llama-3.1-70b-versatile",
@@ -12,8 +14,12 @@ const GEMINI_MODEL_MAP: Record<string, string> = {
 };
 
 export async function POST(req: Request) {
-  const groqKey = process.env.GROQ_API_KEY;
-  const geminiKey = process.env.GOOGLE_API_KEY || process.env.GEMINI_API_KEY;
+  const groqKey = await resolveApiKeyFromRequest(req, "groq", process.env.GROQ_API_KEY || null);
+  const geminiKey = await resolveApiKeyFromRequest(
+    req,
+    "google",
+    process.env.GOOGLE_API_KEY || process.env.GEMINI_API_KEY || null
+  );
   if (!groqKey && !geminiKey) {
     return NextResponse.json(
       { error: "Missing GROQ_API_KEY (or GOOGLE_API_KEY for Gemini fallback)." },

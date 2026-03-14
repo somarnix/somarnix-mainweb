@@ -1,5 +1,7 @@
 import { NextResponse } from "next/server";
 
+import { resolveApiKeyFromRequest } from "@/lib/user-api-keys";
+
 const SIZE_MAP: Record<string, string> = {
   "256": "1K",
   "512": "1K",
@@ -10,7 +12,11 @@ const SIZE_MAP: Record<string, string> = {
 };
 
 export async function POST(req: Request) {
-  const apiKey = process.env.GOOGLE_API_KEY || process.env.GEMINI_API_KEY;
+  const apiKey = await resolveApiKeyFromRequest(
+    req,
+    "google",
+    process.env.GOOGLE_API_KEY || process.env.GEMINI_API_KEY || null
+  );
   if (!apiKey) {
     return NextResponse.json(
       { error: "Gemini Imagen requires GOOGLE_API_KEY. Groq does not support image generation." },

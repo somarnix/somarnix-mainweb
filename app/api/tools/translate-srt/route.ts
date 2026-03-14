@@ -1,5 +1,7 @@
 import { NextResponse } from "next/server";
 
+import { resolveApiKeyFromRequest } from "@/lib/user-api-keys";
+
 type Row = {
   id: number;
   start: string;
@@ -12,6 +14,22 @@ type Body = {
   provider?: string;
   targetLanguage?: string;
   rows?: Row[];
+};
+
+type GoogleTranslateChunk = [string?, string?];
+
+type DeepLTranslation = {
+  text?: string;
+};
+
+type GeminiPart = {
+  text?: string;
+};
+
+type GeminiCandidate = {
+  content?: {
+    parts?: Array<GeminiPart | string>;
+  };
 };
 
 const normalizeDeeplTarget = (code: string) => {
@@ -45,9 +63,12 @@ export async function POST(req: Request) {
       `&sl=auto&tl=${encodeURIComponent(target)}&dt=t&q=${encodeURIComponent(cleaned)}`;
     const res = await fetch(url);
     if (!res.ok) throw new Error("Translate request failed");
-    const data = (await res.json().catch(() => null)) as any;
+    const data = (await res.json().catch(() => null)) as unknown;
     if (!Array.isArray(data) || !Array.isArray(data[0])) return cleaned;
-    return data[0].map((chunk: any) => chunk?.[0]).filter(Boolean).join("");
+    return (data[0] as GoogleTranslateChunk[])
+      .map((chunk) => chunk?.[0])
+      .filter((chunk): chunk is string => Boolean(chunk))
+      .join("");
   };
 
   if (provider === "google-free") {
@@ -64,7 +85,7 @@ export async function POST(req: Request) {
   }
 
   if (provider === "deepl") {
-    const apiKey = process.env.DEEPL_API_KEY;
+    const apiKey = await resolveApiKeyFromRequest(req, "deepl", process.env.DEEPL_API_KEY || null);
     if (!apiKey) {
       return NextResponse.json(
         { error: "Missing DeepL API key. Set DEEPL_API_KEY." },
@@ -94,9 +115,11 @@ export async function POST(req: Request) {
         throw new Error(errText || "DeepL translate failed");
       }
 
-      const data = (await res.json().catch(() => null)) as any;
+      const data = (await res.json().catch(() => null)) as {
+        translations?: DeepLTranslation[];
+      } | null;
       const translations = Array.isArray(data?.translations) ? data.translations : [];
-      return translations.map((t: any) => String(t?.text ?? ""));
+      return translations.map((translation) => String(translation?.text ?? ""));
     };
 
     try {
@@ -125,7 +148,11 @@ export async function POST(req: Request) {
   }
 
   if (provider === "gemini") {
-    const apiKey = process.env.GOOGLE_API_KEY || process.env.GEMINI_API_KEY;
+    const apiKey = await resolveApiKeyFromRequest(
+      req,
+      "google",
+      process.env.GOOGLE_API_KEY || process.env.GEMINI_API_KEY || null
+    );
     if (!apiKey) {
       return NextResponse.json(
         { error: "Missing GEMINI API key. Set GOOGLE_API_KEY or GEMINI_API_KEY." },
@@ -172,11 +199,12 @@ export async function POST(req: Request) {
         throw new Error(errText || `Gemini translate failed (${model})`);
       }
 
-      const data = (await res.json().catch(() => null)) as any;
+      const data = (await res.json().catch(() => null)) as {
+        candidates?: GeminiCandidate[];
+      } | null;
+      const firstPart = data?.candidates?.[0]?.content?.parts?.[0];
       const text =
-        data?.candidates?.[0]?.content?.parts?.[0]?.text ??
-        data?.candidates?.[0]?.content?.parts?.[0] ??
-        "";
+        typeof firstPart === "string" ? firstPart : String(firstPart?.text ?? "");
       if (!text) return batch.map((r) => r.original || "");
 
       try {

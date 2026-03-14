@@ -1,5 +1,7 @@
 import { NextResponse } from "next/server";
 
+import { resolveApiKeyFromRequest } from "@/lib/user-api-keys";
+
 const GEMINI_MODEL_MAP: Record<string, string> = {
   "flash-lite": "gemini-2.5-flash-lite",
   flash: "gemini-2.5-flash",
@@ -12,8 +14,12 @@ const GROQ_MODEL_MAP: Record<string, string> = {
 };
 
 export async function POST(req: Request) {
-  const groqKey = process.env.GROQ_API_KEY;
-  const geminiKey = process.env.GOOGLE_API_KEY || process.env.GEMINI_API_KEY;
+  const groqKey = await resolveApiKeyFromRequest(req, "groq", process.env.GROQ_API_KEY || null);
+  const geminiKey = await resolveApiKeyFromRequest(
+    req,
+    "google",
+    process.env.GOOGLE_API_KEY || process.env.GEMINI_API_KEY || null
+  );
   if (!groqKey && !geminiKey) {
     return NextResponse.json(
       { error: "Missing GROQ_API_KEY (or GOOGLE_API_KEY for Gemini fallback)." },

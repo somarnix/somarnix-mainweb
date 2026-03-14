@@ -1,12 +1,18 @@
 import { NextResponse } from "next/server";
 
+import { resolveApiKeyFromRequest } from "@/lib/user-api-keys";
+
 const MODEL_MAP: Record<string, string> = {
   "flash-lite": "gemini-2.5-flash-lite",
   flash: "gemini-2.5-flash",
 };
 
 export async function POST(req: Request) {
-  const apiKey = process.env.GOOGLE_API_KEY || process.env.GEMINI_API_KEY;
+  const apiKey = await resolveApiKeyFromRequest(
+    req,
+    "google",
+    process.env.GOOGLE_API_KEY || process.env.GEMINI_API_KEY || null
+  );
   if (!apiKey) {
     return NextResponse.json(
       { error: "Gemini Vision requires GOOGLE_API_KEY. Groq does not support vision." },

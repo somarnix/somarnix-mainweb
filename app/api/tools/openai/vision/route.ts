@@ -1,12 +1,14 @@
 import { NextResponse } from "next/server";
 
+import { resolveApiKeyFromRequest } from "@/lib/user-api-keys";
+
 const MODEL_MAP: Record<string, string> = {
   "4.1-mini": "gpt-4.1-mini",
   "4.1": "gpt-4.1",
 };
 
 export async function POST(req: Request) {
-  const apiKey = process.env.OPENAI_API_KEY;
+  const apiKey = await resolveApiKeyFromRequest(req, "openai", process.env.OPENAI_API_KEY || null);
   if (!apiKey) {
     return NextResponse.json(
       { error: "Missing OPENAI_API_KEY" },
