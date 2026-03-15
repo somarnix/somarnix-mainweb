@@ -290,7 +290,7 @@ export default function ProductDetailPage({
 
     const load = async () => {
       try {
-        const res = await fetch(`/api/products/${slug}`);
+        const res = await fetch(`/api/products/${slug}`, { cache: "no-store" });
 
         if (!res.ok) {
           if (res.status === 404) {
@@ -410,7 +410,9 @@ export default function ProductDetailPage({
 
     const loadRelated = async () => {
       try {
-        const res = await fetch(`/api/products/${product.slug}/related`);
+        const res = await fetch(`/api/products/${product.slug}/related`, {
+          cache: "no-store",
+        });
         if (!res.ok) throw new Error("FAILED_RELATED");
 
         const data = (await res.json()) as unknown;
@@ -612,6 +614,7 @@ export default function ProductDetailPage({
           product={{ id: product.id, title: product.title }}
           variants={modalVariants}
           orderFields={parseOrderFields(product.order_fields_json)}
+          allowQuantity={String(product.mode ?? "inventory") !== "license"}
           onClose={() => setShowAddModal(false)}
           onAdded={() => {
             onCartChanged?.();           // ✅ refresh header cart badge

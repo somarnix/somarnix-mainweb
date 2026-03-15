@@ -120,6 +120,18 @@ export async function POST(req: Request) {
     [orderId, auth.userId, planId, accessStart, accessEnd]
   );
 
+  try {
+    await db.query<ResultSetHeader>(
+      `UPDATE orders SET payment_state = 'waiting' WHERE id = ?`,
+      [orderId]
+    );
+  } catch (err) {
+    const message = err instanceof Error ? err.message.toLowerCase() : String(err).toLowerCase();
+    if (!(message.includes("unknown column") && message.includes("payment_state"))) {
+      throw err;
+    }
+  }
+
   return Response.json({
     success: true,
     orderId,

@@ -73,6 +73,8 @@ type LoginResult = {
   reason?:
     | "required"
     | "invalid"
+    | "two_factor_required"
+    | "rate_limited"
     | "deleted"
     | "banned"
     | "banned_until"
@@ -85,6 +87,13 @@ type LoginResult = {
   maxDevices?: number;
   email?: string;
   message?: string;
+  expiresInMinutes?: number;
+  retryAfterSeconds?: number;
+};
+
+type LoginOptions = {
+  verificationCode?: string;
+  trustDevice?: boolean;
 };
 
 type RegisterResult = {
@@ -98,7 +107,7 @@ type AuthContextType = {
   loading: boolean;
   isAuthenticated: boolean;
 
-  login: (email: string, password: string) => Promise<LoginResult>;
+  login: (email: string, password: string, options?: LoginOptions) => Promise<LoginResult>;
   loginWithGoogle: (credential: string) => Promise<LoginResult>;
   register: (
     firstName: string,
@@ -232,7 +241,11 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   }, []);
 
   /* 🔐 LOGIN */
-  const login = async (email: string, password: string): Promise<LoginResult> => {
+  const login = async (
+    email: string,
+    password: string,
+    options?: LoginOptions
+  ): Promise<LoginResult> => {
     try {
       const deviceId = getLoginDeviceId();
       const deviceName = getLoginDeviceName();
@@ -240,7 +253,14 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         credentials: "include",
-        body: JSON.stringify({ email, password, deviceId, deviceName }),
+        body: JSON.stringify({
+          email,
+          password,
+          deviceId,
+          deviceName,
+          verificationCode: options?.verificationCode,
+          trustDevice: options?.trustDevice === true,
+        }),
       });
 
       const data: unknown = await res.json().catch(() => null);
@@ -250,6 +270,30 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         const msg = getErrorMessage(parsed) ?? "Login failed";
         if (code === "ACCOUNT_DELETED") {
           return { success: false, reason: "deleted", message: msg };
+        }
+        if (code === "LOGIN_2FA_REQUIRED") {
+          const expiresInMinutes =
+            typeof parsed.expiresInMinutes === "number" && Number.isFinite(parsed.expiresInMinutes)
+              ? parsed.expiresInMinutes
+              : undefined;
+          return {
+            success: false,
+            reason: "two_factor_required",
+            message: msg,
+            expiresInMinutes,
+          };
+        }
+        if (code === "LOGIN_RATE_LIMITED") {
+          const retryAfterSeconds =
+            typeof parsed.retryAfterSeconds === "number" && Number.isFinite(parsed.retryAfterSeconds)
+              ? parsed.retryAfterSeconds
+              : undefined;
+          return {
+            success: false,
+            reason: "rate_limited",
+            message: msg,
+            retryAfterSeconds,
+          };
         }
         if (code === "ACCOUNT_BANNED_UNTIL") {
           const banUntil = typeof parsed.banUntil === "string" ? parsed.banUntil : undefined;

@@ -43,7 +43,7 @@ export function AiPage({ onOpenProductDetail }: { onOpenProductDetail: (slug: st
 
   /* ================= FETCH FROM DB ================= */
   useEffect(() => {
-    fetch("/api/products?category=ai")
+    fetch("/api/products?category=ai", { cache: "no-store" })
       .then((res) => res.json())
       .then((data) => setCourses(normalizeProductListResponse(data) as DbCourse[]))
       .finally(() => setLoading(false));
@@ -103,14 +103,11 @@ export function AiPage({ onOpenProductDetail }: { onOpenProductDetail: (slug: st
     }
   });
 
-  useEffect(() => {
-    setCurrentPage(1);
-  }, [selectedSlug, sortBy, slugQuery]);
-
   const totalPages = Math.max(1, Math.ceil(sortedCourses.length / itemsPerPage));
+  const visiblePage = Math.min(currentPage, totalPages);
   const pagedCourses = sortedCourses.slice(
-    (currentPage - 1) * itemsPerPage,
-    currentPage * itemsPerPage
+    (visiblePage - 1) * itemsPerPage,
+    visiblePage * itemsPerPage
   );
 
   /* ================= CATEGORIES ================= */
@@ -248,7 +245,7 @@ export function AiPage({ onOpenProductDetail }: { onOpenProductDetail: (slug: st
                   </div>
                 )}
                 <Pagination
-                  currentPage={currentPage}
+                  currentPage={visiblePage}
                   totalPages={totalPages}
                   onPageChange={setCurrentPage}
                   className="mt-6"

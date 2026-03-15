@@ -7,6 +7,10 @@
     "build": "next build",
     "build:flow-extension": "node scripts/build-flow-extension.mjs",
     "pack:flow-extension": "node scripts/pack-flow-extension.mjs",
+    "telegram:support-webhook": "node scripts/set-support-webhook.mjs",
+    "payway:worker": "tsx telegram_worker.ts",
+    "payway:summary": "tsx telegram_summary.ts",
+    "payway:summary-bot": "tsx telegram_summary_bot.ts",
     "start": "next start",
     "lint": "eslint"
   },
@@ -41,7 +45,9 @@
     "class-variance-authority": "^0.7.1",
     "clsx": "^2.1.1",
     "cmdk": "^1.1.1",
+    "dotenv": "^17.2.3",
     "embla-carousel-react": "^8.6.0",
+    "input": "^1.0.1",
     "input-otp": "^1.4.2",
     "jsonwebtoken": "^9.0.3",
     "jszip": "^3.10.1",
@@ -52,6 +58,7 @@
     "nodemailer": "^7.0.12",
     "puppeteer": "^24.39.0",
     "puppeteer-core": "^24.39.0",
+    "qrcode": "^1.5.4",
     "react": "19.2.3",
     "react-day-picker": "^9.14.0",
     "react-dom": "19.2.3",
@@ -62,6 +69,7 @@
     "sonner": "^2.0.7",
     "tailwind-merge": "^3.4.0",
     "tailwindcss-animate": "^1.0.7",
+    "telegram": "^2.26.22",
     "vaul": "^1.1.2"
   },
   "devDependencies": {
@@ -69,11 +77,13 @@
     "@types/jsonwebtoken": "^9.0.10",
     "@types/node": "^20",
     "@types/nodemailer": "^7.0.5",
+    "@types/qrcode": "^1.5.6",
     "@types/react": "^19",
     "@types/react-dom": "^19",
     "eslint": "^9",
     "eslint-config-next": "16.1.1",
     "tailwindcss": "^4",
+    "tsx": "^4.20.6",
     "typescript": "^5"
   }
 }

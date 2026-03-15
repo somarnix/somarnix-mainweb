@@ -27,9 +27,6 @@ export async function POST(req: Request) {
     const b = body as Record<string, unknown>;
     const courseId = Number(b.courseId);
     const planId = Number(b.planId);
-    const qtyRaw = Number(b.qty ?? 1);
-    const qty = Number.isFinite(qtyRaw) && qtyRaw > 0 ? Math.floor(qtyRaw) : 1;
-
     if (!Number.isFinite(courseId) || courseId <= 0) {
       return Response.json({ error: "courseId is required" }, { status: 400 });
     }
@@ -64,10 +61,10 @@ export async function POST(req: Request) {
       await db.query<ResultSetHeader>(
         `
         UPDATE video_course_cart_items
-        SET qty = GREATEST(qty, ?)
+        SET qty = 1
         WHERE id = ?
         `,
-        [qty, existRows[0].id]
+        [existRows[0].id]
       );
     } else {
       await db.query<ResultSetHeader>(
@@ -75,7 +72,7 @@ export async function POST(req: Request) {
         INSERT INTO video_course_cart_items (user_id, course_id, plan_id, qty)
         VALUES (?, ?, ?, ?)
         `,
-        [auth.userId, courseId, planId, qty]
+        [auth.userId, courseId, planId, 1]
       );
     }
 
@@ -83,11 +80,10 @@ export async function POST(req: Request) {
       success: true,
       courseId,
       planId,
-      qtyAdded: qty,
+      qtyAdded: 1,
     });
   } catch (err: unknown) {
     const message = err instanceof Error ? err.message : String(err);
     return Response.json({ error: "Server error", detail: message }, { status: 500 });
   }
 }
-

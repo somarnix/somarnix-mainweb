@@ -1,5 +1,6 @@
 import { db } from "@/lib/db";
 import { getAuthUser } from "@/lib/auth";
+import { ensureTrustedDeviceSchema, hasTable } from "@/lib/trusted-devices";
 import type { RowDataPacket } from "mysql2";
 
 type DeviceRow = RowDataPacket & {
@@ -7,21 +8,9 @@ type DeviceRow = RowDataPacket & {
   device_name: string | null;
   first_seen_at: string | Date | null;
   last_seen_at: string | Date | null;
+  trusted_until: string | Date | null;
+  device_action_locked_until: string | Date | null;
 };
-
-async function hasTable(table: string): Promise<boolean> {
-  const [rows] = await db.query<RowDataPacket[]>(
-    `
-    SELECT 1
-    FROM information_schema.tables
-    WHERE table_schema = DATABASE()
-      AND table_name = ?
-    LIMIT 1
-    `,
-    [table]
-  );
-  return rows.length > 0;
-}
 
 export async function GET(req: Request): Promise<Response> {
   try {
@@ -34,10 +23,11 @@ export async function GET(req: Request): Promise<Response> {
     if (!hasLoginDevices) {
       return Response.json({ devices: [] });
     }
+    await ensureTrustedDeviceSchema();
 
     const [rows] = await db.query<DeviceRow[]>(
       `
-      SELECT device_id, device_name, first_seen_at, last_seen_at
+      SELECT device_id, device_name, first_seen_at, last_seen_at, trusted_until, device_action_locked_until
       FROM user_login_devices
       WHERE user_id = ?
       ORDER BY last_seen_at DESC, id DESC
@@ -51,6 +41,8 @@ export async function GET(req: Request): Promise<Response> {
         deviceName: row.device_name ?? "Unknown device",
         firstSeenAt: row.first_seen_at ?? null,
         lastSeenAt: row.last_seen_at ?? null,
+        trustedUntil: row.trusted_until ?? null,
+        deviceActionLockedUntil: row.device_action_locked_until ?? null,
       })),
     });
   } catch (err) {
@@ -60,4 +52,3 @@ export async function GET(req: Request): Promise<Response> {
     );
   }
 }
-

@@ -41,7 +41,7 @@ export function AllPage({ onOpenProductDetail }: { onOpenProductDetail: (slug: s
 
   /* ================= FETCH FROM DB ================= */
   useEffect(() => {
-    fetch("/api/products")
+    fetch("/api/products", { cache: "no-store" })
       .then((res) => res.json())
       .then((data) => setProducts(normalizeProductListResponse(data) as DbProduct[]))
       .finally(() => setLoading(false));
@@ -103,14 +103,11 @@ export function AllPage({ onOpenProductDetail }: { onOpenProductDetail: (slug: s
     }
   });
 
-  useEffect(() => {
-    setCurrentPage(1);
-  }, [selectedType, sortBy, searchTerm]);
-
   const totalPages = Math.max(1, Math.ceil(sortedItems.length / itemsPerPage));
+  const visiblePage = Math.min(currentPage, totalPages);
   const pagedItems = sortedItems.slice(
-    (currentPage - 1) * itemsPerPage,
-    currentPage * itemsPerPage
+    (visiblePage - 1) * itemsPerPage,
+    visiblePage * itemsPerPage
   );
 
   /* ================= CONTENT TYPES ================= */
@@ -203,7 +200,7 @@ export function AllPage({ onOpenProductDetail }: { onOpenProductDetail: (slug: s
                   ))}
                 </div>
                 <Pagination
-                  currentPage={currentPage}
+                  currentPage={visiblePage}
                   totalPages={totalPages}
                   onPageChange={setCurrentPage}
                   className="mt-6"

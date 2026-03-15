@@ -1,5 +1,6 @@
 import { db } from "@/lib/db";
 import { getAuthUser } from "@/lib/auth";
+import { clearSessionCookie } from "@/lib/security";
 import type { RowDataPacket } from "mysql2";
 
 type LogoutBody = {
@@ -53,7 +54,7 @@ export async function POST(req: Request) {
     status: 200,
     headers: {
       "Content-Type": "application/json",
-      "Set-Cookie": "token=; Path=/; HttpOnly; SameSite=Lax; Max-Age=0",
+      "Set-Cookie": clearSessionCookie(),
     },
   });
 }

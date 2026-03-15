@@ -1,5 +1,8 @@
 import { db } from "@/lib/db";
 import { getAuthUser } from "@/lib/auth";
+import { getOrderTelegramContext } from "@/lib/payment-review";
+import { sendTelegramOrderCreatedNotification } from "@/lib/telegram";
+import { buildTelegramSupportDeepLink } from "@/lib/telegram-support";
 import type { PoolConnection } from "mysql2/promise";
 import type { ResultSetHeader, RowDataPacket } from "mysql2";
 
@@ -46,6 +49,11 @@ type CourseCartItemRow = RowDataPacket & {
   unit_price: number | string;
   access_type: "lifetime" | "months";
   duration_days: number | null;
+};
+
+type PromotionComboRow = RowDataPacket & {
+  id: number;
+  price: number | string;
 };
 
 type PromotionCourseSpec = {
@@ -123,6 +131,69 @@ function extractComboPrice(items: CartItemRow[]): number | null {
   return comboPrice;
 }
 
+function extractComboId(items: CartItemRow[]): number | null {
+  if (items.length === 0) return null;
+  let comboId: number | null = null;
+  for (const item of items) {
+    const info = parseJsonObject(item.order_info_json);
+    const rawId = Number(info.promotion_combo_id);
+    if (!Number.isFinite(rawId) || rawId <= 0) return null;
+    const nextId = Math.floor(rawId);
+    if (comboId === null) comboId = nextId;
+    if (comboId !== nextId) return null;
+  }
+  return comboId;
+}
+
+async function resolveCurrentComboPrice(conn: Queryable, items: CartItemRow[]): Promise<number | null> {
+  const comboId = extractComboId(items);
+  if (!comboId) return null;
+
+  const [rows] = await conn.query<PromotionComboRow[]>(
+    `
+    SELECT id, price
+    FROM promotion_combos
+    WHERE id = ? AND is_active = 1
+    LIMIT 1
+    `,
+    [comboId]
+  );
+
+  if (rows.length === 0) return null;
+  const price = Number(rows[0].price);
+  return Number.isFinite(price) && price >= 0 ? price : null;
+}
+
+function groupItemsByPricingScope(items: CartItemRow[]): CartItemRow[][] {
+  const grouped = new Map<string, CartItemRow[]>();
+  for (const item of items) {
+    const info = parseJsonObject(item.order_info_json);
+    const comboIdRaw = info.promotion_combo_id;
+    const comboId =
+      comboIdRaw === null || comboIdRaw === undefined ? "" : String(comboIdRaw).trim();
+    const key = comboId ? `combo:${comboId}` : `item:${item.cart_item_id}`;
+    const existing = grouped.get(key);
+    if (existing) {
+      existing.push(item);
+    } else {
+      grouped.set(key, [item]);
+    }
+  }
+  return Array.from(grouped.values());
+}
+
+async function resolveEffectiveProductSubtotal(conn: Queryable, items: CartItemRow[]): Promise<number> {
+  const groupedItems = groupItemsByPricingScope(items);
+  let subtotal = 0;
+  for (const group of groupedItems) {
+    const rawSubtotal = group.reduce((sum, item) => sum + Number(item.qty) * Number(item.unit_price), 0);
+    const comboSubtotal =
+      (await resolveCurrentComboPrice(conn, group)) ?? extractComboPrice(group);
+    subtotal += comboSubtotal ?? rawSubtotal;
+  }
+  return subtotal;
+}
+
 async function hasColumn(conn: Queryable, tableName: string, columnName: string): Promise<boolean> {
   const [rows] = await conn.query<RowDataPacket[]>(
     `
@@ -195,8 +266,8 @@ export async function POST(req: Request) {
     const hasVariantUnitsPerQty = await hasColumn(conn, "product_variants", "units_per_qty");
     const hasOrderUnitsPerQty = await hasColumn(conn, "order_items", "units_per_qty");
     const productModeExpr = hasProductsMode
-      ? "CASE WHEN LOWER(pc.name) = 'tools' THEN 'license' WHEN p.mode IN ('license','inventory') THEN p.mode ELSE 'inventory' END"
-      : "CASE WHEN LOWER(pc.name) = 'tools' THEN 'license' ELSE 'inventory' END";
+      ? "CASE WHEN p.mode IN ('license','inventory') THEN p.mode ELSE 'inventory' END"
+      : "'inventory'";
     const unitsPerQtyExpr = hasVariantUnitsPerQty
       ? "CASE WHEN LOWER(pc.name) = 'tools' THEN 1 ELSE GREATEST(1, COALESCE(pv.units_per_qty, 1)) END"
       : "1";
@@ -225,7 +296,7 @@ export async function POST(req: Request) {
           ${hasCartToolVariantId ? "ci.tool_variant_id" : "NULL"} AS tool_variant_id,
           ci.qty,
           ${unitsPerQtyExpr} AS units_per_qty,
-          ci.unit_price,
+          CASE WHEN LOWER(pc.name) = 'tools' THEN tv.price ELSE pv.price END AS unit_price,
           CASE WHEN LOWER(pc.name) = 'tools' THEN tv.original_price ELSE pv.original_price END AS original_price,
           ci.order_info_json
         FROM cart_items ci
@@ -285,13 +356,12 @@ export async function POST(req: Request) {
       return Response.json({ error: "Cart item not found" }, { status: 404 });
     }
 
-    const comboSubtotal = extractComboPrice(items);
-    const productSubtotalRaw = items.reduce((sum, it) => sum + Number(it.qty) * Number(it.unit_price), 0);
+    const productSubtotal = await resolveEffectiveProductSubtotal(conn, items);
     const courseSubtotal = courseCartItems.reduce(
-      (sum, it) => sum + Number(it.qty ?? 1) * Number(it.unit_price ?? 0),
+      (sum, it) => sum + Number(it.unit_price ?? 0),
       0
     );
-    const subtotal = (comboSubtotal ?? productSubtotalRaw) + courseSubtotal;
+    const subtotal = productSubtotal + courseSubtotal;
     const taxAmount = Math.round(subtotal * (taxRate / 100) * 100) / 100;
     const total = Math.round((subtotal + taxAmount) * 100) / 100;
     const orderNumber = makeOrderNumber();
@@ -530,6 +600,18 @@ export async function POST(req: Request) {
       }
     }
 
+    try {
+      await conn.query<ResultSetHeader>(
+        `UPDATE orders SET payment_state = 'waiting' WHERE id = ?`,
+        [orderId]
+      );
+    } catch (err) {
+      const message = err instanceof Error ? err.message.toLowerCase() : String(err).toLowerCase();
+      if (!(message.includes("unknown column") && message.includes("payment_state"))) {
+        throw err;
+      }
+    }
+
     if (items.length > 0 && cartId !== null) {
       await conn.query<ResultSetHeader>(
         `DELETE FROM cart_items WHERE cart_id = ? AND id IN (${productCartItemIds.map(() => "?").join(",")})`,
@@ -545,10 +627,28 @@ export async function POST(req: Request) {
 
     await conn.commit();
 
+    try {
+      const orderContext = await getOrderTelegramContext(orderId);
+      if (orderContext) {
+        await sendTelegramOrderCreatedNotification({
+          orderId: orderContext.orderId,
+          orderNumber: orderContext.orderNumber,
+          amount: orderContext.amount,
+          buyerName: orderContext.buyerName,
+          buyerEmail: orderContext.buyerEmail,
+          createdAt: orderContext.createdAt,
+          itemSummary: orderContext.itemSummary,
+        });
+      }
+    } catch (telegramError) {
+      console.error("Telegram order created notification failed:", telegramError);
+    }
+
     return Response.json({
       success: true,
       orderId,
       orderNumber,
+      telegramSupportUrl: buildTelegramSupportDeepLink(orderId, auth.userId),
       subtotal,
       taxRate,
       taxAmount,

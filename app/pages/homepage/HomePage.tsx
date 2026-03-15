@@ -80,7 +80,7 @@ export default function HomePage({ onNavigate, onOpenProductDetail }: HomePagePr
 
     const load = async () => {
       try {
-        const res = await fetch("/api/products?limit=6");
+        const res = await fetch("/api/products?limit=6", { cache: "no-store" });
         const data = await res.json();
 
         if (mounted) {
@@ -103,7 +103,7 @@ export default function HomePage({ onNavigate, onOpenProductDetail }: HomePagePr
     let mounted = true;
     const loadPromotions = async () => {
       try {
-        const res = await fetch("/api/promotions?limit=6");
+        const res = await fetch("/api/promotions?limit=6", { cache: "no-store" });
         const data = await res.json();
         const list =
           data && typeof data === "object" && Array.isArray((data as { promotions?: unknown }).promotions)

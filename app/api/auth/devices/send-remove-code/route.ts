@@ -2,6 +2,13 @@ import crypto from "crypto";
 import { db } from "@/lib/db";
 import { getAuthUser } from "@/lib/auth";
 import { getMailer } from "@/lib/mailer";
+import {
+  ensureTrustedDeviceSchema,
+  getLoginDeviceByRowId,
+  hasTable,
+  isFutureDate,
+  normalizeString,
+} from "@/lib/trusted-devices";
 import type { RowDataPacket, ResultSetHeader } from "mysql2";
 
 type UserRow = RowDataPacket & {
@@ -12,32 +19,12 @@ type DeviceRow = RowDataPacket & {
   device_id: string;
 };
 
-function normalizeString(value: unknown): string | null {
-  if (typeof value !== "string") return null;
-  const trimmed = value.trim();
-  return trimmed.length > 0 ? trimmed : null;
-}
-
 function sha256Hex(value: string): string {
   return crypto.createHash("sha256").update(value).digest("hex");
 }
 
 function generateCode(): string {
   return String(Math.floor(100000 + Math.random() * 900000));
-}
-
-async function hasTable(table: string): Promise<boolean> {
-  const [rows] = await db.query<RowDataPacket[]>(
-    `
-    SELECT 1
-    FROM information_schema.tables
-    WHERE table_schema = DATABASE()
-      AND table_name = ?
-    LIMIT 1
-    `,
-    [table]
-  );
-  return rows.length > 0;
 }
 
 export async function POST(req: Request): Promise<Response> {
@@ -65,6 +52,27 @@ export async function POST(req: Request): Promise<Response> {
       return Response.json(
         { error: "Required tables missing. Run sql/2026-02-11-video-course-access-sync.sql" },
         { status: 500 }
+      );
+    }
+    await ensureTrustedDeviceSchema();
+
+    const currentDevice =
+      typeof auth.loginDeviceId === "number" && Number.isFinite(auth.loginDeviceId)
+        ? await getLoginDeviceByRowId(auth.userId, auth.loginDeviceId)
+        : null;
+    if (!currentDevice) {
+      return Response.json({ error: "Current login device not found. Please sign in again." }, { status: 401 });
+    }
+    if (currentDevice.device_id === deviceId || (currentDeviceId && currentDeviceId === deviceId)) {
+      return Response.json({ error: "Use normal logout for current device" }, { status: 400 });
+    }
+    if (isFutureDate(currentDevice.device_action_locked_until)) {
+      return Response.json(
+        {
+          error: "This device cannot remove other trusted devices yet.",
+          lockedUntil: currentDevice.device_action_locked_until,
+        },
+        { status: 403 }
       );
     }
 

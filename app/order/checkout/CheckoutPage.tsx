@@ -1,5 +1,5 @@
 import { useEffect, useState } from "react";
-import { ArrowLeft, CheckCircle, ShoppingBag } from "lucide-react";
+import { ArrowLeft, CheckCircle, ShoppingBag, Layers3 } from "lucide-react";
 import { Button } from "../../components/ui/button";
 import { QRPaymentModal } from "../../components/QRPaymentModal";
 import { useLanguage } from "../../contexts/LanguageContext";
@@ -8,9 +8,12 @@ import { useCurrency } from "../../contexts/CurrencyContext";
 import { toast } from "sonner";
 
 type DbCartItem = {
+  item_type?: "product" | "course";
+  product_mode?: "license" | "inventory";
   cart_item_id: number;
   product_id: number;
   variant_id: number | null;
+  tool_variant_id?: number | null;
   title: string;
   image_url: string | null;
   qty: number;
@@ -38,15 +41,38 @@ type ComboQrUrls = {
   usdqr: string | null;
 };
 
+type CheckoutDisplayGroup = {
+  groupId: string;
+  comboId: string | null;
+  comboTitle: string | null;
+  cartItems: DbCartItem[];
+  comboCourseItems: ComboCourseItem[];
+  comboCourseCount: number;
+  comboPrice: number | null;
+  comboQrUrls: ComboQrUrls;
+  rawSubtotal: number;
+  representative: DbCartItem;
+};
+
+type PendingOrder = {
+  orderId: number;
+  orderNumber: string;
+  createdAt: string;
+  cartItemIds: number[];
+  telegramSupportUrl?: string;
+};
+
 interface CheckoutPageProps {
   onNavigate: (page: string) => void;
-  selectedCartItemId: number | null;
+  selectedCartGroupKeys: string[];
+  onSelectionChange: (keys: string[]) => void;
   onClearSelection: () => void;
 }
 
 export function CheckoutPage({
   onNavigate,
-  selectedCartItemId,
+  selectedCartGroupKeys,
+  onSelectionChange,
   onClearSelection,
 }: CheckoutPageProps) {
   const { language } = useLanguage();
@@ -58,8 +84,16 @@ export function CheckoutPage({
   const [showQRModal, setShowQRModal] = useState(false);
   const [orderPlaced, setOrderPlaced] = useState(false);
   const [submitting, setSubmitting] = useState(false);
+  const [updatingQtyId, setUpdatingQtyId] = useState<number | null>(null);
   const [lastOrderTotal, setLastOrderTotal] = useState(0);
   const [lastOrderItemsCount, setLastOrderItemsCount] = useState(0);
+  const [pendingOrder, setPendingOrder] = useState<PendingOrder | null>(null);
+
+  const getLocalDateTimeStamp = () => {
+    const now = new Date();
+    const localMs = now.getTime() - now.getTimezoneOffset() * 60000;
+    return new Date(localMs).toISOString().slice(0, 19);
+  };
 
   const getPromotionComboId = (item: DbCartItem | null): string | null => {
     if (!item?.order_info_json) return null;
@@ -82,6 +116,19 @@ export function CheckoutPage({
       const raw = Number((parsed as Record<string, unknown>).promotion_combo_price);
       if (!Number.isFinite(raw) || raw < 0) return null;
       return raw;
+    } catch {
+      return null;
+    }
+  };
+  const getPromotionComboTitle = (item: DbCartItem | null): string | null => {
+    if (!item?.order_info_json) return null;
+    try {
+      const parsed = JSON.parse(item.order_info_json);
+      if (!parsed || typeof parsed !== "object") return null;
+      const value = (parsed as Record<string, unknown>).promotion_combo_title;
+      if (value === null || value === undefined) return null;
+      const text = String(value).trim();
+      return text || null;
     } catch {
       return null;
     }
@@ -161,38 +208,140 @@ export function CheckoutPage({
     }
   };
 
+  const loadItems = async () => {
+    setLoading(true);
+    try {
+      const res = await fetch("/api/cart", { cache: "no-store", credentials: "include" });
+      const data = await res.json();
+      setItems(data.items ?? []);
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const canUpdateQty = (item: DbCartItem | null): boolean => {
+    if (!item) return false;
+    if (getPromotionComboId(item) !== null) return false;
+    if (item.item_type === "course") return false;
+    return String(item.product_mode ?? "inventory") !== "license";
+  };
+
+  const updateItemQty = async (item: DbCartItem, nextQty: number) => {
+    if (!canUpdateQty(item)) return;
+    const qty = Math.max(1, Math.floor(nextQty));
+    if (qty === Math.max(1, Number(item.qty ?? 1))) return;
+
+    try {
+      setUpdatingQtyId(item.cart_item_id);
+      const res = await fetch("/api/cart/update-qty", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ cartItemId: item.cart_item_id, qty }),
+      });
+      const data = await res.json().catch(() => ({}));
+      if (!res.ok) {
+        const msg =
+          data && typeof data.error === "string" ? data.error : "Failed to update quantity";
+        throw new Error(msg);
+      }
+      await loadItems();
+      if (typeof window !== "undefined") {
+        window.dispatchEvent(new CustomEvent("cart:changed"));
+      }
+    } catch (err) {
+      const msg = err instanceof Error ? err.message : "Failed to update quantity";
+      toast.error(msg);
+    } finally {
+      setUpdatingQtyId(null);
+    }
+  };
+
   // -----------------------
   // Load DB cart
   // -----------------------
   useEffect(() => {
-    fetch("/api/cart")
-      .then((res) => res.json())
-      .then((data) => setItems(data.items ?? []))
-      .finally(() => setLoading(false));
+    void loadItems();
   }, []);
 
-  const selectedItem = selectedCartItemId
-    ? items.find((it) => it.cart_item_id === selectedCartItemId) ?? null
-    : null;
-  const selectedComboId = getPromotionComboId(selectedItem);
-  const checkoutItems = selectedItem
-    ? selectedComboId
-      ? items.filter((it) => getPromotionComboId(it) === selectedComboId)
-      : [selectedItem]
-    : [];
-  const comboPrice = getPromotionComboPrice(selectedItem);
-  const comboCourseCount = getPromotionCourseCount(selectedItem);
-  const comboCourseItems = getPromotionCourseItems(selectedItem);
-  const comboQrUrls = getPromotionComboQrUrls(selectedItem);
-  const rawSubtotal = checkoutItems.reduce((sum, it) => sum + Number(it.line_total ?? 0), 0);
-  const subtotal = selectedComboId && comboPrice !== null ? comboPrice : rawSubtotal;
-  const discountAmount =
-    selectedComboId && comboPrice !== null && rawSubtotal > comboPrice
-      ? rawSubtotal - comboPrice
-      : 0;
+  const displayGroups = items.reduce<CheckoutDisplayGroup[]>((groups, item) => {
+    const comboId = getPromotionComboId(item);
+    if (!comboId) {
+      groups.push({
+        groupId: `item-${item.cart_item_id}`,
+        comboId: null,
+        comboTitle: null,
+        cartItems: [item],
+        comboCourseItems: [],
+        comboCourseCount: 0,
+        comboPrice: null,
+        comboQrUrls: { khqr: null, usdqr: null },
+        rawSubtotal: Number(item.line_total ?? 0),
+        representative: item,
+      });
+      return groups;
+    }
+    if (groups.some((group) => group.comboId === comboId)) return groups;
+    const comboItems = items.filter((it) => getPromotionComboId(it) === comboId);
+    const representative = comboItems[0] ?? item;
+    groups.push({
+      groupId: `combo-${comboId}`,
+      comboId,
+      comboTitle: getPromotionComboTitle(representative),
+      cartItems: comboItems,
+      comboCourseItems: getPromotionCourseItems(representative),
+      comboCourseCount: getPromotionCourseCount(representative),
+      comboPrice: getPromotionComboPrice(representative),
+      comboQrUrls: getPromotionComboQrUrls(representative),
+      rawSubtotal: comboItems.reduce((sum, it) => sum + Number(it.line_total ?? 0), 0),
+      representative,
+    });
+    return groups;
+  }, []);
+  const selectedGroups = displayGroups.filter((group) => selectedCartGroupKeys.includes(group.groupId));
+  const primaryGroup = selectedGroups[0] ?? null;
+  const primaryItem = primaryGroup?.representative ?? null;
+  const selectedItem = primaryItem;
+  const selectedComboId = selectedGroups.length === 1 ? primaryGroup?.comboId ?? null : null;
+  const comboTitle =
+    selectedGroups.length === 1
+      ? primaryGroup?.comboTitle ?? null
+      : selectedGroups.length > 1
+        ? "Multi-item checkout"
+        : null;
+  const checkoutItems = selectedGroups.flatMap((group) => group.cartItems);
+  const comboCourseItems = selectedGroups.flatMap((group) => group.comboCourseItems);
+  const comboCourseCount = comboCourseItems.length;
+  const comboQrUrls =
+    selectedGroups.length === 1 && primaryGroup
+      ? primaryGroup.comboQrUrls
+      : { khqr: null, usdqr: null };
+  const rawSubtotal = selectedGroups.reduce((sum, group) => sum + group.rawSubtotal, 0);
+  const subtotal = selectedGroups.reduce(
+    (sum, group) => sum + (group.comboPrice !== null ? group.comboPrice : group.rawSubtotal),
+    0
+  );
+  const discountAmount = Math.max(0, rawSubtotal - subtotal);
   const tax = 0;
   const total = subtotal + tax;
   const taxDisplay = tax === 0 ? (language === "km" ? "ឥតគិតថ្លៃ" : "Free") : formatPrice(tax);
+  const checkoutCartItemIds = checkoutItems.map((it) => it.cart_item_id);
+
+  const hasSamePendingSelection = (order: PendingOrder | null): boolean => {
+    if (!order) return false;
+    if (order.cartItemIds.length !== checkoutCartItemIds.length) return false;
+    const current = [...checkoutCartItemIds].sort((a, b) => a - b);
+    const existing = [...order.cartItemIds].sort((a, b) => a - b);
+    return current.every((value, index) => value === existing[index]);
+  };
+
+  useEffect(() => {
+    if (loading) return;
+    const validKeys = new Set(displayGroups.map((group) => group.groupId));
+    const nextKeys = selectedCartGroupKeys.filter((key) => validKeys.has(key));
+    if (nextKeys.length !== selectedCartGroupKeys.length) {
+      onSelectionChange(nextKeys);
+    }
+  }, [displayGroups, loading, onSelectionChange, selectedCartGroupKeys]);
 
   // -----------------------
   // Create order + submit payment
@@ -207,11 +356,15 @@ export function CheckoutPage({
       dateTimePay: string;
     }
   ) => {
-    if (!user || submitting) return;
+    if (!user || submitting) return false;
 
     setSubmitting(true);
 
     try {
+      const existingOrder = hasSamePendingSelection(pendingOrder) ? pendingOrder : null;
+      let orderId = existingOrder?.orderId ?? 0;
+
+      if (!existingOrder) {
       const res1 = await fetch("/api/orders/create", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
@@ -226,10 +379,22 @@ export function CheckoutPage({
           language === "km" ? "បង្កើតការបញ្ជាទិញមិនបាន" : "Failed to create order",
           { description: data1?.error }
         );
-        return;
+        return false;
       }
 
-      const orderId = data1.orderId;
+      orderId = Number(data1.orderId);
+      setPendingOrder({
+        orderId,
+        orderNumber: String(data1.orderNumber || ""),
+        createdAt: getLocalDateTimeStamp(),
+        cartItemIds: [...cartItemIds],
+        telegramSupportUrl:
+          typeof data1.telegramSupportUrl === "string" ? data1.telegramSupportUrl : "",
+      });
+      if (typeof window !== "undefined") {
+        window.dispatchEvent(new CustomEvent("cart:changed"));
+      }
+      }
 
       const res2 = await fetch("/api/payments/submit", {
         method: "POST",
@@ -250,13 +415,11 @@ export function CheckoutPage({
           language === "km" ? "បញ្ជូនការទូទាត់មិនបាន" : "Payment failed",
           { description: data2?.error }
         );
-        return;
+        return false;
       }
 
       if (checkoutItems.length > 0) {
-        const lineTotal = selectedComboId && comboPrice !== null
-          ? comboPrice
-          : checkoutItems.reduce((sum, it) => sum + Number(it.line_total ?? 0), 0);
+        const lineTotal = subtotal;
         const qtyTotal = checkoutItems.reduce((sum, it) => sum + Number(it.qty ?? 0), 0);
         setLastOrderTotal(lineTotal);
         setLastOrderItemsCount(qtyTotal);
@@ -268,6 +431,7 @@ export function CheckoutPage({
       setShowQRModal(false);
       setOrderPlaced(true);
       setItems((prev) => prev.filter((it) => !cartItemIds.includes(it.cart_item_id)));
+      setPendingOrder(null);
       if (typeof window !== "undefined") {
         window.dispatchEvent(new CustomEvent("cart:changed"));
       }
@@ -280,6 +444,7 @@ export function CheckoutPage({
       );
 
       onNavigate("orders");
+      return true;
     } finally {
       setSubmitting(false);
     }
@@ -295,7 +460,7 @@ export function CheckoutPage({
       return;
     }
 
-    if (!selectedItem) {
+    if (selectedGroups.length === 0) {
       toast.error(
         language === "km"
           ? "សូមត្រឡប់ទៅកន្ត្រកដើម្បីជ្រើសផលិតផលមួយ"
@@ -305,9 +470,53 @@ export function CheckoutPage({
       return;
     }
 
+    const currentOrder = hasSamePendingSelection(pendingOrder)
+      ? pendingOrder
+      : await (async () => {
+          if (submitting) return null;
+          setSubmitting(true);
+          try {
+            const res = await fetch("/api/orders/create", {
+              method: "POST",
+              headers: { "Content-Type": "application/json" },
+              body: JSON.stringify(
+                checkoutCartItemIds.length > 1
+                  ? { cartItemIds: checkoutCartItemIds }
+                  : { cartItemId: checkoutCartItemIds[0] }
+              ),
+            });
+            const data = await res.json().catch(() => ({}));
+            if (!res.ok) {
+              toast.error(language === "km" ? "បង្កើតការបញ្ជាទិញមិនបាន" : "Failed to create order", {
+                description: typeof data?.error === "string" ? data.error : undefined,
+              });
+              return null;
+            }
+            const nextOrder: PendingOrder = {
+              orderId: Number(data.orderId),
+              orderNumber: String(data.orderNumber || ""),
+              createdAt: getLocalDateTimeStamp(),
+              cartItemIds: [...checkoutCartItemIds],
+              telegramSupportUrl:
+                typeof data.telegramSupportUrl === "string" ? data.telegramSupportUrl : "",
+            };
+            setPendingOrder(nextOrder);
+            if (typeof window !== "undefined") {
+              window.dispatchEvent(new CustomEvent("cart:changed"));
+            }
+            return nextOrder;
+          } finally {
+            setSubmitting(false);
+          }
+        })();
+
+    if (!currentOrder) {
+      return;
+    }
+
     if (total === 0) {
       await createOrderAndSubmitPayment(
-        checkoutItems.map((it) => it.cart_item_id),
+        checkoutCartItemIds,
         {
         accountName: "FREE ORDER",
         accountNumber: "0000",
@@ -329,11 +538,14 @@ export function CheckoutPage({
     method: string;
     dateTimePay: string;
   }) => {
-    if (!selectedItem) return;
-    await createOrderAndSubmitPayment(
+    if (selectedGroups.length === 0) return;
+    const success = await createOrderAndSubmitPayment(
       checkoutItems.map((it) => it.cart_item_id),
       paymentInfo
     );
+    if (!success) {
+      throw new Error("Failed to finalize order after payment confirmation.");
+    }
   };
 
   // -----------------------
@@ -409,6 +621,39 @@ export function CheckoutPage({
                 {language === "km" ? "សង្ខេបការបញ្ជាទិញ" : "Order Summary"}
               </h2>
 
+              {selectedComboId ? (
+                <div className="mb-5 rounded-3xl border border-blue-200 bg-gradient-to-br from-blue-50 via-white to-cyan-50 p-5 dark:border-blue-900/40 dark:from-blue-950/30 dark:via-gray-900 dark:to-cyan-950/20">
+                  <div className="flex flex-col gap-4 sm:flex-row sm:items-start sm:justify-between">
+                    <div>
+                      <div className="inline-flex items-center gap-2 rounded-full bg-slate-900 px-3 py-1 text-xs font-semibold text-white dark:bg-blue-500/90">
+                        <Layers3 className="h-3.5 w-3.5" />
+                        Combo Bundle
+                      </div>
+                      <div className="mt-3 text-xl font-bold text-slate-900 dark:text-white">
+                        {comboTitle || "Special combo"}
+                      </div>
+                      <div className="mt-1 text-sm text-slate-600 dark:text-slate-300">
+                        This payment includes {checkoutItems.length} cart item(s)
+                        {comboCourseCount > 0 ? ` + ${comboCourseCount} included video course(s)` : ""}.
+                      </div>
+                    </div>
+                    <div className="text-left sm:text-right">
+                      <div className="text-xs uppercase tracking-[0.18em] text-slate-400">
+                        Bundle total
+                      </div>
+                      <div className="text-2xl font-bold text-blue-700 dark:text-blue-300">
+                        {formatPrice(subtotal)}
+                      </div>
+                      {discountAmount > 0 ? (
+                        <div className="text-xs font-medium text-emerald-600 dark:text-emerald-400">
+                          Save {formatPrice(discountAmount)}
+                        </div>
+                      ) : null}
+                    </div>
+                  </div>
+                </div>
+              ) : null}
+
               <div className="flex gap-4 p-4 bg-gray-50 dark:bg-gray-900 rounded-lg">
                 <img
                   src={selectedItem.image_url ?? "/placeholder.png"}
@@ -422,6 +667,34 @@ export function CheckoutPage({
                     {selectedItem.device_label
                       ? ` • ${selectedItem.device_label}`
                       : ""}
+                  </div>
+                  <div className="mt-1 text-sm text-gray-600">
+                    <div>{language === "km" ? "បរិមាណ" : "Quantity"}</div>
+                    {canUpdateQty(selectedItem) ? (
+                      <div className="mt-2 inline-flex items-center overflow-hidden rounded-lg border border-gray-200 dark:border-gray-700">
+                        <button
+                          type="button"
+                          className="px-3 py-1 text-base disabled:opacity-50"
+                          onClick={() => void updateItemQty(selectedItem, Number(selectedItem.qty ?? 1) - 1)}
+                          disabled={updatingQtyId === selectedItem.cart_item_id || Number(selectedItem.qty ?? 1) <= 1}
+                        >
+                          -
+                        </button>
+                        <span className="min-w-10 border-x border-gray-200 px-3 py-1 text-center dark:border-gray-700">
+                          {updatingQtyId === selectedItem.cart_item_id ? "..." : Math.max(1, Number(selectedItem.qty ?? 1))}
+                        </span>
+                        <button
+                          type="button"
+                          className="px-3 py-1 text-base disabled:opacity-50"
+                          onClick={() => void updateItemQty(selectedItem, Number(selectedItem.qty ?? 1) + 1)}
+                          disabled={updatingQtyId === selectedItem.cart_item_id}
+                        >
+                          +
+                        </button>
+                      </div>
+                    ) : (
+                      <div className="mt-1">{Math.max(1, Number(selectedItem.qty ?? 1))}</div>
+                    )}
                   </div>
                   <div className="mt-1 text-xs text-gray-400">
                     {selectedComboId
@@ -456,6 +729,46 @@ export function CheckoutPage({
                   </div>
                 </div>
               </div>
+              {selectedComboId ? (
+                <div className="mt-4 rounded-2xl border border-blue-200 bg-white p-4 dark:border-blue-900/40 dark:bg-gray-900/60">
+                  <div className="text-sm font-semibold text-slate-900 dark:text-white">
+                    Bundle Items
+                  </div>
+                  <div className="mt-3 space-y-2">
+                    {checkoutItems.map((item) => (
+                      <div
+                        key={item.cart_item_id}
+                        className={`flex items-center justify-between rounded-xl border px-3 py-2 ${
+                          item.cart_item_id === selectedItem.cart_item_id
+                            ? "border-blue-300 bg-blue-50/70 dark:border-blue-800 dark:bg-blue-950/30"
+                            : "border-gray-200 bg-gray-50 dark:border-gray-800 dark:bg-gray-900"
+                        }`}
+                      >
+                        <div>
+                          <div className="text-sm font-semibold text-slate-900 dark:text-white">
+                            {item.title}
+                          </div>
+                          <div className="text-xs text-slate-500 dark:text-slate-300">
+                            {item.duration_label}
+                            {item.device_label ? ` • ${item.device_label}` : ""}
+                            {item.qty > 1 ? ` • Qty ${item.qty}` : ""}
+                          </div>
+                        </div>
+                        <div className="text-right">
+                          <div className="text-sm font-bold text-blue-600 dark:text-blue-300">
+                            {formatPrice(item.line_total)}
+                          </div>
+                          {item.cart_item_id === selectedItem.cart_item_id ? (
+                            <div className="text-[11px] text-green-600 dark:text-green-400">
+                              Selected line
+                            </div>
+                          ) : null}
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              ) : null}
               {selectedComboId && comboCourseItems.map((ci, idx) => (
                 <div
                   key={`checkout-combo-course-${ci.course_id}-${ci.plan_id ?? "none"}-${idx}`}
@@ -473,6 +786,9 @@ export function CheckoutPage({
                     <div className="text-xs text-blue-700">
                       {ci.plan_name ? `${ci.plan_name}` : ci.plan_id ? `Plan #${ci.plan_id}` : "Course plan"}
                       {ci.qty > 1 ? ` x${ci.qty}` : ""}
+                    </div>
+                    <div className="text-xs text-blue-700 mt-1">
+                      {language === "km" ? "បរិមាណ" : "Quantity"}: {ci.qty}
                     </div>
                     <div className="text-sm font-bold text-blue-800 mt-1">
                       {ci.plan_price !== null ? formatPrice(ci.plan_price * ci.qty) : "Included"}
@@ -522,7 +838,11 @@ export function CheckoutPage({
             amount={total}
             onClose={() => setShowQRModal(false)}
             onSuccess={handlePaymentSuccess}
+            orderId={pendingOrder?.orderId}
+            orderCreatedAt={pendingOrder?.createdAt}
             productTitle={selectedItem?.title ?? ""}
+            billNumber={pendingOrder?.orderNumber}
+            telegramSupportUrl={pendingOrder?.telegramSupportUrl}
             variantLabel={
               selectedItem
                 ? [

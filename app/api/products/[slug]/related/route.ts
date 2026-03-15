@@ -1,6 +1,10 @@
 import { db } from "@/lib/db";
 import type { RowDataPacket } from "mysql2";
 
+export const runtime = "nodejs";
+export const dynamic = "force-dynamic";
+export const revalidate = 0;
+
 type ProductRow = RowDataPacket & {
   id: number;
   category_id: number;
@@ -55,8 +59,16 @@ export async function GET(
           WHERE oi.product_id = p.id
             AND o.state = 'completed'
         ) AS buyers_count,
-        (SELECT MIN(v.price) FROM product_variants v WHERE v.product_id = p.id AND v.is_active = 1) AS min_price,
-        (SELECT MIN(v.original_price) FROM product_variants v WHERE v.product_id = p.id AND v.is_active = 1) AS min_original_price
+        CASE
+          WHEN LOWER(c.name) = 'tools'
+            THEN (SELECT MIN(tv.price) FROM tool_variants tv WHERE tv.product_id = p.id AND tv.is_active = 1)
+          ELSE (SELECT MIN(v.price) FROM product_variants v WHERE v.product_id = p.id AND v.is_active = 1)
+        END AS min_price,
+        CASE
+          WHEN LOWER(c.name) = 'tools'
+            THEN (SELECT MIN(tv.original_price) FROM tool_variants tv WHERE tv.product_id = p.id AND tv.is_active = 1)
+          ELSE (SELECT MIN(v.original_price) FROM product_variants v WHERE v.product_id = p.id AND v.is_active = 1)
+        END AS min_original_price
       FROM products p
       LEFT JOIN product_reviews r ON r.product_id = p.id
       LEFT JOIN product_categories c ON c.id = p.category_id

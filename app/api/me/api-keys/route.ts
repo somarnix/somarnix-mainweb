@@ -14,12 +14,37 @@ type ApiKeysBody = {
   deeplApiKey?: unknown;
 };
 
+function normalizeApiKey(value: string): string {
+  return value.replace(/[\u200B-\u200D\uFEFF]/g, "").trim();
+}
+
 function cleanApiKey(value: unknown): string | null | undefined {
   if (value === undefined) return undefined;
   if (value === null) return null;
   if (typeof value !== "string") return undefined;
-  const trimmed = value.trim();
+  const trimmed = normalizeApiKey(value);
   return trimmed ? trimmed : null;
+}
+
+async function validateOpenAiApiKey(apiKey: string): Promise<string | null> {
+  const res = await fetch("https://api.openai.com/v1/models", {
+    headers: {
+      Authorization: `Bearer ${apiKey}`,
+    },
+    cache: "no-store",
+  });
+
+  if (res.ok) return null;
+
+  const data = (await res.json().catch(() => null)) as
+    | { error?: { code?: string; message?: string } }
+    | null;
+
+  if (res.status === 401 || data?.error?.code === "invalid_api_key") {
+    return "Invalid OpenAI API key. Replace it with a current key from https://platform.openai.com/account/api-keys.";
+  }
+
+  return data?.error?.message || "Failed to validate the OpenAI API key.";
 }
 
 export async function GET(req: Request): Promise<Response> {
@@ -48,6 +73,13 @@ export async function PUT(req: Request): Promise<Response> {
 
   const openaiApiKey = cleanApiKey(body.openaiApiKey);
   if (openaiApiKey !== undefined) updates.openai = openaiApiKey;
+
+  if (openaiApiKey) {
+    const openAiError = await validateOpenAiApiKey(openaiApiKey);
+    if (openAiError) {
+      return NextResponse.json({ error: openAiError }, { status: 400 });
+    }
+  }
 
   const googleApiKey = cleanApiKey(body.googleApiKey);
   if (googleApiKey !== undefined) updates.google = googleApiKey;

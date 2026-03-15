@@ -41,7 +41,7 @@ export function ProgramsPage({ onOpenProductDetail }: { onOpenProductDetail: (sl
   
   /* ================= FETCH FROM DB ================= */
   useEffect(() => {
-    fetch("/api/products?category=program")
+    fetch("/api/products?category=program", { cache: "no-store" })
       .then((res) => res.json())
       .then((data) => setPrograms(normalizeProductListResponse(data) as DbProgram[]))
       .finally(() => setLoading(false));
@@ -101,14 +101,11 @@ export function ProgramsPage({ onOpenProductDetail }: { onOpenProductDetail: (sl
     }
   });
 
-  useEffect(() => {
-    setCurrentPage(1);
-  }, [selectedSlug, sortBy, slugQuery]);
-
   const totalPages = Math.max(1, Math.ceil(sortedPrograms.length / itemsPerPage));
+  const visiblePage = Math.min(currentPage, totalPages);
   const pagedPrograms = sortedPrograms.slice(
-    (currentPage - 1) * itemsPerPage,
-    currentPage * itemsPerPage
+    (visiblePage - 1) * itemsPerPage,
+    visiblePage * itemsPerPage
   );
 
   /* ================= CATEGORIES ================= */
@@ -223,7 +220,7 @@ export function ProgramsPage({ onOpenProductDetail }: { onOpenProductDetail: (sl
                   ))}
                 </div>
                 <Pagination
-                  currentPage={currentPage}
+                  currentPage={visiblePage}
                   totalPages={totalPages}
                   onPageChange={setCurrentPage}
                   className="mt-6"

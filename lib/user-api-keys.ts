@@ -3,6 +3,7 @@ import type { RowDataPacket } from "mysql2";
 
 import { getAuthUser } from "@/lib/auth";
 import { db } from "@/lib/db";
+import { getJwtSecret } from "@/lib/security";
 
 export type ApiKeyProvider = "groq" | "openai" | "google" | "deepl";
 
@@ -39,7 +40,7 @@ const EMPTY_USER_API_KEYS: UserApiKeys = {
 };
 
 function getEncryptionSecret(): string {
-  return process.env.USER_API_KEYS_SECRET || process.env.JWT_SECRET || "dev_secret";
+  return process.env.USER_API_KEYS_SECRET?.trim() || getJwtSecret();
 }
 
 function getEncryptionKey(): Buffer {

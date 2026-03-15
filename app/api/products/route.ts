@@ -2,6 +2,10 @@
 import { db } from "@/lib/db";
 import type { RowDataPacket } from "mysql2";
 
+export const runtime = "nodejs";
+export const dynamic = "force-dynamic";
+export const revalidate = 0;
+
 type ProductRow = RowDataPacket & {
   id: number;
   title: string;
@@ -65,8 +69,8 @@ export async function GET(req: Request) {
     const where = whereParts.join(" AND ");
     const hasProductsMode = await hasColumn("products", "mode");
     const modeExpr = hasProductsMode
-      ? "CASE WHEN LOWER(c.name) = 'tools' THEN 'license' WHEN p.mode IN ('license','inventory') THEN p.mode ELSE 'inventory' END"
-      : "CASE WHEN LOWER(c.name) = 'tools' THEN 'license' ELSE 'inventory' END";
+      ? "CASE WHEN p.mode IN ('license','inventory') THEN p.mode ELSE 'inventory' END"
+      : "'inventory'";
 
     const sql = `
       SELECT
@@ -89,9 +93,21 @@ export async function GET(req: Request) {
         ) AS buyers_count,
 
         -- price from variants
-        (SELECT MIN(v.price) FROM product_variants v WHERE v.product_id = p.id AND v.is_active = 1) AS min_price,
-        (SELECT MIN(v.original_price) FROM product_variants v WHERE v.product_id = p.id AND v.is_active = 1) AS min_original_price,
-        (SELECT COUNT(*) FROM product_variants v WHERE v.product_id = p.id AND v.is_active = 1) AS variant_count
+        CASE
+          WHEN LOWER(c.name) = 'tools'
+            THEN (SELECT MIN(tv.price) FROM tool_variants tv WHERE tv.product_id = p.id AND tv.is_active = 1)
+          ELSE (SELECT MIN(v.price) FROM product_variants v WHERE v.product_id = p.id AND v.is_active = 1)
+        END AS min_price,
+        CASE
+          WHEN LOWER(c.name) = 'tools'
+            THEN (SELECT MIN(tv.original_price) FROM tool_variants tv WHERE tv.product_id = p.id AND tv.is_active = 1)
+          ELSE (SELECT MIN(v.original_price) FROM product_variants v WHERE v.product_id = p.id AND v.is_active = 1)
+        END AS min_original_price,
+        CASE
+          WHEN LOWER(c.name) = 'tools'
+            THEN (SELECT COUNT(*) FROM tool_variants tv WHERE tv.product_id = p.id AND tv.is_active = 1)
+          ELSE (SELECT COUNT(*) FROM product_variants v WHERE v.product_id = p.id AND v.is_active = 1)
+        END AS variant_count
 
       FROM products p
       JOIN product_categories c ON c.id = p.category_id

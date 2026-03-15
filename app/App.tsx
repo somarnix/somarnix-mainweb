@@ -466,14 +466,14 @@ export default function App() {
 
   const [sidebarOpen, setSidebarOpen] = useState(true);
   const [mobileSidebarOpen, setMobileSidebarOpen] = useState(false);
-  const [selectedCartItemId, setSelectedCartItemId] = useState<number | null>(null);
+  const [selectedCartGroupKeys, setSelectedCartGroupKeys] = useState<string[]>([]);
 
   /* ================= CART COUNT ================= */
   const [cartCount, setCartCount] = useState<number>(0);
 
   const refreshCartCount = async () => {
     try {
-      const res = await fetch("/api/cart", { method: "GET" });
+      const res = await fetch("/api/cart", { method: "GET", cache: "no-store" });
 
       if (!res.ok) {
         setCartCount(0);
@@ -786,8 +786,8 @@ export default function App() {
         return (
           <CartPage
             onNavigate={handleNavigate}
-            selectedCartItemId={selectedCartItemId}
-            onSelectCartItem={setSelectedCartItemId}
+            selectedCartGroupKeys={selectedCartGroupKeys}
+            onSelectionChange={setSelectedCartGroupKeys}
           />
         );
 
@@ -795,8 +795,9 @@ export default function App() {
         return (
           <CheckoutPage
             onNavigate={handleNavigate}
-            selectedCartItemId={selectedCartItemId}
-            onClearSelection={() => setSelectedCartItemId(null)}
+            selectedCartGroupKeys={selectedCartGroupKeys}
+            onSelectionChange={setSelectedCartGroupKeys}
+            onClearSelection={() => setSelectedCartGroupKeys([])}
           />
         );
 

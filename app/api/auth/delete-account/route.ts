@@ -1,6 +1,7 @@
 import jwt, { JwtPayload } from "jsonwebtoken";
 import type { ResultSetHeader } from "mysql2";
 import { db } from "@/lib/db";
+import { clearSessionCookie, getJwtSecret } from "@/lib/security";
 
 /* ================= COOKIE HELPER ================= */
 
@@ -16,9 +17,10 @@ async function getUserIdFromCookie(req: Request): Promise<number | null> {
   if (!token) return null;
 
   try {
+    const jwtSecret = getJwtSecret();
     const payload = jwt.verify(
       token,
-      process.env.JWT_SECRET ?? "dev_secret"
+      jwtSecret
     ) as JwtPayload;
 
     const userId = Number(payload.userId);
@@ -49,7 +51,7 @@ export async function POST(req: Request): Promise<Response> {
     const res = Response.json({ success: true });
     res.headers.append(
       "Set-Cookie",
-      "token=; Path=/; Max-Age=0; HttpOnly; SameSite=Lax"
+      clearSessionCookie()
     );
     return res;
   } catch (err) {

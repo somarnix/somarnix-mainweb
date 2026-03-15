@@ -1,5 +1,7 @@
 import { db } from "@/lib/db";
 import { getAuthUser } from "@/lib/auth";
+import { reviewPaymentDecision } from "@/lib/payment-review";
+import { sendTelegramPaymentDecisionNotification } from "@/lib/telegram";
 import type { RowDataPacket } from "mysql2";
 
 export const runtime = "nodejs";
@@ -153,179 +155,39 @@ export async function POST(req: Request) {
       return Response.json({ error: "Invalid input" }, { status: 400 });
     }
 
-    const [paymentRows] = await db.query<RowDataPacket[]>(
-      `SELECT id, order_id FROM payments WHERE id = ? LIMIT 1`,
-      [paymentId]
-    );
-    if (!Array.isArray(paymentRows) || paymentRows.length === 0) {
-      return Response.json({ error: "Payment not found" }, { status: 404 });
-    }
+    const reviewResult = await reviewPaymentDecision({
+      paymentId,
+      decision,
+      note,
+      actorId: auth.userId,
+      actorLabel: `admin:${auth.userId}`,
+    });
 
-    const orderId = Number(paymentRows[0].order_id ?? 0);
-    if (!orderId) {
-      return Response.json({ error: "Order not found for payment" }, { status: 404 });
-    }
-
-    // Update payments decision first (new schema). Keep backward compatibility.
-    try {
-      await db.query(
-        `
-        UPDATE payments
-        SET
-          admin_decision = ?,
-          decision_note = ?,
-          decided_by = ?,
-          decided_at = NOW()
-        WHERE id = ?
-        `,
-        [decision === "approve" ? "approved" : "declined", note || null, auth.userId, paymentId]
-      );
-    } catch (innerErr) {
-      const msg = innerErr instanceof Error ? innerErr.message.toLowerCase() : String(innerErr).toLowerCase();
-      const missingAdminDecision = msg.includes("unknown column") && msg.includes("admin_decision");
-      const missingDecisionNote = msg.includes("unknown column") && msg.includes("decision_note");
-      const missingDecidedBy = msg.includes("unknown column") && msg.includes("decided_by");
-      const missingDecidedAt = msg.includes("unknown column") && msg.includes("decided_at");
-      if (!(missingAdminDecision || missingDecisionNote || missingDecidedBy || missingDecidedAt)) {
-        throw innerErr;
+    if (reviewResult.orderContext) {
+      try {
+        await sendTelegramPaymentDecisionNotification({
+          orderId: reviewResult.orderContext.orderId,
+          orderNumber: reviewResult.orderContext.orderNumber,
+          amount: reviewResult.orderContext.amount,
+          buyerName: reviewResult.orderContext.buyerName,
+          buyerEmail: reviewResult.orderContext.buyerEmail,
+          bankName: reviewResult.orderContext.bankName,
+          accountNumber: reviewResult.orderContext.accountNumber,
+          paymentApv: reviewResult.orderContext.paymentApv,
+          paidAt: reviewResult.orderContext.paidAt,
+          itemSummary: reviewResult.orderContext.itemSummary,
+          decision: decision === "approve" ? "approved" : "declined",
+          decisionNote: note || (decision === "approve" ? "Payment approved" : "Payment declined"),
+          decisionSource: `Admin dashboard user ${auth.userId}`,
+        });
+      } catch (telegramError) {
+        console.error("Telegram payment review notification failed:", telegramError);
       }
-    }
-
-    try {
-      if (decision === "approve") {
-        await db.query(
-          `
-          UPDATE orders
-          SET
-            payment_state = 'approved',
-            payment_review_note = ?,
-            payment_reviewed_by = ?,
-            payment_reviewed_at = NOW(),
-            state = 'approved',
-            result = 'none',
-            reviewed_by = ?,
-            reviewed_at = NOW(),
-            review_note = ?
-          WHERE id = ?
-          `,
-          [
-            note || "Payment approved",
-            auth.userId,
-            auth.userId,
-            note || "Payment approved",
-            orderId,
-          ]
-        );
-      } else {
-        await db.query(
-          `
-          UPDATE orders
-          SET
-            payment_state = 'declined',
-            payment_review_note = ?,
-            payment_reviewed_by = ?,
-            payment_reviewed_at = NOW(),
-            state = 'cancelled',
-            result = 'failed',
-            reviewed_by = ?,
-            reviewed_at = NOW(),
-            review_note = ?
-          WHERE id = ?
-          `,
-          [
-            note || "Payment declined",
-            auth.userId,
-            auth.userId,
-            note || "Payment declined",
-            orderId,
-          ]
-        );
-      }
-    } catch (innerErr) {
-      const msg = innerErr instanceof Error ? innerErr.message.toLowerCase() : String(innerErr).toLowerCase();
-      const missingPaymentState = msg.includes("unknown column") && msg.includes("payment_state");
-      const missingPaymentReview = msg.includes("unknown column") && (
-        msg.includes("payment_review_note") ||
-        msg.includes("payment_reviewed_by") ||
-        msg.includes("payment_reviewed_at")
-      );
-      if (!(missingPaymentState || missingPaymentReview)) {
-        throw innerErr;
-      }
-      if (decision === "approve") {
-        await db.query(
-          `
-          UPDATE orders
-          SET
-            state = 'approved',
-            result = 'none',
-            reviewed_by = ?,
-            reviewed_at = NOW(),
-            review_note = ?
-          WHERE id = ?
-          `,
-          [auth.userId, note || "Payment approved", orderId]
-        );
-      } else {
-        await db.query(
-          `
-          UPDATE orders
-          SET
-            state = 'cancelled',
-            result = 'failed',
-            reviewed_by = ?,
-            reviewed_at = NOW(),
-            review_note = ?
-          WHERE id = ?
-          `,
-          [auth.userId, note || "Payment declined", orderId]
-        );
-      }
-    }
-
-    if (decision === "approve") {
-      await db.query(
-        `
-        UPDATE video_course_purchases vcp
-        SET
-          vcp.status = 'pending'
-        WHERE vcp.order_id = ?
-        `,
-        [orderId]
-      );
-
-      await db.query(
-        `
-        UPDATE video_subscriptions vsub
-        SET
-          vsub.status = 'pending'
-        WHERE vsub.order_id = ?
-        `,
-        [orderId]
-      );
-    } else {
-      await db.query(
-        `
-        UPDATE video_course_purchases
-        SET status = 'cancelled'
-        WHERE order_id = ?
-        `,
-        [orderId]
-      );
-
-      await db.query(
-        `
-        UPDATE video_subscriptions
-        SET status = 'cancelled'
-        WHERE order_id = ?
-        `,
-        [orderId]
-      );
     }
 
     const [orderRows] = await db.query<RowDataPacket[]>(
       `SELECT id, order_number, state, result, payment_state, review_note, reviewed_at FROM orders WHERE id = ? LIMIT 1`,
-      [orderId]
+      [reviewResult.orderId]
     );
 
     return Response.json({

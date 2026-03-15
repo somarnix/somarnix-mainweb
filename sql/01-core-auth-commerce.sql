@@ -82,9 +82,25 @@ CREATE TABLE IF NOT EXISTS user_login_devices (
   device_name VARCHAR(120) NULL,
   first_seen_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
   last_seen_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  trusted_until DATETIME NULL,
+  trust_granted_at DATETIME NULL,
+  device_action_locked_until DATETIME NULL,
   UNIQUE KEY uniq_user_login_device (user_id, device_id),
   INDEX idx_user_login_last_seen (user_id, last_seen_at),
   CONSTRAINT fk_user_login_devices_user FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
+
+CREATE TABLE IF NOT EXISTS user_login_verification_codes (
+  id BIGINT UNSIGNED AUTO_INCREMENT PRIMARY KEY,
+  user_id BIGINT UNSIGNED NOT NULL,
+  device_id VARCHAR(128) NOT NULL,
+  code_hash VARCHAR(255) NOT NULL,
+  expires_at DATETIME NOT NULL,
+  used_at DATETIME NULL,
+  created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  INDEX idx_ulvc_user_device_created (user_id, device_id, created_at),
+  INDEX idx_ulvc_user_expires (user_id, expires_at),
+  CONSTRAINT fk_ulvc_user FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
 
 CREATE TABLE IF NOT EXISTS user_device_logout_codes (
@@ -98,6 +114,19 @@ CREATE TABLE IF NOT EXISTS user_device_logout_codes (
   INDEX idx_udlc_user_device_created (user_id, device_id, created_at),
   INDEX idx_udlc_user_expires (user_id, expires_at),
   CONSTRAINT fk_udlc_user FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
+
+CREATE TABLE IF NOT EXISTS login_attempt_limits (
+  id BIGINT UNSIGNED AUTO_INCREMENT PRIMARY KEY,
+  scope_type ENUM('email','ip') NOT NULL,
+  scope_key VARCHAR(190) NOT NULL,
+  attempt_count INT NOT NULL DEFAULT 0,
+  last_attempt_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  blocked_until DATETIME NULL,
+  created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  updated_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+  UNIQUE KEY uniq_login_attempt_scope (scope_type, scope_key),
+  INDEX idx_login_attempt_blocked (scope_type, blocked_until)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
 
 CREATE TABLE IF NOT EXISTS product_categories (

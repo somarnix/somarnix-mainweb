@@ -146,6 +146,8 @@ type LoginDeviceItem = {
   deviceName: string;
   firstSeenAt: string | null;
   lastSeenAt: string | null;
+  trustedUntil?: string | null;
+  deviceActionLockedUntil?: string | null;
 };
 
 type ApiKeyProviderId = "groq" | "openai" | "google" | "deepl";
@@ -393,6 +395,7 @@ export function ProfilePage({ onNavigate, onOpenProductDetail, onOpenToolDetail,
   const [deviceActionMessage, setDeviceActionMessage] = useState<string | null>(null);
   const [otpTargetDeviceId, setOtpTargetDeviceId] = useState<string | null>(null);
   const [otpCode, setOtpCode] = useState("");
+  const [deviceCurrentPassword, setDeviceCurrentPassword] = useState("");
   const [sendingOtp, setSendingOtp] = useState(false);
   const [removingDevice, setRemovingDevice] = useState(false);
   const [currentLoginDeviceId, setCurrentLoginDeviceId] = useState<string | null>(null);
@@ -402,6 +405,12 @@ export function ProfilePage({ onNavigate, onOpenProductDetail, onOpenToolDetail,
     openai: "",
     google: "",
     deepl: "",
+  });
+  const apiKeyInputRefs = useRef<Record<ApiKeyProviderId, HTMLInputElement | null>>({
+    groq: null,
+    openai: null,
+    google: null,
+    deepl: null,
   });
   const [apiKeysLoading, setApiKeysLoading] = useState(false);
   const [apiKeysSaving, setApiKeysSaving] = useState(false);
@@ -504,6 +513,13 @@ export function ProfilePage({ onNavigate, onOpenProductDetail, onOpenToolDetail,
     () => Object.values(apiKeyInputs).some((value) => value.trim().length > 0),
     [apiKeyInputs]
   );
+
+  const setApiKeyInputValue = useCallback((provider: ApiKeyProviderId, value: string) => {
+    setApiKeyInputs((prev) => ({
+      ...prev,
+      [provider]: value,
+    }));
+  }, []);
 
   const goToProduct = useCallback(
     (slug: string) => {
@@ -803,6 +819,7 @@ export function ProfilePage({ onNavigate, onOpenProductDetail, onOpenToolDetail,
         }
         setOtpTargetDeviceId(deviceId);
         setOtpCode("");
+        setDeviceCurrentPassword("");
         setDeviceActionMessage(
           `Verification code sent to ${user?.email || "your email"} (valid 10 minutes).`
         );
@@ -818,7 +835,7 @@ export function ProfilePage({ onNavigate, onOpenProductDetail, onOpenToolDetail,
 
   const confirmLogoutOtherDevice = useCallback(
     async (deviceId: string) => {
-      if (!deviceId || otpCode.trim().length === 0) return;
+      if (!deviceId || otpCode.trim().length === 0 || deviceCurrentPassword.trim().length === 0) return;
       setDeviceActionMessage(null);
       setDevicesError(null);
       setRemovingDevice(true);
@@ -830,6 +847,7 @@ export function ProfilePage({ onNavigate, onOpenProductDetail, onOpenToolDetail,
           body: JSON.stringify({
             deviceId,
             code: otpCode.trim(),
+            currentPassword: deviceCurrentPassword,
             currentDeviceId: currentLoginDeviceId,
           }),
         });
@@ -848,6 +866,7 @@ export function ProfilePage({ onNavigate, onOpenProductDetail, onOpenToolDetail,
         setDeviceActionMessage("Device logged out successfully.");
         setOtpTargetDeviceId(null);
         setOtpCode("");
+        setDeviceCurrentPassword("");
         await fetchLoginDevices();
       } catch (error) {
         const message = error instanceof Error ? error.message : String(error);
@@ -856,7 +875,7 @@ export function ProfilePage({ onNavigate, onOpenProductDetail, onOpenToolDetail,
         setRemovingDevice(false);
       }
     },
-    [currentLoginDeviceId, fetchLoginDevices, otpCode]
+    [currentLoginDeviceId, deviceCurrentPassword, fetchLoginDevices, otpCode]
   );
 
   const fetchApiKeys = useCallback(async () => {
@@ -887,9 +906,13 @@ export function ProfilePage({ onNavigate, onOpenProductDetail, onOpenToolDetail,
 
   const saveApiKeys = useCallback(async () => {
     const payload: Record<string, string> = {};
+    const requestedProviders: ApiKeyProviderId[] = [];
+
     (Object.keys(apiKeyInputs) as ApiKeyProviderId[]).forEach((provider) => {
-      const value = apiKeyInputs[provider].trim();
+      const rawValue = apiKeyInputRefs.current[provider]?.value ?? apiKeyInputs[provider];
+      const value = rawValue.trim();
       if (!value) return;
+      requestedProviders.push(provider);
       payload[`${provider}ApiKey`] = value;
     });
 
@@ -909,31 +932,49 @@ export function ProfilePage({ onNavigate, onOpenProductDetail, onOpenToolDetail,
       if (!res.ok) {
         throw new Error(data?.error || "Failed to save API keys");
       }
-      setApiKeys({
+      const nextApiKeys = {
         groq: data.apiKeys?.groq ?? EMPTY_API_KEYS.groq,
         openai: data.apiKeys?.openai ?? EMPTY_API_KEYS.openai,
         google: data.apiKeys?.google ?? EMPTY_API_KEYS.google,
         deepl: data.apiKeys?.deepl ?? EMPTY_API_KEYS.deepl,
+      };
+      const savedProviders = requestedProviders.filter((provider) => nextApiKeys[provider].configured);
+      const failedProviders = requestedProviders.filter((provider) => !nextApiKeys[provider].configured);
+      const toProviderLabel = (provider: ApiKeyProviderId) =>
+        apiKeyProviders.find((item) => item.id === provider)?.label ?? provider;
+
+      setApiKeys(nextApiKeys);
+      setApiKeyInputs((prev) => {
+        const next = { ...prev };
+        savedProviders.forEach((provider) => {
+          next[provider] = "";
+        });
+        return next;
       });
-      setApiKeyInputs({
-        groq: "",
-        openai: "",
-        google: "",
-        deepl: "",
-      });
-      setApiKeysMessage(
-        translate(
-          "profile.apiKeys.saved",
-          "Your personal API keys were saved. New requests will use them first."
-        )
-      );
+
+      if (savedProviders.length > 0) {
+        const savedLabels = savedProviders.map(toProviderLabel).join(", ");
+        setApiKeysMessage(
+          `${translate("profile.apiKeys.savedSelected", "Saved")}: ${savedLabels}.`
+        );
+      }
+
+      if (failedProviders.length > 0) {
+        const failedLabels = failedProviders.map(toProviderLabel).join(", ");
+        setApiKeysError(
+          `${translate(
+            "profile.apiKeys.failedSelected",
+            "These keys were not saved"
+          )}: ${failedLabels}.`
+        );
+      }
     } catch (error) {
       const message = error instanceof Error ? error.message : String(error);
       setApiKeysError(message || "Failed to save API keys.");
     } finally {
       setApiKeysSaving(false);
     }
-  }, [apiKeyInputs, translate]);
+  }, [apiKeyInputs, apiKeyProviders, translate]);
 
   const removeApiKey = useCallback(
     async (provider: ApiKeyProviderId) => {
@@ -2503,13 +2544,16 @@ export function ProfilePage({ onNavigate, onOpenProductDetail, onOpenToolDetail,
                       </div>
 
                       <Input
+                        ref={(element) => {
+                          apiKeyInputRefs.current[provider.id] = element;
+                        }}
                         type="password"
                         value={apiKeyInputs[provider.id]}
-                        onChange={(e) =>
-                          setApiKeyInputs((prev) => ({
-                            ...prev,
-                            [provider.id]: e.target.value,
-                          }))
+                        name={`${provider.id}-api-key`}
+                        autoComplete="off"
+                        onChange={(e) => setApiKeyInputValue(provider.id, e.target.value)}
+                        onInput={(e) =>
+                          setApiKeyInputValue(provider.id, e.currentTarget.value)
                         }
                         placeholder={provider.placeholder}
                         className="mt-3"
@@ -2551,6 +2595,12 @@ export function ProfilePage({ onNavigate, onOpenProductDetail, onOpenToolDetail,
                   </span>
                 ) : null}
               </div>
+              <p className="mt-3 text-xs text-gray-500">
+                {translate(
+                  "profile.apiKeys.maskedHint",
+                  "Saved keys are hidden here and only shown as a short masked preview."
+                )}
+              </p>
             </div>
 
             <div className="grid gap-6 md:grid-cols-2">
@@ -2697,11 +2747,11 @@ export function ProfilePage({ onNavigate, onOpenProductDetail, onOpenToolDetail,
                             key={device.deviceId}
                             className="rounded-xl border border-gray-200 bg-gray-50 p-3 dark:border-gray-700 dark:bg-gray-900"
                           >
-                            <div className="flex flex-wrap items-start justify-between gap-2">
-                              <div className="min-w-0">
-                                <div className="flex items-center gap-2 text-sm font-semibold text-gray-900 dark:text-white">
+                            <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
+                              <div className="min-w-0 flex-1">
+                                <div className="flex flex-wrap items-center gap-2 text-sm font-semibold text-gray-900 dark:text-white">
                                   <Smartphone className="h-4 w-4 text-gray-500" />
-                                  <span className="truncate">{device.deviceName || "Unknown device"}</span>
+                                  <span className="min-w-0 break-words">{device.deviceName || "Unknown device"}</span>
                                   {isCurrent ? (
                                     <span className="rounded-full bg-blue-100 px-2 py-0.5 text-xs text-blue-700">
                                       {translate("profile.currentDevice", "Current")}
@@ -2709,11 +2759,19 @@ export function ProfilePage({ onNavigate, onOpenProductDetail, onOpenToolDetail,
                                   ) : null}
                                 </div>
                                 <div className="mt-1 text-xs text-gray-500">
-                                  ID: <span className="font-mono">{device.deviceId}</span>
+                                  ID: <span className="break-all font-mono">{device.deviceId}</span>
                                 </div>
                                 <div className="text-xs text-gray-500">
                                   {translate("profile.lastSeen", "Last seen")}: {formatDateTime(device.lastSeenAt)}
                                 </div>
+                                <div className="text-xs text-gray-500">
+                                  Trusted until: {device.trustedUntil ? formatDateTime(device.trustedUntil) : "Not trusted"}
+                                </div>
+                                {isCurrent && device.deviceActionLockedUntil ? (
+                                  <div className="text-xs text-amber-600">
+                                    Removal changes locked until: {formatDateTime(device.deviceActionLockedUntil)}
+                                  </div>
+                                ) : null}
                               </div>
 
                               {!isCurrent ? (
@@ -2723,6 +2781,7 @@ export function ProfilePage({ onNavigate, onOpenProductDetail, onOpenToolDetail,
                                   variant="outline"
                                   onClick={() => void sendLogoutCode(device.deviceId)}
                                   disabled={sendingOtp || removingDevice}
+                                  className="w-full sm:w-auto"
                                 >
                                   <Mail className="mr-2 h-4 w-4" />
                                   {translate("profile.sendCode", "Send code")}
@@ -2731,34 +2790,53 @@ export function ProfilePage({ onNavigate, onOpenProductDetail, onOpenToolDetail,
                             </div>
 
                             {!isCurrent && isOtpTarget ? (
-                              <div className="mt-3 flex flex-wrap items-center gap-2">
+                              <div className="mt-3 grid gap-2 sm:grid-cols-2">
                                 <Input
                                   value={otpCode}
                                   onChange={(e) => setOtpCode(e.target.value.replace(/\D/g, "").slice(0, 6))}
                                   placeholder={translate("profile.enterCode", "Enter 6-digit code")}
-                                  className="w-52"
+                                  className="w-full"
                                 />
-                                <Button
-                                  type="button"
-                                  size="sm"
-                                  onClick={() => void confirmLogoutOtherDevice(device.deviceId)}
-                                  disabled={removingDevice || otpCode.trim().length !== 6}
-                                >
-                                  {removingDevice
-                                    ? translate("profile.saving", "Saving...")
-                                    : translate("profile.logoutDevice", "Logout device")}
-                                </Button>
-                                <Button
-                                  type="button"
-                                  size="sm"
-                                  variant="ghost"
-                                  onClick={() => {
-                                    setOtpTargetDeviceId(null);
-                                    setOtpCode("");
-                                  }}
-                                >
-                                  {translate("profile.cancel", "Cancel")}
-                                </Button>
+                                <Input
+                                  type="password"
+                                  value={deviceCurrentPassword}
+                                  onChange={(e) => setDeviceCurrentPassword(e.target.value)}
+                                  placeholder="Re-enter password"
+                                  className="w-full"
+                                />
+                                <div className="text-xs text-gray-500 sm:col-span-2">
+                                  Removing another trusted device requires your email code and password again.
+                                </div>
+                                <div className="flex flex-col gap-2 sm:col-span-2 sm:flex-row">
+                                  <Button
+                                    type="button"
+                                    size="sm"
+                                    onClick={() => void confirmLogoutOtherDevice(device.deviceId)}
+                                    disabled={
+                                      removingDevice ||
+                                      otpCode.trim().length !== 6 ||
+                                      deviceCurrentPassword.trim().length === 0
+                                    }
+                                    className="w-full sm:w-auto"
+                                  >
+                                    {removingDevice
+                                      ? translate("profile.saving", "Saving...")
+                                      : translate("profile.logoutDevice", "Logout device")}
+                                  </Button>
+                                  <Button
+                                    type="button"
+                                    size="sm"
+                                    variant="ghost"
+                                    onClick={() => {
+                                      setOtpTargetDeviceId(null);
+                                      setOtpCode("");
+                                      setDeviceCurrentPassword("");
+                                    }}
+                                    className="w-full sm:w-auto"
+                                  >
+                                    {translate("profile.cancel", "Cancel")}
+                                  </Button>
+                                </div>
                               </div>
                             ) : null}
                           </div>

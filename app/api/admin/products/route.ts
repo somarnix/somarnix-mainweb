@@ -32,8 +32,8 @@ export async function GET(req: Request) {
 
     const hasProductsMode = await hasColumn("products", "mode");
     const modeSelectExpr = hasProductsMode
-      ? "CASE WHEN LOWER(c.name) = 'tools' THEN 'license' WHEN p.mode IN ('license','inventory') THEN p.mode ELSE 'inventory' END AS mode,"
-      : "CASE WHEN LOWER(c.name) = 'tools' THEN 'license' ELSE 'inventory' END AS mode,";
+      ? "CASE WHEN p.mode IN ('license','inventory') THEN p.mode ELSE 'inventory' END AS mode,"
+      : "'inventory' AS mode,";
 
     let rows: RowDataPacket[] = [];
     try {
@@ -159,8 +159,7 @@ export async function POST(req: Request) {
     if (categoryRows.length === 0) {
       return Response.json({ error: "Category not found" }, { status: 400 });
     }
-    const isToolsCategory = String(categoryRows[0].name ?? "").toLowerCase() === "tools";
-    const fallbackMode = isToolsCategory ? "license" : "inventory";
+    const fallbackMode = "inventory";
     const finalMode =
       requestedMode === "license" || requestedMode === "inventory" ? requestedMode : fallbackMode;
     const hasProductsMode = await hasColumn("products", "mode");

@@ -1,6 +1,10 @@
 import { db } from "@/lib/db";
 import type { RowDataPacket } from "mysql2";
 
+export const runtime = "nodejs";
+export const dynamic = "force-dynamic";
+export const revalidate = 0;
+
 type ComboRow = RowDataPacket & {
   id: number;
   title: string;

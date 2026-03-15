@@ -1,5 +1,6 @@
 import jwt from "jsonwebtoken";
 import { createHmac } from "crypto";
+import { getJwtSecret } from "./security";
 
 export type ToolLicenseTokenPayload = {
   userId: number;
@@ -20,7 +21,7 @@ export type OfflineToolLicensePayload = {
 };
 
 function getToolLicenseSecret(): string {
-  return process.env.TOOL_LICENSE_SECRET || process.env.JWT_SECRET || "dev_secret";
+  return process.env.TOOL_LICENSE_SECRET?.trim() || getJwtSecret();
 }
 
 export function signOfflineToolLicensePayload(payload: OfflineToolLicensePayload): string {

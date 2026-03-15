@@ -1,4 +1,5 @@
 import { db } from "@/lib/db";
+import { buildSessionCookie, getJwtSecret } from "@/lib/security";
 import jwt from "jsonwebtoken";
 import type { ResultSetHeader, RowDataPacket } from "mysql2";
 
@@ -316,9 +317,10 @@ export async function POST(req: Request): Promise<Response> {
       }
     }
 
+    const jwtSecret = getJwtSecret();
     const token = jwt.sign(
       { userId, role, loginDeviceId: loginDeviceRowId ?? undefined },
-      process.env.JWT_SECRET ?? "dev_secret",
+      jwtSecret,
       { expiresIn: "7d" }
     );
 
@@ -328,9 +330,7 @@ export async function POST(req: Request): Promise<Response> {
         status: 200,
         headers: {
           "Content-Type": "application/json",
-          "Set-Cookie": `token=${token}; Path=/; HttpOnly; SameSite=Lax; Max-Age=${
-            7 * 24 * 60 * 60
-          }`,
+          "Set-Cookie": buildSessionCookie(token),
         },
       }
     );

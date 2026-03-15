@@ -1,10 +1,11 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import { X, CheckCircle2, XCircle, Loader2, User } from 'lucide-react';
 import { useLanguage } from '../contexts/LanguageContext';
 import { useAuth } from '../contexts/AuthContext';
 import { Button } from './ui/button';
 import { Input } from './ui/input';
 import { Label } from './ui/label';
+import { toast } from 'sonner';
 
 interface PaymentInfo {
   userId: string;
@@ -18,21 +19,36 @@ interface PaymentInfo {
 interface QRPaymentModalProps {
   amount: number;
   onClose: () => void;
-  onSuccess: (paymentInfo: PaymentInfo) => void;
+  onSuccess: (paymentInfo: PaymentInfo) => void | Promise<void>;
+  orderId?: number;
+  orderCreatedAt?: string;
   productTitle: string;
   variantLabel?: string;
+  billNumber?: string;
+  telegramSupportUrl?: string;
   khqrUrl?: string;
   usdQrUrl?: string;
 }
 
 const DEFAULT_KH_QR = "/paymentQR/khmer_qr.jpg";
+const KHR_PER_USD = 4000;
+
+type KhqrApiResponse = {
+  qrDataUrl?: string;
+  md5?: string;
+  error?: string;
+};
 
 export function QRPaymentModal({
   amount,
   onClose,
   onSuccess,
+  orderId,
+  orderCreatedAt,
   productTitle,
   variantLabel,
+  billNumber,
+  telegramSupportUrl,
   khqrUrl,
   usdQrUrl,
 }: QRPaymentModalProps) {
@@ -40,6 +56,8 @@ export function QRPaymentModal({
   const { user } = useAuth();
   const [timeLeft, setTimeLeft] = useState(300); // 5 minutes = 300 seconds
   const [step, setStep] = useState<'qr' | 'form' | 'processing' | 'success' | 'expired'>('qr');
+  const userDisplayName =
+    user?.firstName?.trim() || user?.username?.trim() || user?.email?.trim() || 'User';
   const PAYMENT_METHODS = [
     { value: 'manual', label: language === 'km' ? 'ដៃគូផ្សេង' : 'Manual / Other' },
     { value: 'ABA Bank', label: 'ABA Bank' },
@@ -49,13 +67,36 @@ export function QRPaymentModal({
     { value: 'Other', label: language === 'km' ? 'ធនាគារផ្សេង' : 'Other Bank' }
   ];
 
+  const toDatetimeLocalValue = (value?: string | null) => {
+    if (typeof value === 'string') {
+      const trimmed = value.trim();
+      if (trimmed) {
+        if (/^\d{4}-\d{2}-\d{2} \d{2}:\d{2}/.test(trimmed)) {
+          return trimmed.replace(' ', 'T').slice(0, 16);
+        }
+        if (/^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}/.test(trimmed)) {
+          return trimmed.slice(0, 16);
+        }
+        const parsed = new Date(trimmed);
+        if (!Number.isNaN(parsed.getTime())) {
+          const localMs = parsed.getTime() - parsed.getTimezoneOffset() * 60000;
+          return new Date(localMs).toISOString().slice(0, 16);
+        }
+      }
+    }
+
+    const now = new Date();
+    const localMs = now.getTime() - now.getTimezoneOffset() * 60000;
+    return new Date(localMs).toISOString().slice(0, 16);
+  };
+
   const [paymentInfo, setPaymentInfo] = useState<PaymentInfo>({
     userId: user?.id != null ? String(user.id) : '',
-    accountName: '',
-    accountNumber: '',
+    accountName: userDisplayName,
+    accountNumber: billNumber?.trim() || '',
     paymentApv: '',
-    method: PAYMENT_METHODS[0].value,
-    dateTimePay: ''
+    method: 'ABA Bank',
+    dateTimePay: toDatetimeLocalValue(orderCreatedAt)
   });
   useEffect(() => {
     setPaymentInfo((prev) => ({
@@ -64,18 +105,127 @@ export function QRPaymentModal({
     }));
   }, [user?.id]);
 
-  const resolvedKhQr = khqrUrl && khqrUrl.trim() ? khqrUrl : DEFAULT_KH_QR;
-  const resolvedUsdQr =
+  useEffect(() => {
+    setPaymentInfo((prev) => ({
+      ...prev,
+      userId: user?.id != null ? String(user.id) : '',
+      accountName: userDisplayName,
+      accountNumber: billNumber?.trim() || '',
+      method: 'ABA Bank',
+      dateTimePay: prev.dateTimePay || toDatetimeLocalValue(orderCreatedAt),
+    }));
+  }, [billNumber, orderCreatedAt, user?.id, userDisplayName]);
+
+  const [generatedKhQr, setGeneratedKhQr] = useState<string | null>(null);
+  const [generatedUsdQr, setGeneratedUsdQr] = useState<string | null>(null);
+  const [qrLoading, setQrLoading] = useState(false);
+  const [qrError, setQrError] = useState('');
+  const [autoConfirming, setAutoConfirming] = useState(false);
+  const [copyingTelegramText, setCopyingTelegramText] = useState(false);
+  const autoSubmitStartedRef = useRef(false);
+  const fallbackKhQr = khqrUrl && khqrUrl.trim() ? khqrUrl : DEFAULT_KH_QR;
+  const fallbackUsdQr =
     usdQrUrl &&
     usdQrUrl.trim() &&
     usdQrUrl.trim().toLowerCase() !== 'none'
       ? usdQrUrl
       : null;
-  const userDisplayName =
-    user?.firstName?.trim() || user?.username?.trim() || user?.email?.trim() || 'User';
-  const [activeQrType, setActiveQrType] = useState<'khqr' | 'usdqr'>(
-    resolvedKhQr ? 'khqr' : 'usdqr'
-  );
+  const resolvedKhQr = generatedKhQr || fallbackKhQr;
+  const resolvedUsdQr = generatedUsdQr || fallbackUsdQr;
+  const [activeQrType, setActiveQrType] = useState<'khqr' | 'usdqr'>('khqr');
+  const hasOrderPrefill = Boolean(billNumber?.trim()) || Boolean(orderCreatedAt?.trim());
+  const resolvedTelegramSupportUrl =
+    telegramSupportUrl?.trim() ||
+    (process.env.NEXT_PUBLIC_TELEGRAM_SUPPORT_URL || '').trim();
+  const preferTelegramCheckout = Boolean(resolvedTelegramSupportUrl);
+  const telegramSupportLabel =
+    (process.env.NEXT_PUBLIC_TELEGRAM_SUPPORT_LABEL || '').trim() || 'Continue payment in Telegram';
+  const telegramProofMessage = [
+    'ABA payment support request',
+    `Order ID: ${orderId ?? 'N/A'}`,
+    `Bill Number: ${billNumber?.trim() || 'N/A'}`,
+    `Buyer: ${userDisplayName}`,
+    `Email: ${user?.email?.trim() || 'N/A'}`,
+    `Product: ${productTitle}${variantLabel ? ` (${variantLabel})` : ''}`,
+    `Amount: $${amount.toFixed(2)}`,
+    `Created: ${orderCreatedAt?.trim() || new Date().toISOString().slice(0, 19).replace('T', ' ')}`,
+    '',
+    'I will send my transfer screenshot in this chat after payment.',
+  ].join('\n');
+
+  const handleCopyTelegramText = async () => {
+    try {
+      setCopyingTelegramText(true);
+      await navigator.clipboard.writeText(telegramProofMessage);
+      toast.success('Telegram payment message copied.');
+    } catch {
+      toast.error('Failed to copy Telegram payment message.');
+    } finally {
+      setCopyingTelegramText(false);
+    }
+  };
+
+  useEffect(() => {
+    const fetchQr = async (currency: 'KHR' | 'USD', value: number) => {
+      const res = await fetch('/api/payments/khqr', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          amount: value,
+          currency,
+          billNumber,
+        }),
+      });
+
+      const data = (await res.json().catch(() => ({}))) as KhqrApiResponse;
+      if (!res.ok || !data.qrDataUrl || !data.md5) {
+        throw new Error(data.error || `Failed to generate ${currency} ABA PayWay QR`);
+      }
+
+      return {
+        qrDataUrl: data.qrDataUrl,
+      };
+    };
+
+    if (!Number.isFinite(amount) || amount <= 0) {
+      setGeneratedKhQr(null);
+      setGeneratedUsdQr(null);
+      return;
+    }
+
+    let cancelled = false;
+    setQrLoading(true);
+    setQrError('');
+
+    void (async () => {
+      try {
+        const usdAmount = Number(amount.toFixed(2));
+        const khrAmount = Math.round(usdAmount * KHR_PER_USD);
+        const [khqr, usdqr] = await Promise.all([
+          fetchQr('KHR', khrAmount),
+          fetchQr('USD', usdAmount),
+        ]);
+
+        if (cancelled) return;
+        setGeneratedKhQr(khqr.qrDataUrl);
+        setGeneratedUsdQr(usdqr.qrDataUrl);
+      } catch (error) {
+        if (cancelled) return;
+        const message = error instanceof Error ? error.message : String(error);
+        setQrError(message || 'Failed to generate payment QR.');
+        setGeneratedKhQr(null);
+        setGeneratedUsdQr(null);
+      } finally {
+        if (!cancelled) {
+          setQrLoading(false);
+        }
+      }
+    })();
+
+    return () => {
+      cancelled = true;
+    };
+  }, [amount, billNumber]);
   useEffect(() => {
     if (activeQrType === 'usdqr' && !resolvedUsdQr) {
       setActiveQrType('khqr');
@@ -84,6 +234,75 @@ export function QRPaymentModal({
 
   const activeQrUrl =
     activeQrType === 'usdqr' && resolvedUsdQr ? resolvedUsdQr : resolvedKhQr;
+
+  useEffect(() => {
+    if (!orderId || step !== 'qr' || autoSubmitStartedRef.current) return;
+
+    let cancelled = false;
+
+    const checkOrder = async () => {
+      try {
+        const res = await fetch(`/api/orders/${orderId}`, {
+          cache: 'no-store',
+          credentials: 'include',
+        });
+        const data = await res.json().catch(() => ({}));
+        if (!res.ok || cancelled) return;
+
+        const orderStatus = String(data?.order?.status || '').toLowerCase();
+        const payment = data?.payment;
+        const isPaidStatus =
+          orderStatus === 'approved' ||
+          orderStatus === 'delivering' ||
+          orderStatus === 'completed' ||
+          orderStatus === 'done';
+
+        if (!payment && !isPaidStatus) return;
+
+        autoSubmitStartedRef.current = true;
+        setAutoConfirming(true);
+        setStep('processing');
+
+        await onSuccess({
+          userId: user?.id != null ? String(user.id) : '',
+          accountName:
+            typeof payment?.account_id === 'string' && payment.account_id
+              ? payment.account_id
+              : 'ABA Transfer',
+          accountNumber:
+            typeof payment?.payment_id === 'string' && payment.payment_id
+              ? payment.payment_id
+              : 'AUTO',
+          paymentApv:
+            typeof payment?.payment_apv === 'string' && payment.payment_apv
+              ? payment.payment_apv
+              : 'AUTO',
+          method:
+            typeof payment?.method === 'string' && payment.method
+              ? payment.method
+              : 'ABA Bank',
+          dateTimePay:
+            typeof payment?.paid_at === 'string' && payment.paid_at
+              ? payment.paid_at
+              : new Date().toISOString(),
+        });
+      } catch {
+        autoSubmitStartedRef.current = false;
+        setAutoConfirming(false);
+        setStep('qr');
+      }
+    };
+
+    void checkOrder();
+    const interval = setInterval(() => {
+      void checkOrder();
+    }, 5000);
+
+    return () => {
+      cancelled = true;
+      clearInterval(interval);
+    };
+  }, [onSuccess, orderId, step, user?.id]);
 
   // Countdown timer
   useEffect(() => {
@@ -238,6 +457,11 @@ export function QRPaymentModal({
                   <div className="font-semibold text-gray-900 dark:text-white">
                     {productTitle}
                   </div>
+                  {billNumber ? (
+                    <div className="mt-1 text-xs font-medium text-blue-600 dark:text-blue-400">
+                      Order No: {billNumber}
+                    </div>
+                  ) : null}
                   {variantLabel && (
                     <div className="text-sm text-gray-500 dark:text-gray-400 mt-1">
                       {variantLabel}
@@ -245,15 +469,30 @@ export function QRPaymentModal({
                   )}
                 </div>
 
+                {preferTelegramCheckout ? (
+                  <div className="mb-4 rounded-2xl border border-blue-200 bg-blue-50 p-4 text-center dark:border-blue-900 dark:bg-blue-950/30">
+                    <div className="text-sm font-semibold text-blue-900 dark:text-blue-100">
+                      {language === 'km'
+                        ? 'បន្តការទូទាត់តាម Telegram ដើម្បីទទួលបាន ABA QR និងផ្ញើរូបថតការផ្ទេរប្រាក់នៅទីនោះ។'
+                        : 'Continue in Telegram to receive the ABA QR and send your payment screenshot there.'}
+                    </div>
+                    <p className="mt-2 text-xs text-blue-800 dark:text-blue-200">
+                      {language === 'km'
+                        ? 'Bot នឹងបង្ហាញព័ត៌មានអ្នកទិញ លេខប៊ីល ចំនួនទឹកប្រាក់ ហើយផ្ញើទាំង KHR QR និង USD QR ដោយស្វ័យប្រវត្តិ។'
+                        : 'The bot will show the buyer details, bill number, amount, and automatically send both KHR and USD QR codes.'}
+                    </p>
+                  </div>
+                ) : null}
+
                 {/* QR Selector */}
-                <div className="mb-3">
+                <div className={preferTelegramCheckout ? "hidden" : "mb-3"}>
                   <div className="flex gap-3 mb-4">
                     <Button
                       onClick={() => setActiveQrType('khqr')}
                       variant={activeQrType === 'khqr' ? 'default' : 'outline'}
                       className="flex-1"
                     >
-                      KHQR
+                      KHR QR
                     </Button>
                     <Button
                       onClick={() => setActiveQrType('usdqr')}
@@ -266,7 +505,12 @@ export function QRPaymentModal({
                   </div>
 
                   <div className="flex flex-col items-center">
-                    {activeQrUrl ? (
+                    {qrLoading ? (
+                      <div className="w-full rounded-2xl border border-gray-200 dark:border-gray-700 p-10 text-center text-sm text-gray-500 dark:text-gray-400">
+                        <Loader2 className="w-6 h-6 animate-spin mx-auto mb-3" />
+                        {language === 'km' ? 'កំពុងបង្កើត ABA PayWay QR...' : 'Generating ABA PayWay QR...'}
+                      </div>
+                    ) : activeQrUrl ? (
                       <div className="bg-white dark:bg-gray-900 border border-gray-200 dark:border-gray-700 rounded-2xl p-4 shadow-lg">
                         <img
                           src={activeQrUrl}
@@ -281,6 +525,11 @@ export function QRPaymentModal({
                           : 'QR code not available for this option.'}
                       </div>
                     )}
+                    {qrError ? (
+                      <div className="w-full mt-3 rounded-xl border border-red-200 bg-red-50 px-3 py-2 text-sm text-red-700">
+                        {qrError}
+                      </div>
+                    ) : null}
                     <img
                       src="/paymentQR/bank_support.webp"
                       alt="Bank Support"
@@ -291,17 +540,59 @@ export function QRPaymentModal({
                         ? 'ស្កេន QR ដែលបានជ្រើសជាមួយ ABA Mobile របស់អ្នកដើម្បីបន្តការទូទាត់។'
                         : 'Scan the selected QR with your ABA Mobile app to pay.'}
                     </p>
+                    <p className="mt-2 text-xs text-gray-500 dark:text-gray-400 text-center">
+                      {activeQrType === 'usdqr'
+                        ? `USD ${amount.toFixed(2)}`
+                        : `KHR ${Math.round(amount * KHR_PER_USD).toLocaleString()}`}
+                    </p>
+                    <p className="mt-3 text-xs font-medium text-green-600 dark:text-green-400 text-center">
+                      {autoConfirming
+                        ? 'Payment detected. Finalizing order...'
+                        : 'After payment, this page will auto-confirm your order.'}
+                    </p>
                   </div>
                 </div>
 
                 {/* Continue Button */}
-                <Button
-                  onClick={handleContinueToForm}
-                  className="w-full bg-gradient-to-r from-blue-600 to-purple-600 hover:from-blue-700 hover:to-purple-700 text-white"
-                  size="lg"
-                >
-                  {language === 'km' ? 'បន្តបន្ទាប់ពីទូទាត់' : 'Continue After Payment'}
-                </Button>
+                <div className="space-y-3">
+                  {resolvedTelegramSupportUrl ? (
+                    <Button
+                      onClick={() => window.open(resolvedTelegramSupportUrl, '_blank', 'noopener,noreferrer')}
+                      className="w-full"
+                      size="lg"
+                    >
+                      {telegramSupportLabel}
+                    </Button>
+                  ) : null}
+
+                  <Button
+                    onClick={() => void handleCopyTelegramText()}
+                    variant="outline"
+                    className={preferTelegramCheckout ? 'hidden' : 'w-full'}
+                    size="lg"
+                    disabled={copyingTelegramText}
+                  >
+                    {copyingTelegramText ? 'Copying Telegram message...' : 'Copy Telegram payment message'}
+                  </Button>
+
+                  <Button
+                    onClick={handleContinueToForm}
+                    variant="ghost"
+                    className={preferTelegramCheckout ? 'hidden' : 'w-full'}
+                    size="lg"
+                  >
+                    {language === 'km' ? 'បំពេញដោយដៃ' : 'Manual Payment Form'}
+                  </Button>
+                </div>
+
+                <div className={preferTelegramCheckout ? "hidden" : "mt-4 rounded-xl border border-blue-200 bg-blue-50 p-3 text-left dark:border-blue-900 dark:bg-blue-950/30"}>
+                  <div className="text-xs font-semibold uppercase tracking-wide text-blue-700 dark:text-blue-300">
+                    Telegram proof message
+                  </div>
+                  <pre className="mt-2 whitespace-pre-wrap break-words text-xs text-blue-900 dark:text-blue-100">
+                    {telegramProofMessage}
+                  </pre>
+                </div>
 
                 {/* Timer Warning */}
                 {timeLeft < 60 && (
@@ -331,6 +622,12 @@ export function QRPaymentModal({
                   </p>
                 </div>
 
+                <p className="mb-4 text-xs font-medium text-blue-600 dark:text-blue-400">
+                  {language === 'km'
+                    ? 'បំពេញតែ APV បានគ្រប់គ្រាន់ ស្រាប់តែទិន្នន័យផ្សេងៗមកពីអូឌ័រ។'
+                    : 'Only APV needs to be entered. The other fields are prefilled from the order.'}
+                </p>
+
                 <div className="space-y-4 mb-6">
                   {/* User ID */}
                   <div>
@@ -339,7 +636,7 @@ export function QRPaymentModal({
                     </Label>
                     <Input
                       value={paymentInfo.userId}
-                      readOnly
+                      readOnly={hasOrderPrefill}
                       disabled
                       placeholder={language === 'km' ? 'បញ្ចូលអត្តសញ្ញាណអ្នកប្រើប្រាស់' : 'Enter User ID'}
                       className="mt-1 dark:bg-gray-900 dark:border-gray-700"
@@ -354,7 +651,7 @@ export function QRPaymentModal({
                     </Label>
                     <Input
                       value={paymentInfo.accountName}
-                      onChange={(e) => setPaymentInfo(prev => ({ ...prev, accountName: e.target.value }))}
+                      readOnly={hasOrderPrefill}
                       placeholder={language === 'km' ? 'បញ្ចូលឈ្មោះគណនី' : 'Enter account name'}
                       className="mt-1 dark:bg-gray-900 dark:border-gray-700"
                       required
@@ -368,7 +665,7 @@ export function QRPaymentModal({
                     </Label>
                     <Input
                       value={paymentInfo.accountNumber}
-                      onChange={(e) => setPaymentInfo(prev => ({ ...prev, accountNumber: e.target.value }))}
+                      readOnly={hasOrderPrefill}
                       placeholder={language === 'km' ? 'បញ្ចូលលេខគណនី' : 'Enter account number'}
                       className="mt-1 dark:bg-gray-900 dark:border-gray-700"
                       required
@@ -398,6 +695,7 @@ export function QRPaymentModal({
                       value={paymentInfo.method}
                       onChange={(e) => setPaymentInfo(prev => ({ ...prev, method: e.target.value }))}
                       className="mt-1 w-full border rounded-lg px-3 py-2 text-sm dark:bg-gray-900 dark:border-gray-700"
+                      disabled={hasOrderPrefill}
                     >
                       {PAYMENT_METHODS.map((m) => (
                         <option value={m.value} key={m.value}>
@@ -415,15 +713,45 @@ export function QRPaymentModal({
                     <Input
                       type="datetime-local"
                       value={paymentInfo.dateTimePay}
-                      onChange={(e) => setPaymentInfo(prev => ({ ...prev, dateTimePay: e.target.value }))}
+                      readOnly={hasOrderPrefill}
                       className="mt-1 dark:bg-gray-900 dark:border-gray-700"
                       required
                     />
                   </div>
                 </div>
 
+                <div className="mb-4 rounded-xl border border-blue-200 bg-blue-50 p-3 text-left dark:border-blue-900 dark:bg-blue-950/30">
+                  <div className="text-xs font-semibold uppercase tracking-wide text-blue-700 dark:text-blue-300">
+                    Telegram payment support
+                  </div>
+                  <p className="mt-2 text-xs text-blue-900 dark:text-blue-100">
+                    {language === 'km'
+                      ? 'បន្ទាប់ពីបង់ប្រាក់ សូមបើក Telegram support រួចផ្ញើ APV និងរូបថតការផ្ទេរប្រាក់ទៅកាន់អេដមីន។'
+                      : 'After payment, open Telegram support and send your APV plus the transfer screenshot to admin.'}
+                  </p>
+                  <div className="mt-3 space-y-2 sm:flex sm:gap-2 sm:space-y-0">
+                    {resolvedTelegramSupportUrl ? (
+                      <Button
+                        onClick={() => window.open(resolvedTelegramSupportUrl, '_blank', 'noopener,noreferrer')}
+                        className="w-full sm:flex-1"
+                        variant="outline"
+                      >
+                        {telegramSupportLabel}
+                      </Button>
+                    ) : null}
+                    <Button
+                      onClick={() => void handleCopyTelegramText()}
+                      variant="outline"
+                      className="w-full sm:flex-1"
+                      disabled={copyingTelegramText}
+                    >
+                      {copyingTelegramText ? 'Copying Telegram message...' : 'Copy Telegram payment message'}
+                    </Button>
+                  </div>
+                </div>
+
                 {/* Submit Button */}
-                <div className="flex gap-3">
+                <div className="flex flex-col gap-3 sm:flex-row">
                   <Button
                     onClick={() => setStep('qr')}
                     variant="outline"

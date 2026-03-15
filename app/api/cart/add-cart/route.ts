@@ -112,7 +112,6 @@ export async function POST(req: Request) {
       SELECT
         c.name AS category_name,
         CASE
-          WHEN LOWER(c.name) = 'tools' THEN 'license'
           WHEN ${hasProductModeColumn ? "p.mode" : "'inventory'"} IN ('license','inventory')
             THEN ${hasProductModeColumn ? "p.mode" : "'inventory'"}
           ELSE 'inventory'
@@ -256,11 +255,24 @@ export async function POST(req: Request) {
         );
       } else {
         await db.query<ResultSetHeader>(
-          "UPDATE cart_items SET qty = GREATEST(qty, ?), order_info_json = COALESCE(?, order_info_json) WHERE id = ?",
+          "UPDATE cart_items SET qty = qty + ?, order_info_json = COALESCE(?, order_info_json) WHERE id = ?",
           [qty, orderInfoJson, exist[0].id]
         );
       }
     } else if (isTool) {
+      const isUnlimitedStock = Number(productRows[0].is_unlimited_stock ?? 0) === 1;
+      if (productMode === "inventory" && !isUnlimitedStock) {
+        const availableUnits = Math.max(0, Number(productRows[0].stock_qty ?? 0));
+        const requiredUnits = qty * unitsPerQty;
+        if (availableUnits < requiredUnits) {
+          return Response.json(
+            {
+              error: `Not enough stock for selected option (needs ${requiredUnits}, available ${availableUnits})`,
+            },
+            { status: 400 }
+          );
+        }
+      }
       await db.query<ResultSetHeader>(
         `
         INSERT INTO cart_items (cart_id, product_id, variant_id, tool_variant_id, qty, unit_price, order_info_json)

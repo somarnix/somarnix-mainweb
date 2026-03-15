@@ -31,6 +31,7 @@ interface AddToCartModalProps {
   product: Product;
   variants: ProductVariant[];
   orderFields?: OrderField[];
+  allowQuantity?: boolean;
   onClose: () => void;
   // optional: call when added successfully
   onAdded?: () => void;
@@ -40,6 +41,7 @@ export function AddToCartModal({
   product,
   variants,
   orderFields,
+  allowQuantity = true,
   onClose,
   onAdded,
 }: AddToCartModalProps) {
@@ -51,6 +53,7 @@ export function AddToCartModal({
   const firstEnabledVariant = variants.find((v) => !v.isDisabled) ?? firstVariant;
 
   const [variantId, setVariantId] = useState<number | null>(firstEnabledVariant?.id ?? null);
+  const [qty, setQty] = useState<number>(1);
   const [submitting, setSubmitting] = useState<boolean>(false);
   const [orderValues, setOrderValues] = useState<Record<string, string>>({});
 
@@ -62,8 +65,8 @@ export function AddToCartModal({
 
   const totalPrice = useMemo(() => {
     const price = selectedVariant?.price ?? 0;
-    return price;
-  }, [selectedVariant?.price]);
+    return price * Math.max(1, qty);
+  }, [qty, selectedVariant?.price]);
 
   const normalizedOrderFields = Array.isArray(orderFields) ? orderFields : [];
 
@@ -107,7 +110,7 @@ export function AddToCartModal({
         body: JSON.stringify({
           productId: product.id,
           variantId: selectedVariant.id,
-          qty: 1,
+          qty: Math.max(1, qty),
           orderInfo: normalizedOrderFields.reduce<Record<string, string>>((acc, f) => {
             const value = orderValues[f.key];
             if (value && value.trim()) acc[f.key] = value.trim();
@@ -271,6 +274,34 @@ export function AddToCartModal({
                 })}
               </div>
             </div>
+
+            {allowQuantity && (
+              <div>
+                <label className="block text-sm font-semibold mb-3">
+                  Quantity
+                </label>
+                <div className="inline-flex items-center overflow-hidden rounded-lg border border-gray-200 dark:border-gray-700">
+                  <button
+                    type="button"
+                    className="px-4 py-2 text-base disabled:opacity-50"
+                    onClick={() => setQty((prev) => Math.max(1, prev - 1))}
+                    disabled={qty <= 1}
+                  >
+                    -
+                  </button>
+                  <span className="min-w-12 border-x border-gray-200 px-4 py-2 text-center dark:border-gray-700">
+                    {qty}
+                  </span>
+                  <button
+                    type="button"
+                    className="px-4 py-2 text-base"
+                    onClick={() => setQty((prev) => prev + 1)}
+                  >
+                    +
+                  </button>
+                </div>
+              </div>
+            )}
 
             <div className="text-right">
               <div className="text-xs text-gray-500">{t("modal.total") || "Total"}</div>

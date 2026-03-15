@@ -1,5 +1,6 @@
 import { db } from "@/lib/db";
 import { getAuthUser } from "@/lib/auth";
+import { sendTelegramOrderStatusNotification } from "@/lib/telegram";
 import type { ResultSetHeader, RowDataPacket } from "mysql2";
 type State =
   | "pending"
@@ -27,6 +28,17 @@ type ToolOrderItemRow = RowDataPacket & {
   duration_days: number | null;
   device_limit: number | null;
   is_unlimited_device: number | null;
+};
+
+type OrderTelegramRow = RowDataPacket & {
+  order_number: string | null;
+  total: number | string | null;
+  buyer_name: string | null;
+  buyer_email: string | null;
+};
+
+type ItemSummaryRow = RowDataPacket & {
+  item_label: string;
 };
 
 function makeLicenseKey(prefix = "LIC-TOOL"): string {
@@ -80,8 +92,8 @@ async function listInventoryUnitsByProduct(orderId: number): Promise<OrderItemRo
   const hasOrderUnitsPerQty = await hasColumn("order_items", "units_per_qty");
   const hasVariantUnitsPerQty = await hasColumn("product_variants", "units_per_qty");
   const modeExpr = hasProductsMode
-    ? "CASE WHEN LOWER(pc.name) = 'tools' THEN 'license' WHEN p.mode IN ('license','inventory') THEN p.mode ELSE 'inventory' END"
-    : "CASE WHEN LOWER(pc.name) = 'tools' THEN 'license' ELSE 'inventory' END";
+    ? "CASE WHEN p.mode IN ('license','inventory') THEN p.mode ELSE 'inventory' END"
+    : "'inventory'";
   const unitsPerQtyExpr = hasOrderUnitsPerQty
     ? "GREATEST(1, COALESCE(oi.units_per_qty, 1))"
     : hasVariantUnitsPerQty
@@ -555,5 +567,57 @@ export async function POST(req: Request) {
       [body.orderId]
     );
   }
+
+  try {
+    const [orderRows] = await db.query<OrderTelegramRow[]>(
+      `
+      SELECT
+        o.order_number,
+        o.total,
+        COALESCE(NULLIF(TRIM(CONCAT_WS(' ', u.first_name, u.last_name)), ''), u.username, u.email, 'N/A') AS buyer_name,
+        u.email AS buyer_email
+      FROM orders o
+      JOIN users u ON u.id = o.user_id
+      WHERE o.id = ?
+      LIMIT 1
+      `,
+      [body.orderId]
+    );
+
+    const [itemRows] = await db.query<ItemSummaryRow[]>(
+      `
+      SELECT item_label
+      FROM (
+        SELECT CONCAT(p.title, ' x', oi.qty) AS item_label
+        FROM order_items oi
+        JOIN products p ON p.id = oi.product_id
+        WHERE oi.order_id = ?
+        UNION ALL
+        SELECT CONCAT(vc.title, ' x1') AS item_label
+        FROM video_course_purchases vcp
+        JOIN video_courses vc ON vc.id = vcp.course_id
+        WHERE vcp.order_id = ?
+      ) AS summary_rows
+      `,
+      [body.orderId, body.orderId]
+    );
+
+    const orderInfo = orderRows[0];
+    if (orderInfo) {
+      await sendTelegramOrderStatusNotification({
+        orderId: body.orderId,
+        orderNumber: String(orderInfo.order_number ?? `ORDER-${body.orderId}`),
+        amount: Number(orderInfo.total ?? 0),
+        buyerName: String(orderInfo.buyer_name ?? "N/A"),
+        buyerEmail: String(orderInfo.buyer_email ?? "N/A"),
+        state: body.state,
+        result: nextResult,
+        itemSummary: itemRows.map((row) => row.item_label).filter(Boolean),
+      });
+    }
+  } catch (telegramError) {
+    console.error("Telegram order update notification failed:", telegramError);
+  }
+
   return Response.json({ success: true, auto_licenses_created: autoLicenses.length });
 }

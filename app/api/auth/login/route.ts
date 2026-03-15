@@ -1,6 +1,27 @@
 import { db } from "@/lib/db";
 import bcrypt from "bcryptjs";
 import jwt from "jsonwebtoken";
+import {
+  checkLoginRateLimit,
+  clearLoginAttemptLimits,
+  getRequestIp,
+  recordFailedLoginAttempt,
+} from "@/lib/login-rate-limit";
+import { buildSessionCookie, getJwtSecret } from "@/lib/security";
+import {
+  createOrRefreshLoginVerificationCode,
+  ensureLoginSettingsRow,
+  ensureTrustedDeviceSchema,
+  getLoginDeviceByUserAndDeviceId,
+  hasColumn,
+  hasTable,
+  isFutureDate,
+  normalizeSixDigitCode,
+  normalizeString,
+  TRUSTED_DEVICE_DAYS,
+  DEVICE_ACTION_LOCK_HOURS,
+  verifyLoginVerificationCode,
+} from "@/lib/trusted-devices";
 import type { RowDataPacket, ResultSetHeader } from "mysql2";
 
 interface UserRow extends RowDataPacket {
@@ -19,45 +40,39 @@ interface LoginBody {
   password: string;
   deviceId?: string;
   deviceName?: string;
-}
-
-async function hasColumn(table: string, column: string): Promise<boolean> {
-  const [rows] = await db.query<RowDataPacket[]>(
-    `
-    SELECT 1
-    FROM information_schema.columns
-    WHERE table_schema = DATABASE()
-      AND table_name = ?
-      AND column_name = ?
-    LIMIT 1
-    `,
-    [table, column]
-  );
-  return rows.length > 0;
-}
-
-async function hasTable(table: string): Promise<boolean> {
-  const [rows] = await db.query<RowDataPacket[]>(
-    `
-    SELECT 1
-    FROM information_schema.tables
-    WHERE table_schema = DATABASE()
-      AND table_name = ?
-    LIMIT 1
-    `,
-    [table]
-  );
-  return rows.length > 0;
+  verificationCode?: string;
+  trustDevice?: boolean;
 }
 
 export async function POST(req: Request): Promise<Response> {
   try {
-    const { email, password, deviceId, deviceName }: LoginBody = await req.json();
+    const raw = await req.json().catch(() => null);
+    const body: Partial<LoginBody> =
+      raw && typeof raw === "object" ? (raw as LoginBody) : {};
+    const email = normalizeString(body.email);
+    const password = normalizeString(body.password);
+    const deviceId = normalizeString(body.deviceId);
+    const deviceName = normalizeString(body.deviceName);
+    const verificationCode = normalizeSixDigitCode(body.verificationCode);
+    const trustDevice = body.trustDevice === true;
+    const ipAddress = getRequestIp(req);
 
     if (!email || !password) {
       return Response.json(
         { error: "Email and password required" },
         { status: 400 }
+      );
+    }
+
+    const rateLimit = await checkLoginRateLimit(email, ipAddress);
+    if (rateLimit.blocked) {
+      return Response.json(
+        {
+          error: rateLimit.error,
+          code: "LOGIN_RATE_LIMITED",
+          retryAfterSeconds: rateLimit.retryAfterSeconds,
+        },
+        { status: 429 }
       );
     }
 
@@ -78,6 +93,7 @@ export async function POST(req: Request): Promise<Response> {
     );
 
     if (rows.length === 0) {
+      await recordFailedLoginAttempt(email, ipAddress);
       return Response.json({ error: "Invalid login" }, { status: 401 });
     }
 
@@ -152,15 +168,17 @@ export async function POST(req: Request): Promise<Response> {
 
     const ok = await bcrypt.compare(password, user.password_hash ?? "");
     if (!ok) {
+      await recordFailedLoginAttempt(email, ipAddress);
       return Response.json({ error: "Invalid login" }, { status: 401 });
     }
+
+    await clearLoginAttemptLimits(email, ipAddress);
 
     const hasLoginSettingsTable = await hasTable("user_login_settings");
     let loginDeviceRowId: number | null = null;
     if (hasLoginSettingsTable && hasLoginDevicesTable) {
-      const safeDeviceId = typeof deviceId === "string" ? deviceId.trim() : "";
-      const safeDeviceName = typeof deviceName === "string" ? deviceName.trim() : null;
-      if (!safeDeviceId) {
+      await ensureTrustedDeviceSchema();
+      if (!deviceId) {
         return Response.json(
           {
             error: "Device ID is required for login.",
@@ -170,52 +188,10 @@ export async function POST(req: Request): Promise<Response> {
         );
       }
 
-      const [settingsRows] = await db.query<RowDataPacket[]>(
-        `
-        SELECT max_devices
-        FROM user_login_settings
-        WHERE user_id = ?
-        LIMIT 1
-        `,
-        [user.id]
-      );
+      const maxDevices = await ensureLoginSettingsRow(user.id);
+      const existingDevice = await getLoginDeviceByUserAndDeviceId(user.id, deviceId);
 
-      if (settingsRows.length === 0) {
-        await db.query(
-          `
-          INSERT INTO user_login_settings (user_id, max_devices)
-          VALUES (?, 10)
-          `,
-          [user.id]
-        );
-      }
-
-      const maxDevices = Math.max(
-        1,
-        Number(settingsRows[0]?.max_devices ?? 10) || 10
-      );
-
-      const [existingRows] = await db.query<RowDataPacket[]>(
-        `
-        SELECT id
-        FROM user_login_devices
-        WHERE user_id = ? AND device_id = ?
-        LIMIT 1
-        `,
-        [user.id, safeDeviceId]
-      );
-
-      if (existingRows.length > 0) {
-        loginDeviceRowId = Number(existingRows[0]?.id ?? 0) || null;
-        await db.query(
-          `
-          UPDATE user_login_devices
-          SET last_seen_at = NOW(), device_name = COALESCE(?, device_name)
-          WHERE user_id = ? AND device_id = ?
-          `,
-          [safeDeviceName, user.id, safeDeviceId]
-        );
-      } else {
+      if (!existingDevice) {
         const [countRows] = await db.query<RowDataPacket[]>(
           `
           SELECT COUNT(*) AS total
@@ -235,34 +211,127 @@ export async function POST(req: Request): Promise<Response> {
             { status: 403 }
           );
         }
+      }
 
+      const isTrusted = existingDevice ? isFutureDate(existingDevice.trusted_until) : false;
+      if (!isTrusted) {
+        if (!verificationCode) {
+          try {
+            await createOrRefreshLoginVerificationCode(user.id, user.email, deviceId);
+          } catch (error) {
+            return Response.json(
+              {
+                error: "Two-factor verification could not be started.",
+                detail: error instanceof Error ? error.message : String(error),
+              },
+              { status: 500 }
+            );
+          }
+
+          return Response.json(
+            {
+              error: "Verification code required for this device.",
+              code: "LOGIN_2FA_REQUIRED",
+              expiresInMinutes: 10,
+            },
+            { status: 403 }
+          );
+        }
+
+        const verification = await verifyLoginVerificationCode(user.id, deviceId, verificationCode);
+        if (!verification.ok) {
+          return Response.json(
+            {
+              error: verification.error,
+              code: "LOGIN_2FA_REQUIRED",
+              expiresInMinutes: 10,
+            },
+            { status: 403 }
+          );
+        }
+      }
+
+      const trustSql = trustDevice && !isTrusted
+        ? `DATE_ADD(NOW(), INTERVAL ${TRUSTED_DEVICE_DAYS} DAY)`
+        : "trusted_until";
+      const trustGrantedSql = trustDevice && !isTrusted ? "NOW()" : "trust_granted_at";
+
+      if (existingDevice) {
+        loginDeviceRowId = Number(existingDevice.id ?? 0) || null;
+        await db.query(
+          `
+          UPDATE user_login_devices
+          SET
+            last_seen_at = NOW(),
+            device_name = COALESCE(?, device_name),
+            trusted_until = ${trustSql},
+            trust_granted_at = ${trustGrantedSql},
+            device_action_locked_until = CASE
+              WHEN ? THEN DATE_ADD(NOW(), INTERVAL ${DEVICE_ACTION_LOCK_HOURS} HOUR)
+              ELSE device_action_locked_until
+            END
+          WHERE user_id = ? AND device_id = ?
+          `,
+          [
+            deviceName,
+            !isTrusted,
+            user.id,
+            deviceId,
+          ]
+        );
+      } else {
         const [insertResult] = await db.query<ResultSetHeader>(
           `
-          INSERT INTO user_login_devices (user_id, device_id, device_name, first_seen_at, last_seen_at)
-          VALUES (?, ?, ?, NOW(), NOW())
+          INSERT INTO user_login_devices (
+            user_id,
+            device_id,
+            device_name,
+            first_seen_at,
+            last_seen_at,
+            trusted_until,
+            trust_granted_at,
+            device_action_locked_until
+          )
+          VALUES (
+            ?, ?, ?, NOW(), NOW(),
+            ${trustDevice ? `DATE_ADD(NOW(), INTERVAL ${TRUSTED_DEVICE_DAYS} DAY)` : "NULL"},
+            ${trustDevice ? "NOW()" : "NULL"},
+            DATE_ADD(NOW(), INTERVAL ${DEVICE_ACTION_LOCK_HOURS} HOUR)
+          )
           `,
-          [user.id, safeDeviceId, safeDeviceName]
+          trustDevice
+            ? [user.id, deviceId, deviceName]
+            : [user.id, deviceId, deviceName]
         );
         loginDeviceRowId = Number(insertResult?.insertId ?? 0) || null;
       }
     }
 
     // JWT valid for 7 days
+    const jwtSecret = getJwtSecret();
     const token = jwt.sign(
       { userId: user.id, role: user.role, loginDeviceId: loginDeviceRowId ?? undefined },
-      process.env.JWT_SECRET ?? "dev_secret",
+      jwtSecret,
       { expiresIn: "7d" }
     );
 
-    return Response.json({
-      success: true,
-      token,
-      user: {
-        id: user.id,
-        email: user.email,
-        role: user.role,
-      },
-    });
+    return new Response(
+      JSON.stringify({
+        success: true,
+        user: {
+          id: user.id,
+          email: user.email,
+          role: user.role,
+        },
+      }),
+      {
+        status: 200,
+        headers: {
+          "Content-Type": "application/json",
+          "Set-Cookie": buildSessionCookie(token),
+        },
+      }
+    );
   } catch (err) {
     return Response.json(
       {

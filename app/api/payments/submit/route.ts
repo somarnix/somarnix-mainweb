@@ -1,5 +1,7 @@
 import { db } from "@/lib/db";
 import { getAuthUser } from "@/lib/auth";
+import { getOrderTelegramContext } from "@/lib/payment-review";
+import { sendTelegramPaymentSubmittedNotification } from "@/lib/telegram";
 import type { RowDataPacket, ResultSetHeader } from "mysql2";
 
 const ALLOWED_METHODS = [
@@ -28,6 +30,14 @@ type OrderRowState = RowDataPacket & {
   id: number;
   state: string;
   result?: string | null;
+  order_number?: string | null;
+  total?: number | string | null;
+  buyer_name?: string | null;
+  buyer_email?: string | null;
+};
+
+type ItemSummaryRow = RowDataPacket & {
+  item_label: string;
 };
 
 function toMysqlDatetime(input: string): string | null {
@@ -91,7 +101,20 @@ export async function POST(req: Request) {
     let orderStateRow: OrderRowState | null = null;
     try {
       const [rows] = await db.query<OrderRowState[]>(
-        "SELECT id, state, result FROM orders WHERE id=? AND user_id=? LIMIT 1",
+        `
+        SELECT
+          o.id,
+          o.state,
+          o.result,
+          o.order_number,
+          o.total,
+          COALESCE(NULLIF(TRIM(CONCAT_WS(' ', u.first_name, u.last_name)), ''), u.username, u.email, 'N/A') AS buyer_name,
+          u.email AS buyer_email
+        FROM orders o
+        JOIN users u ON u.id = o.user_id
+        WHERE o.id=? AND o.user_id=?
+        LIMIT 1
+        `,
         [oid, auth.userId]
       );
       orderStateRow = rows.length ? rows[0] : null;
@@ -135,13 +158,15 @@ export async function POST(req: Request) {
       [oid, auth.userId]
     );
     if (existPay.length > 0) {
-      return Response.json(
-        { error: "Payment already submitted for this order" },
-        { status: 400 }
-      );
+      return Response.json({
+        success: true,
+        message: "Payment already recorded for this order",
+        orderId: oid,
+        duplicate: true,
+      });
     }
 
-    await db.query<ResultSetHeader>(
+    const [insertResult] = await db.query<ResultSetHeader>(
       `
       INSERT INTO payments (order_id, user_id, account_id, payment_id, payment_apv, paid_at, method)
       VALUES (?,?,?,?,?,?,?)
@@ -156,6 +181,7 @@ export async function POST(req: Request) {
         method,
       ]
     );
+    const paymentId = Number(insertResult.insertId ?? 0);
 
     // Update order state/result to reflect submission
     const updateParts: string[] = [];
@@ -190,6 +216,27 @@ export async function POST(req: Request) {
       if (!message.includes("unknown column") || !message.includes("payment_state")) {
         throw err;
       }
+    }
+
+    try {
+      const orderContext = await getOrderTelegramContext(oid);
+      if (orderContext) {
+        await sendTelegramPaymentSubmittedNotification({
+          paymentId: paymentId || orderContext.paymentId || 0,
+          orderId: oid,
+          orderNumber: orderContext.orderNumber,
+          amount: orderContext.amount,
+          buyerName: orderContext.buyerName,
+          buyerEmail: orderContext.buyerEmail,
+          bankName: method,
+          accountNumber: accountNumber.trim(),
+          paymentApv: paymentApv.trim(),
+          paidAt: mysqlPaidAt,
+          itemSummary: orderContext.itemSummary,
+        });
+      }
+    } catch (telegramError) {
+      console.error("Telegram payment notification failed:", telegramError);
     }
 
     return Response.json({

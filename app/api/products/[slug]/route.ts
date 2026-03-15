@@ -2,6 +2,10 @@
 import { db } from "@/lib/db";
 import type { RowDataPacket } from "mysql2";
 
+export const runtime = "nodejs";
+export const dynamic = "force-dynamic";
+export const revalidate = 0;
+
 type ProductLevel = "beginner" | "advanced" | "pro";
 
 type ProductDetailRow = RowDataPacket & {
@@ -100,8 +104,8 @@ export async function GET(
     const hasProductsMode = await hasColumn("products", "mode");
     const hasVariantUnitsPerQty = await hasColumn("product_variants", "units_per_qty");
     const modeExpr = hasProductsMode
-      ? "CASE WHEN LOWER(c.name) = 'tools' THEN 'license' WHEN p.mode IN ('license','inventory') THEN p.mode ELSE 'inventory' END"
-      : "CASE WHEN LOWER(c.name) = 'tools' THEN 'license' ELSE 'inventory' END";
+      ? "CASE WHEN p.mode IN ('license','inventory') THEN p.mode ELSE 'inventory' END"
+      : "'inventory'";
     const unitsPerQtyExpr = hasVariantUnitsPerQty ? "COALESCE(units_per_qty, 1)" : "1";
 
     const [pRows] = await db.query<ProductDetailRow[]>(

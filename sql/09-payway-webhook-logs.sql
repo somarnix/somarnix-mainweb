@@ -1,0 +1,20 @@
+CREATE TABLE IF NOT EXISTS payway_webhook_logs (
+  id BIGINT UNSIGNED AUTO_INCREMENT PRIMARY KEY,
+  trx_id VARCHAR(120) NOT NULL,
+  order_number VARCHAR(120) NULL,
+  order_id BIGINT UNSIGNED NULL,
+  amount DECIMAL(12,2) NULL,
+  currency VARCHAR(10) NULL,
+  apv VARCHAR(120) NULL,
+  buyer_name VARCHAR(190) NULL,
+  sender_account VARCHAR(190) NULL,
+  processing_status VARCHAR(50) NOT NULL,
+  response_message VARCHAR(255) NULL,
+  raw_text TEXT NOT NULL,
+  payload_json LONGTEXT NULL,
+  created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  INDEX idx_payway_log_trx (trx_id),
+  INDEX idx_payway_log_order_number (order_number),
+  INDEX idx_payway_log_status (processing_status),
+  INDEX idx_payway_log_order_id (order_id)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;

@@ -41,7 +41,7 @@ export function GamesPage({ onOpenProductDetail }: { onOpenProductDetail: (slug:
 
   /* ================= FETCH FROM DB ================= */
   useEffect(() => {
-    fetch("/api/products?category=game")
+    fetch("/api/products?category=game", { cache: "no-store" })
       .then((res) => res.json())
       .then((data) => setGames(normalizeProductListResponse(data) as DbGame[]))
       .finally(() => setLoading(false));
@@ -101,14 +101,11 @@ export function GamesPage({ onOpenProductDetail }: { onOpenProductDetail: (slug:
     }
   });
 
-  useEffect(() => {
-    setCurrentPage(1);
-  }, [selectedSlug, sortBy, slugQuery]);
-
   const totalPages = Math.max(1, Math.ceil(sortedGames.length / itemsPerPage));
+  const visiblePage = Math.min(currentPage, totalPages);
   const pagedGames = sortedGames.slice(
-    (currentPage - 1) * itemsPerPage,
-    currentPage * itemsPerPage
+    (visiblePage - 1) * itemsPerPage,
+    visiblePage * itemsPerPage
   );
 
   /* ================= CATEGORIES ================= */
@@ -223,7 +220,7 @@ export function GamesPage({ onOpenProductDetail }: { onOpenProductDetail: (slug:
                   ))}
                 </div>
                 <Pagination
-                  currentPage={currentPage}
+                  currentPage={visiblePage}
                   totalPages={totalPages}
                   onPageChange={setCurrentPage}
                   className="mt-6"

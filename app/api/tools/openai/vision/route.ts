@@ -7,8 +7,16 @@ const MODEL_MAP: Record<string, string> = {
   "4.1": "gpt-4.1",
 };
 
+function normalizeApiKey(value: string | null): string | null {
+  if (!value) return null;
+  const trimmed = value.replace(/[\u200B-\u200D\uFEFF]/g, "").trim();
+  return trimmed || null;
+}
+
 export async function POST(req: Request) {
-  const apiKey = await resolveApiKeyFromRequest(req, "openai", process.env.OPENAI_API_KEY || null);
+  const apiKey = normalizeApiKey(
+    await resolveApiKeyFromRequest(req, "openai", process.env.OPENAI_API_KEY || null)
+  );
   if (!apiKey) {
     return NextResponse.json(
       { error: "Missing OPENAI_API_KEY" },
@@ -66,8 +74,13 @@ export async function POST(req: Request) {
 
   const data = await res.json().catch(() => null);
   if (!res.ok) {
+    const isInvalidKey = res.status === 401 || data?.error?.code === "invalid_api_key";
     return NextResponse.json(
-      { error: data?.error?.message || "OpenAI Vision request failed" },
+      {
+        error: isInvalidKey
+          ? "The configured OpenAI API key is invalid. Replace OPENAI_API_KEY in .env.local and restart the server, or save a valid personal OpenAI key in Settings."
+          : data?.error?.message || "OpenAI Vision request failed",
+      },
       { status: 500 }
     );
   }

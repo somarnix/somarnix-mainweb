@@ -42,7 +42,7 @@ export function ToolsPage({ onOpenProductDetail }: { onOpenProductDetail: (slug:
 
   /* ================= FETCH FROM DB ================= */
   useEffect(() => {
-    fetch("/api/products?category=tools")
+    fetch("/api/products?category=tools", { cache: "no-store" })
       .then((res) => res.json())
       .then((data) => setTools(normalizeProductListResponse(data) as DbTool[]))
       .finally(() => setLoading(false));
@@ -102,14 +102,11 @@ export function ToolsPage({ onOpenProductDetail }: { onOpenProductDetail: (slug:
     }
   });
 
-  useEffect(() => {
-    setCurrentPage(1);
-  }, [selectedSlug, sortBy, slugQuery]);
-
   const totalPages = Math.max(1, Math.ceil(sortedTools.length / itemsPerPage));
+  const visiblePage = Math.min(currentPage, totalPages);
   const pagedTools = sortedTools.slice(
-    (currentPage - 1) * itemsPerPage,
-    currentPage * itemsPerPage
+    (visiblePage - 1) * itemsPerPage,
+    visiblePage * itemsPerPage
   );
 
   /* ================= CATEGORIES ================= */
@@ -223,7 +220,7 @@ export function ToolsPage({ onOpenProductDetail }: { onOpenProductDetail: (slug:
                   ))}
                 </div>
                 <Pagination
-                  currentPage={currentPage}
+                  currentPage={visiblePage}
                   totalPages={totalPages}
                   onPageChange={setCurrentPage}
                   className="mt-6"

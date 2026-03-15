@@ -1,11 +1,18 @@
 import jwt, { JwtPayload } from "jsonwebtoken";
 import { db } from "./db";
+import { getJwtSecret } from "./security";
+import {
+  ensureTrustedDeviceSchema,
+  getLoginDeviceByRowId,
+  hasTable,
+} from "./trusted-devices";
 import type { RowDataPacket } from "mysql2";
 
 export type AuthUser = {
   id?: number;
   userId: number;
   role: "user" | "admin";
+  loginDeviceId?: number;
 };
 
 type TokenPayload = JwtPayload & {
@@ -37,20 +44,6 @@ async function hasColumn(table: string, column: string): Promise<boolean> {
   return rows.length > 0;
 }
 
-async function hasTable(table: string): Promise<boolean> {
-  const [rows] = await db.query<RowDataPacket[]>(
-    `
-    SELECT 1
-    FROM information_schema.tables
-    WHERE table_schema = DATABASE()
-      AND table_name = ?
-    LIMIT 1
-    `,
-    [table]
-  );
-  return rows.length > 0;
-}
-
 export async function getAuthUser(req: Request): Promise<AuthUser | null> {
   const cookie = req.headers.get("cookie") ?? "";
   const token = cookie
@@ -61,9 +54,10 @@ export async function getAuthUser(req: Request): Promise<AuthUser | null> {
   if (!token) return null;
 
   try {
+    const jwtSecret = getJwtSecret();
     const decoded = jwt.verify(
       token,
-      process.env.JWT_SECRET ?? "dev_secret"
+      jwtSecret
     );
 
     if (typeof decoded !== "object" || decoded === null) {
@@ -78,20 +72,13 @@ export async function getAuthUser(req: Request): Promise<AuthUser | null> {
 
     const hasLoginDevices = await hasTable("user_login_devices");
     if (hasLoginDevices) {
+      await ensureTrustedDeviceSchema();
       const loginDeviceId = Number(payload.loginDeviceId ?? 0);
       if (!Number.isFinite(loginDeviceId) || loginDeviceId <= 0) {
         return null;
       }
-      const [deviceRows] = await db.query<RowDataPacket[]>(
-        `
-        SELECT id
-        FROM user_login_devices
-        WHERE id = ? AND user_id = ?
-        LIMIT 1
-        `,
-        [loginDeviceId, Number(payload.userId)]
-      );
-      if (deviceRows.length === 0) {
+      const deviceRow = await getLoginDeviceByRowId(Number(payload.userId), loginDeviceId);
+      if (!deviceRow) {
         return null;
       }
     }
@@ -145,6 +132,10 @@ export async function getAuthUser(req: Request): Promise<AuthUser | null> {
     const authUser: AuthUser = {
       userId: Number(user.id),
       role: user.role === "admin" ? "admin" : "user",
+      loginDeviceId:
+        typeof payload.loginDeviceId === "number" && Number.isFinite(payload.loginDeviceId)
+          ? Number(payload.loginDeviceId)
+          : undefined,
     };
     return authUser;
   } catch {

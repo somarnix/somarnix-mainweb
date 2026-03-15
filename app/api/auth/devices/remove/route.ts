@@ -1,6 +1,15 @@
 import crypto from "crypto";
 import { db } from "@/lib/db";
 import { getAuthUser } from "@/lib/auth";
+import bcrypt from "bcryptjs";
+import {
+  ensureTrustedDeviceSchema,
+  getLoginDeviceByRowId,
+  hasTable,
+  isFutureDate,
+  normalizeSixDigitCode,
+  normalizeString,
+} from "@/lib/trusted-devices";
 import type { RowDataPacket, ResultSetHeader } from "mysql2";
 
 type CodeRow = RowDataPacket & {
@@ -10,28 +19,12 @@ type CodeRow = RowDataPacket & {
   used_at: string | Date | null;
 };
 
-function normalizeString(value: unknown): string | null {
-  if (typeof value !== "string") return null;
-  const trimmed = value.trim();
-  return trimmed.length > 0 ? trimmed : null;
-}
+type PasswordRow = RowDataPacket & {
+  password_hash: string | null;
+};
 
 function sha256Hex(value: string): string {
   return crypto.createHash("sha256").update(value).digest("hex");
-}
-
-async function hasTable(table: string): Promise<boolean> {
-  const [rows] = await db.query<RowDataPacket[]>(
-    `
-    SELECT 1
-    FROM information_schema.tables
-    WHERE table_schema = DATABASE()
-      AND table_name = ?
-    LIMIT 1
-    `,
-    [table]
-  );
-  return rows.length > 0;
 }
 
 export async function POST(req: Request): Promise<Response> {
@@ -45,17 +38,11 @@ export async function POST(req: Request): Promise<Response> {
     const body = raw && typeof raw === "object" ? (raw as Record<string, unknown>) : {};
     const deviceId = normalizeString(body.deviceId);
     const currentDeviceId = normalizeString(body.currentDeviceId);
-    const codeRaw = normalizeString(body.code);
-    const code = codeRaw ? codeRaw.replace(/\s+/g, "") : null;
+    const code = normalizeSixDigitCode(body.code);
+    const currentPassword = normalizeString(body.currentPassword);
 
-    if (!deviceId || !code) {
-      return Response.json({ error: "Device ID and code are required" }, { status: 400 });
-    }
-    if (!/^\d{6}$/.test(code)) {
-      return Response.json({ error: "Code must be 6 digits" }, { status: 400 });
-    }
-    if (currentDeviceId && currentDeviceId === deviceId) {
-      return Response.json({ error: "Use normal logout for current device" }, { status: 400 });
+    if (!deviceId || !code || !currentPassword) {
+      return Response.json({ error: "Device ID, password, and code are required" }, { status: 400 });
     }
 
     const hasLoginDevices = await hasTable("user_login_devices");
@@ -65,6 +52,45 @@ export async function POST(req: Request): Promise<Response> {
         { error: "Required tables missing. Run sql/2026-02-11-video-course-access-sync.sql" },
         { status: 500 }
       );
+    }
+    await ensureTrustedDeviceSchema();
+
+    const currentDevice =
+      typeof auth.loginDeviceId === "number" && Number.isFinite(auth.loginDeviceId)
+        ? await getLoginDeviceByRowId(auth.userId, auth.loginDeviceId)
+        : null;
+    if (!currentDevice) {
+      return Response.json({ error: "Current login device not found. Please sign in again." }, { status: 401 });
+    }
+    if (currentDevice.device_id === deviceId || (currentDeviceId && currentDeviceId === deviceId)) {
+      return Response.json({ error: "Use normal logout for current device" }, { status: 400 });
+    }
+    if (isFutureDate(currentDevice.device_action_locked_until)) {
+      return Response.json(
+        {
+          error: "This device cannot remove other trusted devices yet.",
+          lockedUntil: currentDevice.device_action_locked_until,
+        },
+        { status: 403 }
+      );
+    }
+
+    const [passwordRows] = await db.query<PasswordRow[]>(
+      `
+      SELECT password_hash
+      FROM users
+      WHERE id = ?
+      LIMIT 1
+      `,
+      [auth.userId]
+    );
+    if (passwordRows.length === 0 || !passwordRows[0].password_hash) {
+      return Response.json({ error: "Password re-check is not available for this account." }, { status: 400 });
+    }
+
+    const passwordOk = await bcrypt.compare(currentPassword, passwordRows[0].password_hash);
+    if (!passwordOk) {
+      return Response.json({ error: "Current password is incorrect." }, { status: 401 });
     }
 
     const [codeRows] = await db.query<CodeRow[]>(
@@ -113,4 +139,3 @@ export async function POST(req: Request): Promise<Response> {
     );
   }
 }
-
