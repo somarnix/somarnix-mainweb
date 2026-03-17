@@ -1,4 +1,5 @@
 import { db } from "@/lib/db";
+import { getOrderConfirmationDeadline } from "@/lib/order-confirmation";
 import { getAuthUser } from "@/lib/auth";
 import { getOrderTelegramContext } from "@/lib/payment-review";
 import { sendTelegramOrderCreatedNotification } from "@/lib/telegram";
@@ -627,6 +628,9 @@ export async function POST(req: Request) {
 
     await conn.commit();
 
+    const createdAt = new Date().toISOString();
+    const paymentExpiresAt = getOrderConfirmationDeadline(createdAt)?.toISOString() ?? null;
+
     try {
       const orderContext = await getOrderTelegramContext(orderId);
       if (orderContext) {
@@ -648,6 +652,8 @@ export async function POST(req: Request) {
       success: true,
       orderId,
       orderNumber,
+      createdAt,
+      paymentExpiresAt,
       telegramSupportUrl: buildTelegramSupportDeepLink(orderId, auth.userId),
       subtotal,
       taxRate,

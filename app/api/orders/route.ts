@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import type { RowDataPacket } from "mysql2";
 import { db } from "@/lib/db";
 import { getAuthUser } from "@/lib/auth";
+import { syncExpiredUnconfirmedOrders } from "@/lib/order-expiry";
 import type { OrderStatus } from "@/lib/order-status";
 import {
   normalizeStatusKeyword,
@@ -21,6 +22,7 @@ type OrderStateRow = RowDataPacket & {
   order_number: string;
   state: string | null;
   result: string | null;
+  has_payment_submission: number;
   subtotal: number | string | null;
   tax_amount: number | string | null;
   total: number | string | null;
@@ -36,6 +38,7 @@ type OrderLegacyRow = RowDataPacket & {
   id: number;
   order_number: string;
   status: string | null;
+  has_payment_submission: number;
   subtotal: number | string | null;
   tax_amount: number | string | null;
   total: number | string | null;
@@ -91,6 +94,7 @@ async function fetchOrders(userId: number) {
         order_number,
         state,
         result,
+        EXISTS(SELECT 1 FROM payments p WHERE p.order_id = orders.id) AS has_payment_submission,
         subtotal,
         tax_amount,
         total,
@@ -122,6 +126,7 @@ async function fetchOrders(userId: number) {
         id,
         order_number,
         status,
+        EXISTS(SELECT 1 FROM payments p WHERE p.order_id = orders.id) AS has_payment_submission,
         subtotal,
         tax_amount,
         total,
@@ -149,6 +154,7 @@ export async function GET(req: NextRequest) {
   }
 
   try {
+    await syncExpiredUnconfirmedOrders();
     const data = await fetchOrders(auth.userId);
 
     const orders =
@@ -163,6 +169,7 @@ export async function GET(req: NextRequest) {
               subtotal: toNumber(row.subtotal),
               tax_amount: toNumber(row.tax_amount),
               total: toNumber(row.total),
+              has_payment_submission: Number(row.has_payment_submission ?? 0) === 1,
               created_at: toDateString(row.created_at),
               delivery_title: canShowDelivery ? row.delivery_title : null,
               delivery_message: canShowDelivery ? row.delivery_message : null,
@@ -178,6 +185,7 @@ export async function GET(req: NextRequest) {
             subtotal: toNumber(row.subtotal),
             tax_amount: toNumber(row.tax_amount),
             total: toNumber(row.total),
+            has_payment_submission: Number(row.has_payment_submission ?? 0) === 1,
             created_at: toDateString(row.created_at),
             delivery_title: null,
             delivery_message: null,

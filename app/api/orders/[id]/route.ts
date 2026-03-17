@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import type { RowDataPacket } from "mysql2";
 import { db } from "@/lib/db";
 import { getAuthUser } from "@/lib/auth";
+import { syncExpiredUnconfirmedOrders } from "@/lib/order-expiry";
 import type { OrderStatus } from "@/lib/order-status";
 import { resolveOrderStatus } from "@/lib/order-status";
 
@@ -19,6 +20,7 @@ type OrderStateRow = RowDataPacket & {
   user_id: number;
   state: string | null;
   result: string | null;
+  has_payment_submission: number;
   subtotal: number | string | null;
   tax_amount: number | string | null;
   total: number | string | null;
@@ -35,6 +37,7 @@ type OrderLegacyRow = RowDataPacket & {
   order_number: string;
   user_id: number;
   status: string | null;
+  has_payment_submission: number;
   subtotal: number | string | null;
   tax_amount: number | string | null;
   total: number | string | null;
@@ -139,6 +142,7 @@ async function fetchOrderByColumn(
         user_id,
         state,
         result,
+        EXISTS(SELECT 1 FROM payments p WHERE p.order_id = orders.id) AS has_payment_submission,
         subtotal,
         tax_amount,
         total,
@@ -172,6 +176,7 @@ async function fetchOrderByColumn(
         order_number,
         user_id,
         status,
+        EXISTS(SELECT 1 FROM payments p WHERE p.order_id = orders.id) AS has_payment_submission,
         subtotal,
         tax_amount,
         total,
@@ -220,6 +225,8 @@ export async function GET(
   }
 
   try {
+    await syncExpiredUnconfirmedOrders();
+
     const [variantCols] = await db.query<RowDataPacket[]>(
       `
       SELECT COLUMN_NAME
@@ -426,6 +433,8 @@ export async function GET(
           id: order.id,
           order_number: order.order_number,
           status: normalizedStatus,
+          has_payment_submission:
+            Number((order as OrderStateRow).has_payment_submission ?? 0) === 1,
           subtotal: toNumber(order.subtotal),
           tax_amount: toNumber(order.tax_amount),
           total: toNumber(order.total),
@@ -447,6 +456,8 @@ export async function GET(
         id: (order as OrderLegacyRow).id,
         order_number: (order as OrderLegacyRow).order_number,
         status: resolveOrderStatus((order as OrderLegacyRow).status, null),
+        has_payment_submission:
+          Number((order as OrderLegacyRow).has_payment_submission ?? 0) === 1,
         subtotal: toNumber((order as OrderLegacyRow).subtotal),
         tax_amount: toNumber((order as OrderLegacyRow).tax_amount),
         total: toNumber((order as OrderLegacyRow).total),

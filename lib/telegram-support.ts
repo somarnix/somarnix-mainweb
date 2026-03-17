@@ -1,11 +1,18 @@
 import { createHmac, timingSafeEqual } from "crypto";
 
+import "@/lib/server-env";
 import { getJwtSecret } from "@/lib/security";
 
 type SupportPayload = {
   orderId: number;
   userId: number;
 };
+
+type SupportQrPayload = SupportPayload & {
+  currency: "KHR" | "USD";
+};
+
+type SupportConfirmPayload = SupportPayload;
 
 function getSupportSecret(): string {
   return `${getJwtSecret()}:telegram-support`;
@@ -63,6 +70,42 @@ export function verifyTelegramSupportStartPayload(raw: string): SupportPayload |
   return { orderId, userId };
 }
 
+export function createTelegramSupportQrCallbackData(
+  currency: "KHR" | "USD",
+  orderId: number,
+  userId: number
+): string {
+  return `qr_${currency.toLowerCase()}_${createTelegramSupportStartPayload(orderId, userId)}`;
+}
+
+export function verifyTelegramSupportQrCallbackData(raw: string): SupportQrPayload | null {
+  const match = /^qr_(khr|usd)_(ord_[0-9a-z]+_[0-9a-z]+_[0-9a-f]{20})$/i.exec(raw.trim());
+  if (!match) return null;
+
+  const currency = match[1].toUpperCase() as "KHR" | "USD";
+  const payload = verifyTelegramSupportStartPayload(match[2]);
+  if (!payload) return null;
+
+  return {
+    currency,
+    orderId: payload.orderId,
+    userId: payload.userId,
+  };
+}
+
+export function createTelegramSupportConfirmCallbackData(
+  orderId: number,
+  userId: number
+): string {
+  return `confirm_${createTelegramSupportStartPayload(orderId, userId)}`;
+}
+
+export function verifyTelegramSupportConfirmCallbackData(raw: string): SupportConfirmPayload | null {
+  const match = /^(?:confirm|cfm)_(ord_[0-9a-z]+_[0-9a-z]+_[0-9a-f]{20})$/i.exec(raw.trim());
+  if (!match) return null;
+  return verifyTelegramSupportStartPayload(match[1]);
+}
+
 export function buildTelegramSupportDeepLink(orderId: number, userId: number): string {
   const baseUrl =
     process.env.NEXT_PUBLIC_TELEGRAM_SUPPORT_URL?.trim() ||
@@ -78,4 +121,3 @@ export function buildTelegramSupportDeepLink(orderId: number, userId: number): s
 export function getTelegramSupportBotToken(): string {
   return process.env.TELEGRAM_SUPPORT_BOT_TOKEN?.trim() || "";
 }
-

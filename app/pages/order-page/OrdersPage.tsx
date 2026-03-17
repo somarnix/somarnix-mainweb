@@ -11,6 +11,7 @@ type Order = {
   id: number;
   order_number: string;
   status: OrderStatus;
+  has_payment_submission?: boolean;
   total: number;
   created_at: string;
   delivery_title?: string | null;
@@ -18,6 +19,13 @@ type Order = {
   delivered_at?: string | null;
   reviewed_at?: string | null;
 };
+
+function getOrderStatusText(order: Order, language: "km" | "en"): string {
+  if (order.status === "pending" && !order.has_payment_submission) {
+    return language === "km" ? "រង់ចាំបញ្ជាក់ការទូទាត់" : "Awaiting Payment Confirmation";
+  }
+  return getStatusLabel(order.status, language);
+}
 
 function formatDate(value?: string | null, lang: "km" | "en" = "en"): string {
   if (!value) return lang === "km" ? "មិនមាន" : "No record";
@@ -205,7 +213,7 @@ export function OrdersPage({ onNavigate, onOpenOrderDetail }: OrdersPageProps) {
                       </div>
 
                       <span className="inline-flex items-center px-3 py-1 rounded-full text-sm font-semibold bg-blue-50 text-blue-700 dark:bg-blue-900/40 dark:text-blue-200">
-                        {getStatusLabel(o.status, language === "km" ? "km" : "en")}
+                        {getOrderStatusText(o, language === "km" ? "km" : "en")}
                       </span>
                     </div>
 

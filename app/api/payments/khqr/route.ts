@@ -3,7 +3,7 @@ import type { RowDataPacket } from "mysql2";
 
 import { db } from "@/lib/db";
 import { createKhqr, type KhqrCurrency, type KhqrInput } from "@/lib/khqr";
-import { createStyledKhqrDataUrl } from "@/lib/khqr-style";
+import { createStyledKhqrDataUrl, createStyledKhqrTelegramDataUrl } from "@/lib/khqr-style";
 
 type KhqrBody = Partial<{
   bankAccount: unknown;
@@ -18,6 +18,7 @@ type KhqrBody = Partial<{
   abaMerchantId: unknown;
   paywayMerchantId: unknown;
   paywayTerminalId: unknown;
+  renderTelegramImage: unknown;
 }>;
 
 function asOptionalString(value: unknown): string | undefined {
@@ -137,18 +138,28 @@ async function handleKhqrRequest(body: KhqrBody) {
       input.billNumber = await getNextBillNumber();
     }
     const result = await createKhqr(input);
-    const styledQrDataUrl = await createStyledKhqrDataUrl({
+    const styleInput = {
       payload: result.payload,
       merchantName: input.merchantName,
       amount: input.amount,
       currency: input.currency,
-    });
+    };
+    const renderTelegramImage =
+      body.renderTelegramImage === true ||
+      body.renderTelegramImage === "true" ||
+      body.renderTelegramImage === 1 ||
+      body.renderTelegramImage === "1";
+    const styledQrDataUrl = await createStyledKhqrDataUrl(styleInput);
+    const telegramQrDataUrl = renderTelegramImage
+      ? await createStyledKhqrTelegramDataUrl(styleInput)
+      : null;
 
     return NextResponse.json({
       success: true,
       ...result,
       rawQrDataUrl: result.qrDataUrl,
       qrDataUrl: styledQrDataUrl,
+      telegramQrDataUrl: telegramQrDataUrl || null,
       meta: {
         provider: "aba_payway",
         bankAccount: input.bankAccount,

@@ -1,3 +1,5 @@
+import "@/lib/server-env";
+
 export function getRequiredEnv(name: string): string {
   const value = process.env[name]?.trim();
   if (!value) {

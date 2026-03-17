@@ -1,5 +1,7 @@
 import mysql from "mysql2/promise";
 
+import "@/lib/server-env";
+
 const globalForDb = globalThis as unknown as {
   __gstech_db_pool?: mysql.Pool;
 };

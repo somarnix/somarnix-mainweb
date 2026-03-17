@@ -32,6 +32,7 @@ interface QRPaymentModalProps {
 
 const DEFAULT_KH_QR = "/paymentQR/khmer_qr.jpg";
 const KHR_PER_USD = 4000;
+const MANUAL_PAYMENT_TIMEOUT_SECONDS = 300;
 
 type KhqrApiResponse = {
   qrDataUrl?: string;
@@ -54,7 +55,7 @@ export function QRPaymentModal({
 }: QRPaymentModalProps) {
   const { language } = useLanguage();
   const { user } = useAuth();
-  const [timeLeft, setTimeLeft] = useState(300); // 5 minutes = 300 seconds
+  const [timeLeft, setTimeLeft] = useState(MANUAL_PAYMENT_TIMEOUT_SECONDS);
   const [step, setStep] = useState<'qr' | 'form' | 'processing' | 'success' | 'expired'>('qr');
   const userDisplayName =
     user?.firstName?.trim() || user?.username?.trim() || user?.email?.trim() || 'User';
@@ -138,6 +139,7 @@ export function QRPaymentModal({
     telegramSupportUrl?.trim() ||
     (process.env.NEXT_PUBLIC_TELEGRAM_SUPPORT_URL || '').trim();
   const preferTelegramCheckout = Boolean(resolvedTelegramSupportUrl);
+  const showPaymentTimer = !preferTelegramCheckout;
   const telegramSupportLabel =
     (process.env.NEXT_PUBLIC_TELEGRAM_SUPPORT_LABEL || '').trim() || 'Continue payment in Telegram';
   const telegramProofMessage = [
@@ -306,6 +308,7 @@ export function QRPaymentModal({
 
   // Countdown timer
   useEffect(() => {
+    if (!showPaymentTimer) return;
     if (step !== 'qr' && step !== 'form') return;
 
     const timer = setInterval(() => {
@@ -319,7 +322,7 @@ export function QRPaymentModal({
     }, 1000);
 
     return () => clearInterval(timer);
-  }, [step]);
+  }, [showPaymentTimer, step]);
 
   // Auto-close when expired
   useEffect(() => {
@@ -389,7 +392,7 @@ export function QRPaymentModal({
                 {step === 'processing' && (
                   <Loader2 className="w-5 h-5 animate-spin" />
                 )}
-                {(step === 'qr' || step === 'form') && (
+                {showPaymentTimer && (step === 'qr' || step === 'form') && (
                   <div className="text-2xl font-bold">
                     {formatTime(timeLeft)}
                   </div>
@@ -474,18 +477,21 @@ export function QRPaymentModal({
                     <div className="text-sm font-semibold text-blue-900 dark:text-blue-100">
                       {language === 'km'
                         ? 'បន្តការទូទាត់តាម Telegram ដើម្បីទទួលបាន ABA QR និងផ្ញើរូបថតការផ្ទេរប្រាក់នៅទីនោះ។'
-                        : 'Continue in Telegram to receive the ABA QR and send your payment screenshot there.'}
+                        : 'Continue in Telegram to receive the ABA QR, send a clear payment photo, and confirm money in the bot.'}
                     </div>
                     <p className="mt-2 text-xs text-blue-800 dark:text-blue-200">
                       {language === 'km'
                         ? 'Bot នឹងបង្ហាញព័ត៌មានអ្នកទិញ លេខប៊ីល ចំនួនទឹកប្រាក់ ហើយផ្ញើទាំង KHR QR និង USD QR ដោយស្វ័យប្រវត្តិ។'
-                        : 'The bot will show the buyer details, bill number, amount, and automatically send both KHR and USD QR codes.'}
+                        : 'The bot will show the buyer details, bill number, amount, and ask for a clear payment photo.'}
+                    </p>
+                    <p className="mt-2 text-xs font-medium text-blue-900 dark:text-blue-100">
+                      Telegram will show the Confirm Money button after you send a clear proof photo.
                     </p>
                   </div>
                 ) : null}
 
                 {/* QR Selector */}
-                <div className={preferTelegramCheckout ? "hidden" : "mb-3"}>
+                <div className="mb-3">
                   <div className="flex gap-3 mb-4">
                     <Button
                       onClick={() => setActiveQrType('khqr')}
@@ -547,8 +553,8 @@ export function QRPaymentModal({
                     </p>
                     <p className="mt-3 text-xs font-medium text-green-600 dark:text-green-400 text-center">
                       {autoConfirming
-                        ? 'Payment detected. Finalizing order...'
-                        : 'After payment, this page will auto-confirm your order.'}
+                        ? 'Telegram confirmation detected. Finalizing order...'
+                        : 'After payment, confirm money in Telegram. Blurry or unclear photos are not allowed.'}
                     </p>
                   </div>
                 </div>
@@ -595,7 +601,7 @@ export function QRPaymentModal({
                 </div>
 
                 {/* Timer Warning */}
-                {timeLeft < 60 && (
+                {showPaymentTimer && timeLeft < 60 && (
                   <div className="mt-4 p-3 bg-yellow-50 dark:bg-yellow-900/20 rounded-lg text-center">
                     <div className="text-sm font-semibold text-yellow-800 dark:text-yellow-400">
                       {language === 'km' 
@@ -727,7 +733,7 @@ export function QRPaymentModal({
                   <p className="mt-2 text-xs text-blue-900 dark:text-blue-100">
                     {language === 'km'
                       ? 'បន្ទាប់ពីបង់ប្រាក់ សូមបើក Telegram support រួចផ្ញើ APV និងរូបថតការផ្ទេរប្រាក់ទៅកាន់អេដមីន។'
-                      : 'After payment, open Telegram support and send your APV plus the transfer screenshot to admin.'}
+                      : 'After payment, open Telegram support, send a clear proof photo, and tap Confirm Money in the bot.'}
                   </p>
                   <div className="mt-3 space-y-2 sm:flex sm:gap-2 sm:space-y-0">
                     {resolvedTelegramSupportUrl ? (
@@ -769,7 +775,7 @@ export function QRPaymentModal({
                 </div>
 
                 {/* Timer Warning */}
-                {timeLeft < 60 && (
+                {showPaymentTimer && timeLeft < 60 && (
                   <div className="mt-4 p-3 bg-yellow-50 dark:bg-yellow-900/20 rounded-lg text-center">
                     <div className="text-sm font-semibold text-yellow-800 dark:text-yellow-400">
                       {language === 'km' 

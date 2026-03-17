@@ -2,6 +2,7 @@ import { readFile } from "fs/promises";
 import path from "path";
 
 import QRCode from "qrcode";
+import type { Browser, Page } from "puppeteer";
 
 import type { KhqrCurrency } from "@/lib/khqr";
 
@@ -20,6 +21,9 @@ type StyledKhqrInput = {
 };
 
 const assetCache = new Map<StyleAssetName, Promise<string | null>>();
+const styledSvgCache = new Map<string, Promise<string>>();
+const styledTelegramPngCache = new Map<string, Promise<string | null>>();
+let styledKhqrBrowserPromise: Promise<Browser | null> | null = null;
 
 function escapeXml(value: string): string {
   return value
@@ -65,7 +69,16 @@ function estimateAmountWidth(amountText: string): number {
   return Math.max(80, Math.round(amountText.length * 13.2));
 }
 
-export async function createStyledKhqrDataUrl(input: StyledKhqrInput): Promise<string> {
+function buildStyledKhqrCacheKey(input: StyledKhqrInput): string {
+  return JSON.stringify({
+    payload: input.payload,
+    merchantName: input.merchantName,
+    amount: input.amount ?? "",
+    currency: input.currency,
+  });
+}
+
+async function buildStyledKhqrSvg(input: StyledKhqrInput): Promise<string> {
   const amount = parseAmount(input.amount);
   const [abaPayLogo, usdIcon, khrIcon, khqrIcon, customLogo] = await Promise.all([
     loadAssetDataUri("aba-pay-logo.png"),
@@ -88,11 +101,12 @@ export async function createStyledKhqrDataUrl(input: StyledKhqrInput): Promise<s
   const currencyX = 30 + amountWidth + 5;
   const currencyWidth = input.currency === "USD" ? 28 : 30;
   const amountBadgeIcon = customLogo || (input.currency === "USD" ? usdIcon : khrIcon) || khqrIcon;
-  const centerIcon = amount > 0
-    ? customLogo || (input.currency === "USD" ? usdIcon : khrIcon) || khqrIcon
-    : khqrIcon || customLogo || (input.currency === "USD" ? usdIcon : khrIcon);
+  const centerIcon =
+    amount > 0
+      ? customLogo || (input.currency === "USD" ? usdIcon : khrIcon) || khqrIcon
+      : khqrIcon || customLogo || (input.currency === "USD" ? usdIcon : khrIcon);
 
-  const svg = `<?xml version="1.0" encoding="UTF-8"?>
+  return `<?xml version="1.0" encoding="UTF-8"?>
 <svg xmlns="http://www.w3.org/2000/svg" width="300" height="450" viewBox="0 0 300 450">
   <defs>
     <clipPath id="card-radius">
@@ -114,6 +128,74 @@ export async function createStyledKhqrDataUrl(input: StyledKhqrInput): Promise<s
     ${centerIcon ? `<image href="${centerIcon}" x="132" y="282" width="36" height="36" preserveAspectRatio="xMidYMid meet" />` : ""}
   </g>
 </svg>`;
+}
 
+function toSvgDataUrl(svg: string): string {
   return `data:image/svg+xml;base64,${Buffer.from(svg, "utf8").toString("base64")}`;
+}
+
+async function getStyledKhqrBrowser(): Promise<Browser | null> {
+  if (styledKhqrBrowserPromise) return styledKhqrBrowserPromise;
+
+  styledKhqrBrowserPromise = (async () => {
+    try {
+      const puppeteer = await import("puppeteer");
+      return await puppeteer.launch({
+        headless: true,
+        args: ["--no-sandbox", "--disable-setuid-sandbox", "--disable-dev-shm-usage"],
+      });
+    } catch (error) {
+      console.error("Styled KHQR browser launch failed:", error);
+      return null;
+    }
+  })();
+
+  return styledKhqrBrowserPromise;
+}
+
+async function rasterizeSvgDataUrlToPngDataUrl(svgDataUrl: string): Promise<string | null> {
+  const browser = await getStyledKhqrBrowser();
+  if (!browser) return null;
+
+  const page: Page = await browser.newPage();
+  try {
+    await page.setViewport({
+      width: 300,
+      height: 450,
+      deviceScaleFactor: 2,
+    });
+    await page.goto(svgDataUrl, { waitUntil: "networkidle0" });
+    const pngBytes = await page.screenshot({ type: "png" });
+    return `data:image/png;base64,${Buffer.from(pngBytes).toString("base64")}`;
+  } catch (error) {
+    console.error("Styled KHQR PNG render failed:", error);
+    return null;
+  } finally {
+    await page.close().catch(() => undefined);
+  }
+}
+
+export async function createStyledKhqrDataUrl(input: StyledKhqrInput): Promise<string> {
+  const cacheKey = buildStyledKhqrCacheKey(input);
+  const existing = styledSvgCache.get(cacheKey);
+  if (existing) return existing;
+
+  const promise = buildStyledKhqrSvg(input).then((svg) => toSvgDataUrl(svg));
+  styledSvgCache.set(cacheKey, promise);
+  return promise;
+}
+
+export async function createStyledKhqrTelegramDataUrl(
+  input: StyledKhqrInput
+): Promise<string | null> {
+  const cacheKey = buildStyledKhqrCacheKey(input);
+  const existing = styledTelegramPngCache.get(cacheKey);
+  if (existing) return existing;
+
+  const promise = (async () => {
+    const svgDataUrl = await createStyledKhqrDataUrl(input);
+    return rasterizeSvgDataUrlToPngDataUrl(svgDataUrl);
+  })();
+  styledTelegramPngCache.set(cacheKey, promise);
+  return promise;
 }

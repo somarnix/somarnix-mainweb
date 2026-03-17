@@ -14,6 +14,7 @@ import {
 import { useLanguage } from "../../contexts/LanguageContext";
 import { useCurrency } from "../../contexts/CurrencyContext";
 import { Button } from "../../components/ui/button";
+import { getOrderConfirmationDeadline } from "@/lib/order-confirmation";
 import type { OrderStatus } from "@/lib/order-status";
 import { getStatusLabel } from "./orderStatusConfig";
 import { Textarea } from "../../components/ui/textarea";
@@ -25,6 +26,7 @@ type Order = {
   id: number;
   order_number: string;
   status: OrderStatus;
+  has_payment_submission?: boolean;
   subtotal: number;
   tax_amount: number;
   total: number;
@@ -231,6 +233,39 @@ function normalizeDateForDisplay(value?: string | null, lang: LanguageCode = "en
 }
 
 function buildTimelineSteps(order: Order, payment: Payment, lang: LanguageCode): TimelineStep[] {
+  if (order.status === "pending" && !order.has_payment_submission) {
+    return [
+      {
+        key: "placed",
+        label: lang === "km" ? "បានបង្កើតការបញ្ជាទិញ" : "Order placed",
+        description:
+          lang === "km" ? "ការបញ្ជាទិញត្រូវបានបង្កើតរួចហើយ។" : "Your order has been created.",
+        date: order.created_at,
+        state: "done",
+      },
+      {
+        key: "awaiting-payment",
+        label: lang === "km" ? "រង់ចាំបញ្ជាក់ការទូទាត់" : "Awaiting payment confirmation",
+        description:
+          lang === "km"
+            ? "សូមផ្ញើរូបថតបង់ប្រាក់ច្បាស់នៅ Telegram ហើយចុច Confirm Money ក្នុង bot។"
+            : "Send a clear payment photo in Telegram, then tap Confirm Money in the bot.",
+        date: order.created_at,
+        state: "current",
+      },
+      {
+        key: "prepared",
+        label: lang === "km" ? "កំពុងរៀបចំ" : "Prepared",
+        description:
+          lang === "km"
+            ? "ស្ថានភាពនេះនឹងចាប់ផ្តើមបន្ទាប់ពីអ្នកបញ្ជាក់ការទូទាត់។"
+            : "This status starts only after you confirm payment.",
+        date: null,
+        state: "upcoming",
+      },
+    ];
+  }
+
   const stepsDateMap: Record<string, string | null> = {
     placed: order.created_at,
     paid: payment?.paid_at ?? order.created_at,
@@ -306,6 +341,20 @@ function buildActivity(order: Order, payment: Payment, lang: LanguageCode): Acti
       date: order.created_at,
     },
   ];
+
+  if (order.status === "pending" && !order.has_payment_submission) {
+    items.push({
+      key: "awaiting-payment-confirmation",
+      title:
+        lang === "km" ? "រង់ចាំបញ្ជាក់ការទូទាត់" : "Awaiting payment confirmation",
+      description:
+        lang === "km"
+          ? "សូមផ្ញើរូបថតបង់ប្រាក់ច្បាស់នៅ Telegram ហើយចុច Confirm Money ក្នុង bot។ រូបថតព្រិល ឬមិនច្បាស់ មិនអនុញ្ញាត។"
+          : "Send a clear payment photo in Telegram, then tap Confirm Money in the bot. Blurry or unclear photos are not allowed.",
+      date: getOrderConfirmationDeadline(order.created_at)?.toISOString() ?? order.created_at,
+    });
+    return items;
+  }
 
   if (payment) {
     items.push({
@@ -447,6 +496,13 @@ function parseToolSlugFromDelivery(
   const messageMatch = String(message || "").match(/\(([a-z0-9-]+)\)/i);
   if (messageMatch?.[1]) return messageMatch[1].trim();
   return null;
+}
+
+function getOrderStatusText(order: Order, lang: LanguageCode): string {
+  if (order.status === "pending" && !order.has_payment_submission) {
+    return lang === "km" ? "រង់ចាំបញ្ជាក់ការទូទាត់" : "Awaiting Payment Confirmation";
+  }
+  return getStatusLabel(order.status, lang);
 }
 
 function formatChatDate(value: string | null | undefined, lang: LanguageCode) {
@@ -960,10 +1016,24 @@ export function OrderDetailPage({
                 {language === "km" ? "ស្ថានភាពបច្ចុប្បន្ន" : "Current status"}
               </p>
               <span className="inline-flex items-center px-4 py-1.5 rounded-full text-sm font-semibold bg-blue-50 text-blue-700 dark:bg-blue-900/40 dark:text-blue-200">
-                {getStatusLabel(order.status, lang)}
+                {getOrderStatusText(order, lang)}
               </span>
             </div>
           </div>
+
+          {order.status === "pending" && !order.has_payment_submission ? (
+            <div className="rounded-2xl border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-800 dark:border-amber-900 dark:bg-amber-950/30 dark:text-amber-200">
+              {lang === "km"
+                ? `សូមបង់ប្រាក់ក្នុង Telegram bot, ផ្ញើរូបថតច្បាស់, ហើយចុច Confirm Money មុន ${normalizeDateForDisplay(
+                    getOrderConfirmationDeadline(order.created_at)?.toISOString() ?? null,
+                    lang
+                  )}។`
+                : `Pay in the Telegram bot, send a clear proof photo, and tap Confirm Money before ${normalizeDateForDisplay(
+                    getOrderConfirmationDeadline(order.created_at)?.toISOString() ?? null,
+                    lang
+                  )}.`}
+            </div>
+          ) : null}
 
           <Timeline steps={timeline} lang={lang} />
 
@@ -1515,7 +1585,7 @@ export function OrderDetailPage({
               <p className="text-gray-500 dark:text-gray-400">
                 {language === "km"
                   ? "មិនទាន់មានព័ត៌មានការបង់ប្រាក់"
-                  : "No payment info submitted yet."}
+                  : "No payment confirmation submitted yet."}
               </p>
             )}
           </div>
