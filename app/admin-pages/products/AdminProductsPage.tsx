@@ -1168,15 +1168,76 @@ export default function AdminProductsPage({
     URL.revokeObjectURL(url);
   };
 
+  const startEditingVariant = (v: Variant) => {
+    setEditingVariant(v);
+
+    setVDurationLabel(v.duration_label ?? "");
+    setVDurationNote(v.duration_note ?? "");
+    setVAccessType(
+      typeof v.duration_days === "number" && v.duration_days > 0 ? "months" : "lifetime"
+    );
+    setVDurationDays(typeof v.duration_days === "number" ? String(v.duration_days) : "");
+
+    setVDeviceLabel(v.device_label ?? "");
+    setVDeviceType(
+      v.device_type && ["any", "pc", "phone", "both"].includes(v.device_type)
+        ? (v.device_type as "any" | "pc" | "phone" | "both")
+        : "any"
+    );
+    const unlimited = v.is_unlimited_device ? 1 : 0;
+    setVUnlimitedDevice(unlimited);
+    setVDeviceLimit(
+      unlimited
+        ? String(GLOBAL_MAX_DEVICES)
+        : typeof v.device_limit === "number"
+          ? String(v.device_limit)
+          : ""
+    );
+
+    setVOriginalPrice(v.original_price != null ? String(v.original_price) : "");
+    setVPrice(v.price != null ? String(v.price) : "");
+    setVUnitsPerQty(
+      typeof v.units_per_qty === "number" && Number.isFinite(v.units_per_qty)
+        ? String(Math.max(1, Math.floor(v.units_per_qty)))
+        : "1"
+    );
+    setVKhQr(v.khqr ?? DEFAULT_KH_QR);
+    setVUsdQr(v.usdqr ?? USD_QR_NONE);
+  };
+
+  const toggleVariantStatus = async (v: Variant) => {
+    try {
+      await updateVariant(v.id, v.product_id, {
+        is_active: v.is_active ? 0 : 1,
+      });
+      await loadVariants(v.product_id);
+      await loadProducts({ silent: true });
+    } catch (err) {
+      alert(getErrorMessage(err));
+    }
+  };
+
+  const removeVariant = async (v: Variant) => {
+    const ok = confirm("Remove this variant?");
+    if (!ok) return;
+    try {
+      await disableVariant(v.id, v.product_id);
+      await loadVariants(v.product_id);
+      await loadProducts({ silent: true });
+    } catch (err) {
+      alert(getErrorMessage(err));
+    }
+  };
+
   /* ================= RENDER ================= */
 
   if (loading) return <div className="p-6 text-gray-500">Loading products...</div>;
   if (error) return <div className="p-6 text-red-600">{error}</div>;
 
   return (
-    <div className="max-w-7xl mx-auto px-4 py-12">
+    <div className="mx-auto max-w-7xl px-4 py-6 sm:px-6 sm:py-8 lg:px-8 lg:py-12">
       {/* Header */}
-      <div className="flex flex-col gap-3 md:flex-row md:items-center md:justify-between mb-5">
+      <div className="mb-5 flex flex-col gap-4 lg:flex-row lg:items-center lg:justify-between">
         <div>
           <h1 className="text-2xl font-bold">{isToolsMode ? "Tools" : "Products"}</h1>
           <div className="text-sm text-gray-500">
@@ -1187,12 +1248,12 @@ export default function AdminProductsPage({
           </div>
         </div>
 
-        <div className="flex flex-col md:flex-row md:flex-wrap gap-2 md:items-center">
+        <div className="grid grid-cols-1 gap-2 sm:grid-cols-2 lg:flex lg:flex-wrap lg:items-center">
           <input
             value={q}
             onChange={(e) => setQ(e.target.value)}
             placeholder="Search title / slug / category…"
-            className="w-full md:w-[320px] border rounded-lg px-3 py-2 text-sm"
+            className="w-full rounded-lg border px-3 py-2 text-sm sm:col-span-2 lg:w-[320px]"
           />
 
           <select
@@ -1201,7 +1262,7 @@ export default function AdminProductsPage({
               const v = e.target.value;
               if (isStatusFilter(v)) setStatus(v);
             }}
-            className="border rounded-lg px-3 py-2 text-sm"
+            className="w-full rounded-lg border px-3 py-2 text-sm lg:w-auto"
           >
             <option value="all">All</option>
             <option value="active">Active only</option>
@@ -1214,7 +1275,7 @@ export default function AdminProductsPage({
               const v = e.target.value;
               if (isStockFilter(v)) setStockFilter(v);
             }}
-            className="border rounded-lg px-3 py-2 text-sm"
+            className="w-full rounded-lg border px-3 py-2 text-sm lg:w-auto"
           >
             <option value="all">Stock: All</option>
             <option value="in_stock">Stock: In stock</option>
@@ -1225,7 +1286,7 @@ export default function AdminProductsPage({
           <select
             value={slugFilter}
             onChange={(e) => setSlugFilter(e.target.value)}
-            className="border rounded-lg px-3 py-2 text-sm md:w-[320px]"
+            className="w-full rounded-lg border px-3 py-2 text-sm sm:col-span-2 lg:w-[320px]"
           >
             <option value="all">Slug: All</option>
             {slugOptions
@@ -1241,7 +1302,7 @@ export default function AdminProductsPage({
             <select
               value={categoryFilter}
               onChange={(e) => setCategoryFilter(e.target.value)}
-              className="border rounded-lg px-3 py-2 text-sm md:w-[220px] capitalize"
+              className="w-full rounded-lg border px-3 py-2 text-sm capitalize lg:w-[220px]"
             >
               <option value="all">Category: All</option>
               {categoryOptions
@@ -1260,7 +1321,7 @@ export default function AdminProductsPage({
               const v = e.target.value;
               if (isSortMode(v)) setSort(v);
             }}
-            className="border rounded-lg px-3 py-2 text-sm"
+            className="w-full rounded-lg border px-3 py-2 text-sm lg:w-auto"
           >
             <option value="id_desc">Sort: ID (Newest)</option>
             <option value="id_asc">Sort: ID (Oldest)</option>
@@ -1281,14 +1342,14 @@ export default function AdminProductsPage({
               setPage(1);
               void loadProducts({ silent: true });
             }}
-            className="border rounded-lg px-3 py-2 text-sm hover:bg-gray-50"
+            className="w-full rounded-lg border px-3 py-2 text-sm hover:bg-gray-50 lg:w-auto"
           >
             Refresh
           </button>
 
           <button
             onClick={exportFilteredToExcel}
-            className="border rounded-lg px-3 py-2 text-sm hover:bg-gray-50 disabled:opacity-50"
+            className="w-full rounded-lg border px-3 py-2 text-sm hover:bg-gray-50 disabled:opacity-50 lg:w-auto"
             disabled={filtered.length === 0}
           >
             Export Excel
@@ -1296,7 +1357,7 @@ export default function AdminProductsPage({
 
           <button
             onClick={openCreate}
-            className="rounded-lg px-3 py-2 text-sm bg-black text-black hover:opacity-90"
+            className="w-full rounded-lg bg-black px-3 py-2 text-sm text-white hover:opacity-90 sm:col-span-2 lg:w-auto"
           >
             {isToolsMode ? "+ New Tool" : "+ New Product"}
           </button>
@@ -1305,7 +1366,8 @@ export default function AdminProductsPage({
 
       {/* Table */}
       <div className="bg-white rounded-xl shadow overflow-hidden">
-        <table className="w-full">
+        <div className="hidden overflow-x-auto md:block">
+        <table className="w-full min-w-[960px]">
           <thead>
             <tr className="border-b bg-gray-50 text-sm text-gray-600">
               <th className="p-3 text-left">ID</th>
@@ -1440,6 +1502,121 @@ export default function AdminProductsPage({
             )}
           </tbody>
         </table>
+        </div>
+
+        <div className="divide-y md:hidden">
+          {filtered.length === 0 ? (
+            <div className="p-8 text-center text-gray-500">No products found</div>
+          ) : (
+            pagedProducts.map((p) => (
+              <div key={p.id} className="space-y-4 p-4">
+                <div className="flex items-start gap-3">
+                  <div className="h-16 w-16 shrink-0 overflow-hidden rounded-xl border bg-gray-50">
+                    {p.image_url ? (
+                      <img
+                        src={p.image_url}
+                        alt={p.title}
+                        className="block h-full w-full object-cover"
+                      />
+                    ) : null}
+                  </div>
+                  <div className="min-w-0 flex-1">
+                    <div className="flex items-start justify-between gap-3">
+                      <div className="min-w-0">
+                        <div className="truncate font-semibold text-gray-900">{p.title}</div>
+                        <div className="truncate text-xs text-gray-500">{p.slug}</div>
+                      </div>
+                      <div className="text-right text-xs text-gray-500">#{p.id}</div>
+                    </div>
+                    <div className="mt-2 flex flex-wrap gap-2">
+                      {p.level ? (
+                        <span className="inline-flex rounded-full border bg-white px-2 py-0.5 text-xs">
+                          {p.level}
+                        </span>
+                      ) : null}
+                      {p.is_active ? (
+                        <span className="inline-flex items-center rounded-full border border-green-200 bg-green-50 px-2 py-0.5 text-xs text-green-700">
+                          Active
+                        </span>
+                      ) : (
+                        <span className="inline-flex items-center rounded-full border border-red-200 bg-red-50 px-2 py-0.5 text-xs text-red-700">
+                          Disabled
+                        </span>
+                      )}
+                    </div>
+                  </div>
+                </div>
+
+                <div className="grid grid-cols-2 gap-3 text-sm">
+                  <div className="rounded-lg border bg-gray-50 p-3">
+                    <div className="text-xs text-gray-500">Category</div>
+                    <div className="mt-1 font-medium text-gray-900">
+                      {p.category_name || <span className="text-gray-400">-</span>}
+                    </div>
+                    {typeof p.variant_count === "number" ? (
+                      <div className="mt-1 text-xs text-gray-500">Variants: {p.variant_count}</div>
+                    ) : null}
+                  </div>
+                  <div className="rounded-lg border bg-gray-50 p-3">
+                    <div className="text-xs text-gray-500">Price</div>
+                    <div className={cls("mt-1 font-medium", p.min_price == null && "text-gray-400")}>
+                      {p.min_price == null ? "No price" : formatMoney(p.min_price)}
+                    </div>
+                  </div>
+                </div>
+
+                <div>
+                  {p.is_unlimited_stock ? (
+                    <span className="inline-flex items-center rounded-full border border-sky-200 bg-sky-50 px-2 py-0.5 text-xs font-semibold text-sky-700">
+                      Unlimited stock
+                    </span>
+                  ) : (() => {
+                    const qty = Number.isFinite(Number(p.stock_qty)) ? Number(p.stock_qty) : 0;
+                    if (qty > 0) {
+                      return (
+                        <span className="inline-flex items-center rounded-full border border-emerald-200 bg-emerald-50 px-2 py-0.5 text-xs font-semibold text-emerald-700">
+                          In stock ({qty})
+                        </span>
+                      );
+                    }
+                    return (
+                      <span className="inline-flex items-center rounded-full border border-red-200 bg-red-50 px-2 py-0.5 text-xs font-semibold text-red-700">
+                        Out stock
+                      </span>
+                    );
+                  })()}
+                </div>
+
+                <div className="flex flex-wrap gap-2">
+                  <button
+                    onClick={() => openEdit(p)}
+                    className="flex-1 rounded-lg border px-3 py-2 text-sm hover:bg-white sm:flex-none"
+                  >
+                    Edit
+                  </button>
+                  <button
+                    onClick={() => toggleActive(p)}
+                    className="flex-1 rounded-lg border px-3 py-2 text-sm hover:bg-white sm:flex-none"
+                  >
+                    {p.is_active ? "Disable" : "Enable"}
+                  </button>
+                  <button
+                    onClick={() => copyProduct(p)}
+                    className="flex-1 rounded-lg border px-3 py-2 text-sm hover:bg-white sm:flex-none"
+                  >
+                    Copy
+                  </button>
+                  <button
+                    onClick={() => deleteProduct(p)}
+                    className="flex-1 rounded-lg border px-3 py-2 text-sm text-red-600 hover:bg-red-50 sm:flex-none"
+                  >
+                    Delete
+                  </button>
+                </div>
+              </div>
+            ))
+          )}
+        </div>
       </div>
 
       {filtered.length > PAGE_SIZE ? (
@@ -1455,8 +1632,8 @@ export default function AdminProductsPage({
 
       {/* ================= CREATE MODAL ================= */}
       {createOpen ? (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 p-4">
-          <div className="w-full max-w-xl bg-white rounded-2xl shadow-lg overflow-hidden max-h-[90vh] flex flex-col">
+        <div className="fixed inset-0 z-50 flex items-start justify-center bg-black/40 p-2 sm:items-center sm:p-4">
+          <div className="flex w-full max-w-xl flex-col overflow-hidden rounded-2xl bg-white shadow-lg max-h-[calc(100vh-2rem)]">
             <div className="p-4 border-b flex items-center justify-between">
               <div>
                 <div className="text-lg font-semibold">
@@ -1472,7 +1649,7 @@ export default function AdminProductsPage({
               </button>
             </div>
 
-            <div className="p-4 grid grid-cols-1 md:grid-cols-2 gap-3 overflow-auto">
+            <div className="grid min-h-0 flex-1 grid-cols-1 gap-3 overflow-y-auto overscroll-contain p-4 md:grid-cols-2">
               <div className="md:col-span-2">
                 <label className="text-xs text-gray-600">Title</label>
                 <input
@@ -1520,7 +1697,7 @@ export default function AdminProductsPage({
               </div>
             </div>
 
-            <div className="p-4 border-t flex items-center justify-end gap-2">
+            <div className="sticky bottom-0 flex items-center justify-end gap-2 border-t bg-white p-4">
               <button
                 onClick={closeCreate}
                 className="text-sm px-4 py-2 rounded-lg border hover:bg-gray-50"
@@ -1550,8 +1727,8 @@ export default function AdminProductsPage({
 
       {/* ================= EDIT MODAL ================= */}
       {editOpen && editing ? (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 p-4">
-          <div className="w-full max-w-2xl bg-white rounded-2xl shadow-lg overflow-hidden max-h-[90vh] flex flex-col">
+        <div className="fixed inset-0 z-50 flex items-start justify-center bg-black/40 p-2 sm:items-center sm:p-4">
+          <div className="flex w-full max-w-3xl flex-col overflow-hidden rounded-2xl bg-white shadow-lg max-h-[calc(100vh-2rem)]">
             <div className="p-4 border-b flex items-center justify-between">
               <div>
                 <div className="text-lg font-semibold">Edit Product</div>
@@ -1565,7 +1742,7 @@ export default function AdminProductsPage({
               </button>
             </div>
 
-            <div className="p-4 grid grid-cols-1 md:grid-cols-2 gap-3 overflow-auto">
+            <div className="grid min-h-0 flex-1 grid-cols-1 gap-3 overflow-y-auto overscroll-contain p-4 md:grid-cols-2">
               <div className="md:col-span-2">
                 <label className="text-xs text-gray-600">Title</label>
                 <input
@@ -2204,8 +2381,9 @@ export default function AdminProductsPage({
                     </div>
 
                     {/* Variants List */}
-                    <div className="rounded-xl border bg-white overflow-hidden">
-                      <table className="w-full text-sm">
+                    <div className="overflow-hidden rounded-xl border bg-white">
+                      <div className="hidden overflow-x-auto lg:block">
+                      <table className="w-full min-w-[720px] text-sm">
                         <thead className="bg-gray-50 border-b">
                           <tr>
                             <th className="p-2 text-left">Variant</th>
@@ -2272,46 +2450,7 @@ export default function AdminProductsPage({
     {/* EDIT PRICE */}
     <button
       className="text-xs px-2 py-1 rounded border hover:bg-gray-50"
-      onClick={() => {
-        setEditingVariant(v);
-
-        setVDurationLabel(v.duration_label ?? "");
-        setVDurationNote(v.duration_note ?? "");
-        setVAccessType(
-          typeof v.duration_days === "number" && v.duration_days > 0 ? "months" : "lifetime"
-        );
-        setVDurationDays(
-          typeof v.duration_days === "number" ? String(v.duration_days) : ""
-        );
-
-        setVDeviceLabel(v.device_label ?? "");
-        setVDeviceType(
-          v.device_type && ["any", "pc", "phone", "both"].includes(v.device_type)
-            ? (v.device_type as "any" | "pc" | "phone" | "both")
-            : "any"
-        );
-        const unlimited = v.is_unlimited_device ? 1 : 0;
-        setVUnlimitedDevice(unlimited);
-        setVDeviceLimit(
-          unlimited
-            ? String(GLOBAL_MAX_DEVICES)
-            : typeof v.device_limit === "number"
-              ? String(v.device_limit)
-              : ""
-        );
-
-        setVOriginalPrice(
-          v.original_price != null ? String(v.original_price) : ""
-        );
-        setVPrice(v.price != null ? String(v.price) : "");
-        setVUnitsPerQty(
-          typeof v.units_per_qty === "number" && Number.isFinite(v.units_per_qty)
-            ? String(Math.max(1, Math.floor(v.units_per_qty)))
-            : "1"
-        );
-        setVKhQr(v.khqr ?? DEFAULT_KH_QR);
-        setVUsdQr(v.usdqr ?? USD_QR_NONE);
-      }}
+      onClick={() => startEditingVariant(v)}
     >
       Edit
     </button>
@@ -2319,16 +2458,8 @@ export default function AdminProductsPage({
     {/* ENABLE / DISABLE */}
     <button
       className="text-xs px-2 py-1 rounded border hover:bg-gray-50"
-      onClick={async () => {
-        try {
-          await updateVariant(v.id, v.product_id, {
-            is_active: v.is_active ? 0 : 1,
-          });
-          await loadVariants(v.product_id);
-          await loadProducts({ silent: true });
-        } catch (err) {
-          alert(getErrorMessage(err));
-        }
+      onClick={() => {
+        void toggleVariantStatus(v);
       }}
     >
       {v.is_active ? "Disable" : "Enable"}
@@ -2337,16 +2468,8 @@ export default function AdminProductsPage({
     {/* REMOVE */}
     <button
       className="text-xs px-2 py-1 rounded border text-red-600 hover:bg-red-50"
-      onClick={async () => {
-        const ok = confirm("Remove this variant?");
-        if (!ok) return;
-        try {
-          await disableVariant(v.id, v.product_id);
-          await loadVariants(v.product_id);
-          await loadProducts({ silent: true });
-        } catch (err) {
-          alert(getErrorMessage(err));
-        }
+      onClick={() => {
+        void removeVariant(v);
       }}
     >
       Remove
@@ -2359,6 +2482,83 @@ export default function AdminProductsPage({
                           )}
                         </tbody>
                       </table>
+                      </div>
+
+                      <div className="divide-y lg:hidden">
+                        {variantsLoading ? (
+                          <div className="p-4 text-gray-500">Loading variants...</div>
+                        ) : variants.length === 0 ? (
+                          <div className="p-4 text-gray-500">No variants yet</div>
+                        ) : (
+                          variants.map((v) => (
+                            <div key={v.id} className="space-y-3 p-4">
+                              <div className="flex items-start justify-between gap-3">
+                                <div>
+                                  <div className="font-medium">
+                                    {v.duration_label || (isToolsMode ? v.device_label : null) || `Variant #${v.id}`}
+                                  </div>
+                                  {isToolsMode ? (
+                                    <div className="mt-1 text-[11px] text-gray-500">
+                                      {typeof v.duration_days === "number" && v.duration_days > 0
+                                        ? `Monthly (${v.duration_days} days)`
+                                        : "Lifetime"}{" "}
+                                      | Max devices:{" "}
+                                      {v.is_unlimited_device
+                                        ? `Unlimited (max ${GLOBAL_MAX_DEVICES})`
+                                        : Math.max(1, Number(v.device_limit ?? 1))}
+                                    </div>
+                                  ) : (
+                                    <div className="mt-1 text-[11px] text-gray-500">
+                                      Bundle units: {Math.max(1, Number(v.units_per_qty ?? 1))}
+                                    </div>
+                                  )}
+                                </div>
+                                <span className={cls(
+                                  "inline-flex rounded-full border px-2 py-0.5 text-xs",
+                                  v.is_active
+                                    ? "border-green-200 bg-green-50 text-green-700"
+                                    : "border-red-200 bg-red-50 text-red-700"
+                                )}>
+                                  {v.is_active ? "Active" : "Disabled"}
+                                </span>
+                              </div>
+
+                              <div className="rounded-lg border bg-gray-50 p-3">
+                                <div className="font-medium">{formatMoney(v.price)}</div>
+                                <div className="text-xs text-gray-500">{formatMoney(v.original_price)}</div>
+                                <div className="mt-1 text-[11px] text-gray-500">
+                                  Payment QR is generated automatically at checkout.
+                                </div>
+                              </div>
+
+                              <div className="flex flex-wrap gap-2">
+                                <button
+                                  className="flex-1 rounded border px-3 py-2 text-xs hover:bg-gray-50 sm:flex-none"
+                                  onClick={() => startEditingVariant(v)}
+                                >
+                                  Edit
+                                </button>
+                                <button
+                                  className="flex-1 rounded border px-3 py-2 text-xs hover:bg-gray-50 sm:flex-none"
+                                  onClick={() => {
+                                    void toggleVariantStatus(v);
+                                  }}
+                                >
+                                  {v.is_active ? "Disable" : "Enable"}
+                                </button>
+                                <button
+                                  className="flex-1 rounded border px-3 py-2 text-xs text-red-600 hover:bg-red-50 sm:flex-none"
+                                  onClick={() => {
+                                    void removeVariant(v);
+                                  }}
+                                >
+                                  Remove
+                                </button>
+                              </div>
+                            </div>
+                          ))
+                        )}
+                      </div>
                     </div>
 
                   </div>
@@ -2367,7 +2567,7 @@ export default function AdminProductsPage({
               {/* ================= END VARIANTS ================= */}
             </div>
 
-            <div className="p-4 border-t flex items-center justify-end gap-2">
+            <div className="sticky bottom-0 flex items-center justify-end gap-2 border-t bg-white p-4">
               <button
                 onClick={closeEdit}
                 className="text-sm px-4 py-2 rounded-lg border hover:bg-gray-50"

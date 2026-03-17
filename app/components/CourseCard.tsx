@@ -19,7 +19,6 @@ export interface CourseCardProps {
 }
 
 export function CourseCard({
-  id,
   title,
   slug,
   image,

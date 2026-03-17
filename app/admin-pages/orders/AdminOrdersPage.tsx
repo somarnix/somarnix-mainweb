@@ -739,10 +739,10 @@ export default function AdminOrdersPage() {
   /* ================= RENDER ================= */
 
   return (
-    <div className="max-w-7xl mx-auto px-4 py-12">
-      <div className="flex items-center justify-between">
+    <div className="mx-auto max-w-7xl px-4 py-6 sm:px-6 sm:py-8 lg:px-8 lg:py-12">
+      <div className="flex flex-col gap-4 md:flex-row md:items-center md:justify-between">
         <h1 className="text-2xl font-bold">Admin Orders</h1>
-        <div className="flex items-center gap-3">
+        <div className="flex flex-wrap items-center gap-3">
           <div className="rounded-lg border bg-white px-3 py-2 text-sm text-gray-700">
             Filtered: <span className="font-semibold">{totalFiltered}</span>
             <span className="mx-1 text-gray-400">/</span>

@@ -41,7 +41,20 @@ export function SlugFilter({
 
       <div className="mb-6">
         <h3 className="font-semibold mb-3">{slugLabel}</h3>
-        <div className="space-y-2">
+        <div className="md:hidden">
+          <select
+            value={selectedSlug}
+            onChange={(event) => onSelectSlug(event.target.value)}
+            className="w-full rounded-lg border border-gray-200 bg-white px-4 py-3 text-sm text-gray-900 shadow-sm focus:outline-none focus:ring-2 focus:ring-blue-500 dark:bg-gray-900 dark:border-gray-700 dark:text-gray-100"
+          >
+            {slugs.map((slug) => (
+              <option key={slug} value={slug}>
+                {slug}
+              </option>
+            ))}
+          </select>
+        </div>
+        <div className="hidden space-y-2 md:block">
           {slugs.map((slug) => (
             <button
               key={slug}
@@ -58,17 +71,32 @@ export function SlugFilter({
 
       <div>
         <h3 className="font-semibold mb-3">{sortLabel}</h3>
-        {sortOptions.map((option) => (
-          <button
-            key={option.id}
-            onClick={() => onSortChange(option.id)}
-            className={`w-full text-left px-4 py-2 rounded-lg ${
-              sortBy === option.id ? activeClassName : "hover:bg-gray-100"
-            }`}
+        <div className="md:hidden">
+          <select
+            value={sortBy}
+            onChange={(event) => onSortChange(event.target.value as SortKey)}
+            className="w-full rounded-lg border border-gray-200 bg-white px-4 py-3 text-sm text-gray-900 shadow-sm focus:outline-none focus:ring-2 focus:ring-blue-500 dark:bg-gray-900 dark:border-gray-700 dark:text-gray-100"
           >
-            {option.label}
-          </button>
-        ))}
+            {sortOptions.map((option) => (
+              <option key={option.id} value={option.id}>
+                {option.label}
+              </option>
+            ))}
+          </select>
+        </div>
+        <div className="hidden md:block">
+          {sortOptions.map((option) => (
+            <button
+              key={option.id}
+              onClick={() => onSortChange(option.id)}
+              className={`w-full text-left px-4 py-2 rounded-lg ${
+                sortBy === option.id ? activeClassName : "hover:bg-gray-100"
+              }`}
+            >
+              {option.label}
+            </button>
+          ))}
+        </div>
       </div>
     </div>
   );

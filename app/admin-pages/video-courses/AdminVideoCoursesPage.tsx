@@ -1082,8 +1082,8 @@ export default function AdminVideoCoursesPage({
   };
 
   return (
-    <div className="max-w-7xl mx-auto px-4 py-12">
-      <div className="flex items-center justify-between">
+    <div className="mx-auto max-w-7xl px-4 py-6 sm:px-6 sm:py-8 lg:px-8 lg:py-12">
+      <div className="flex flex-col gap-4 lg:flex-row lg:items-start lg:justify-between">
         <div>
           <h1 className="text-2xl font-bold">
             {managementTab === "promotions" ? "Promotions" : "Video Courses"}
@@ -1097,7 +1097,7 @@ export default function AdminVideoCoursesPage({
         {managementTab !== "promotions" ? (
           <button
             onClick={() => setCreateOpen(true)}
-            className="px-4 py-2 rounded-lg bg-black text-white text-sm"
+            className="w-full rounded-lg bg-black px-4 py-2 text-sm text-white lg:w-auto"
           >
             New Course
           </button>
@@ -1146,7 +1146,7 @@ export default function AdminVideoCoursesPage({
       <>
       {!courseId ? (
         <div className="rounded-xl border bg-white p-4 space-y-3">
-          <div className="flex items-center justify-between">
+          <div className="flex flex-col gap-2 lg:flex-row lg:items-center lg:justify-between">
             <div>
               <h2 className="font-semibold text-gray-900">Courses</h2>
               <p className="text-xs text-gray-500">Total: {courses.length}</p>
@@ -1156,7 +1156,8 @@ export default function AdminVideoCoursesPage({
             <div className="text-sm text-gray-500">Loading...</div>
           ) : (
             <div className="overflow-hidden rounded-xl border border-gray-200">
-              <table className="w-full text-sm">
+              <div className="hidden overflow-x-auto md:block">
+              <table className="w-full min-w-[900px] text-sm">
                 <thead className="bg-gray-50 border-b">
                   <tr>
                     <th className="p-3 text-left w-16">ID</th>
@@ -1275,11 +1276,126 @@ export default function AdminVideoCoursesPage({
                   ) : null}
                 </tbody>
               </table>
+              </div>
+
+              <div className="divide-y md:hidden">
+                {courses.length === 0 ? (
+                  <div className="p-4 text-center text-gray-500">No courses yet.</div>
+                ) : (
+                  courses.map((course) => (
+                    <div key={course.id} className="space-y-4 p-4">
+                      <div className="flex items-start gap-3">
+                        <div className="h-16 w-20 shrink-0 overflow-hidden rounded-md border bg-white">
+                          <img
+                            src={course.thumbnail_url || course.hero_url || "/placeholder.png"}
+                            alt={course.title}
+                            className="h-full w-full object-cover"
+                          />
+                        </div>
+                        <div className="min-w-0 flex-1">
+                          <div className="flex items-start justify-between gap-3">
+                            <div className="min-w-0">
+                              <div className="truncate font-semibold text-gray-900">{course.title}</div>
+                              <div className="truncate text-xs text-gray-500">{course.slug}</div>
+                            </div>
+                            <div className="text-right text-xs text-gray-500">#{course.id}</div>
+                          </div>
+                          <div className="mt-2 flex flex-wrap gap-2">
+                            <span className="rounded-full bg-gray-100 px-2 py-0.5 text-xs text-gray-600">
+                              {course.category || "Uncategorized"}
+                            </span>
+                            <span
+                              className={`rounded-full px-2 py-0.5 text-xs ${
+                                course.is_active
+                                  ? "bg-emerald-100 text-emerald-700"
+                                  : "bg-gray-200 text-gray-600"
+                              }`}
+                            >
+                              {course.is_active ? "Active" : "Disabled"}
+                            </span>
+                          </div>
+                        </div>
+                      </div>
+
+                      <div className="grid grid-cols-2 gap-3 text-sm">
+                        <div className="rounded-lg border bg-gray-50 p-3">
+                          <div className="text-xs text-gray-500">Price</div>
+                          <div className="mt-1 font-medium text-gray-900">
+                            {course.min_price != null ? formatMoney(course.min_price) : "No price"}
+                          </div>
+                        </div>
+                        <div className="rounded-lg border bg-gray-50 p-3">
+                          <div className="text-xs text-gray-500">Plans</div>
+                          <div className="mt-1 font-medium text-gray-900">{course.plan_count ?? 0}</div>
+                        </div>
+                      </div>
+
+                      <div className="flex flex-wrap gap-2">
+                        <button
+                          type="button"
+                          className="flex-1 rounded-lg border px-3 py-2 text-xs sm:flex-none"
+                          onClick={() => {
+                            window.location.href = `/admin/video-courses/${course.id}`;
+                          }}
+                        >
+                          Edit
+                        </button>
+                        <button
+                          type="button"
+                          className="flex-1 rounded-lg border px-3 py-2 text-xs sm:flex-none"
+                          onClick={async () => {
+                            try {
+                              await copyCourse(course.id, course.title);
+                              await loadCourses();
+                              toast.success("Course copied");
+                            } catch (err) {
+                              toast.error(err instanceof Error ? err.message : "Failed to copy course");
+                            }
+                          }}
+                        >
+                          Copy
+                        </button>
+                        <button
+                          type="button"
+                          className="flex-1 rounded-lg border px-3 py-2 text-xs sm:flex-none"
+                          onClick={async () => {
+                            try {
+                              const next = course.is_active ? 0 : 1;
+                              await toggleCourseActive(course.id, next);
+                              await loadCourses();
+                              toast.success(next ? "Course enabled" : "Course disabled");
+                            } catch (err) {
+                              toast.error(err instanceof Error ? err.message : "Failed to update course");
+                            }
+                          }}
+                        >
+                          {course.is_active ? "Disable" : "Enable"}
+                        </button>
+                        <button
+                          type="button"
+                          className="flex-1 rounded-lg border px-3 py-2 text-xs text-red-600 sm:flex-none"
+                          onClick={async () => {
+                            try {
+                              await deleteCourse(course.id, course.title);
+                              await loadCourses();
+                              toast.success("Course deleted");
+                            } catch (err) {
+                              toast.error(err instanceof Error ? err.message : "Failed to delete course");
+                            }
+                          }}
+                        >
+                          Delete
+                        </button>
+                      </div>
+                    </div>
+                  ))
+                )}
+              </div>
             </div>
           )}
         </div>
       ) : (
-        <div className="flex items-center justify-between">
+        <div className="flex flex-col gap-3 lg:flex-row lg:items-center lg:justify-between">
           <div>
             <h2 className="font-semibold text-gray-900">Course details</h2>
             <p className="text-sm text-gray-500">Edit course, lessons, and plans.</p>
@@ -1294,13 +1410,13 @@ export default function AdminVideoCoursesPage({
         </div>
       )}
 
-      <div className="max-w-full mx-auto px-4 py-12">
+      <div className="mx-auto max-w-full px-0 py-6 sm:px-0 sm:py-8">
         {courseId && selectedCourse ? (
           <>
               <div className="rounded-xl border bg-white p-4 space-y-4">
-                <div className="flex items-center justify-between">
+                <div className="flex flex-col gap-3 lg:flex-row lg:items-center lg:justify-between">
                   <h2 className="font-semibold text-gray-900">Course details</h2>
-                  <div className="flex items-center gap-2">
+                  <div className="flex flex-wrap items-center gap-2">
                     <button
                       onClick={async () => {
                         if (!editCourse) return;
@@ -2614,9 +2730,10 @@ export default function AdminVideoCoursesPage({
       ) : null}
 
       {createOpen && (
-        <div className="fixed inset-0 bg-black/40 flex items-center justify-center z-50">
-          <div className="bg-white rounded-xl p-6 w-full max-w-md space-y-4">
-            <div className="text-lg font-semibold">Create course</div>
+        <div className="fixed inset-0 z-50 flex items-start justify-center bg-black/40 p-2 sm:items-center sm:p-4">
+          <div className="flex w-full max-w-md flex-col rounded-xl bg-white shadow-lg max-h-[calc(100vh-2rem)]">
+            <div className="border-b p-4 text-lg font-semibold">Create course</div>
+            <div className="min-h-0 flex-1 space-y-4 overflow-y-auto p-4 overscroll-contain">
             <input
               className="border rounded-lg px-3 py-2 text-sm w-full"
               value={createTitle}
@@ -2638,7 +2755,8 @@ export default function AdminVideoCoursesPage({
               <option value="advanced">Advanced</option>
               <option value="pro">Pro</option>
             </select>
-            <div className="flex justify-end gap-2">
+            </div>
+            <div className="sticky bottom-0 flex justify-end gap-2 border-t bg-white p-4">
               <button
                 className="px-3 py-2 rounded-lg border text-sm"
                 onClick={() => setCreateOpen(false)}

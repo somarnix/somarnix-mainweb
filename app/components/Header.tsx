@@ -7,6 +7,7 @@ import { useTheme } from '../contexts/ThemeContext';
 import { useAuth } from '../contexts/AuthContext';
 import { useCurrency } from '../contexts/CurrencyContext';
 const PRESENCE_WINDOW_MS = 5 * 60 * 1000;
+const DESKTOP_SIDEBAR_MIN_WIDTH = 980;
 
 const isPresenceOnline = (
   status?: string | null,
@@ -121,6 +122,7 @@ export function Header({
   setMobileSidebarOpen,
   onOpenChat,
 }: HeaderProps) {
+  const [isDesktopSidebarViewport, setIsDesktopSidebarViewport] = useState(false);
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
   const [accountPopupOpen, setAccountPopupOpen] = useState(false);
   const [notificationOpen, setNotificationOpen] = useState(false);
@@ -174,10 +176,44 @@ export function Header({
   const chatWidgetRef = useRef<HTMLDivElement | null>(null);
   const chatWidgetMessagesRef = useRef<HTMLDivElement | null>(null);
   const notificationRef = useRef<HTMLDivElement | null>(null);
+  const toggleSidebarMenu = useCallback(() => {
+    if (typeof window === "undefined") return;
+
+    if (window.innerWidth >= DESKTOP_SIDEBAR_MIN_WIDTH) {
+      setMobileSidebarOpen(false);
+      setSidebarOpen(!sidebarOpen);
+      return;
+    }
+
+    setSidebarOpen(false);
+    setMobileSidebarOpen(!mobileSidebarOpen);
+  }, [
+    mobileSidebarOpen,
+    setMobileSidebarOpen,
+    setSidebarOpen,
+    sidebarOpen,
+  ]);
   const chatWidgetPinnedMessages = useMemo(
     () => chatWidgetMessages.filter((msg) => msg.isPinned && !msg.deletedAt),
     [chatWidgetMessages]
   );
+
+  useEffect(() => {
+    const syncSidebarMode = () => {
+      const isDesktop = window.innerWidth >= DESKTOP_SIDEBAR_MIN_WIDTH;
+      setIsDesktopSidebarViewport(isDesktop);
+
+      if (isDesktop) {
+        setMobileSidebarOpen(false);
+      } else {
+        setSidebarOpen(false);
+      }
+    };
+
+    syncSidebarMode();
+    window.addEventListener("resize", syncSidebarMode);
+    return () => window.removeEventListener("resize", syncSidebarMode);
+  }, [setMobileSidebarOpen, setSidebarOpen]);
   const fallbackAdminLabel = language === "km" ? "អ្នកគ្រប់គ្រង" : "Admin";
   const fallbackBuyerLabel = language === "km" ? "អតិថិជន" : "Buyer";
   const activeParty = chatWidgetActive
@@ -1122,20 +1158,15 @@ const getChatNoteBadgeClass = (result?: string | null) => {
         <div className="flex justify-between items-center h-16">
           {/* Left: Hamburger Menu + Logo */}
           <div className="flex items-center gap-3">
-            {/* Hamburger Menu Toggle - Desktop */}
             <button
-              onClick={() => setSidebarOpen(!sidebarOpen)}
-              className="hidden md:block p-2 hover:bg-gray-100 dark:hover:bg-gray-800 rounded-lg transition-colors"
+              onClick={toggleSidebarMenu}
+              className="p-2 hover:bg-gray-100 dark:hover:bg-gray-800 rounded-lg transition-colors"
             >
-              <Menu className="w-6 h-6 text-gray-700 dark:text-gray-300" />
-            </button>
-
-            {/* Hamburger Menu Toggle - Mobile */}
-            <button
-              onClick={() => setMobileSidebarOpen(!mobileSidebarOpen)}
-              className="md:hidden p-2 hover:bg-gray-100 dark:hover:bg-gray-800 rounded-lg transition-colors"
-            >
-              <Menu className="w-6 h-6 text-gray-700 dark:text-gray-300" />
+              {isDesktopSidebarViewport && sidebarOpen ? (
+                <X className="w-6 h-6 text-gray-700 dark:text-gray-300" />
+              ) : (
+                <Menu className="w-6 h-6 text-gray-700 dark:text-gray-300" />
+              )}
             </button>
 
             {/* Logo */}
@@ -1153,7 +1184,11 @@ const getChatNoteBadgeClass = (result?: string | null) => {
           </div>
 
           {/* Desktop Navigation */}
-          <nav className="hidden md:flex items-center space-x-8">
+          <nav
+            className={`items-center gap-6 xl:gap-8 ${
+              isDesktopSidebarViewport ? "flex" : "hidden"
+            }`}
+          >
             {navLinks.map((link) => (
               <button
                 key={link.value}
@@ -1374,10 +1409,10 @@ const getChatNoteBadgeClass = (result?: string | null) => {
             {chatWidgetOpen && (
               <div
                 ref={chatWidgetRef}
-                className="absolute right-0 mt-3 w-96 bg-white dark:bg-gray-900 rounded-2xl shadow-2xl border border-gray-100 dark:border-gray-700 overflow-hidden z-40"
+                className="fixed left-3 right-3 top-24 z-50 overflow-hidden rounded-2xl border border-gray-100 bg-white shadow-2xl overscroll-contain dark:border-gray-700 dark:bg-gray-900 sm:absolute sm:left-auto sm:right-0 sm:top-full sm:mt-3 sm:w-[28rem]"
               >
                 {!chatWidgetActive ? (
-                  <div className="flex flex-col">
+                  <div className="flex h-[30rem] max-h-[calc(100vh-8rem)] flex-col sm:h-[40rem]">
                     <div className="bg-gradient-to-r from-blue-600 to-purple-600 text-white px-4 py-3 flex items-center justify-between">
                       <div>
                         <p className="text-sm font-semibold">
@@ -1488,7 +1523,7 @@ const getChatNoteBadgeClass = (result?: string | null) => {
                         })}
                       </div>
                     </div>
-                    <div className="p-4 space-y-2 max-h-80 overflow-y-auto">
+                    <div className="min-h-0 flex-1 overflow-y-auto overscroll-contain p-4 space-y-2 touch-pan-y [-webkit-overflow-scrolling:touch]">
                       {chatWidgetLoading ? (
                         <div className="flex items-center gap-2 text-sm text-gray-500">
                           <Loader2 className="w-4 h-4 animate-spin" />
@@ -1614,7 +1649,7 @@ const getChatNoteBadgeClass = (result?: string | null) => {
                     </div>
                   </div>
                 ) : (
-                  <div className="flex flex-col h-full">
+                  <div className="flex h-[30rem] max-h-[calc(100vh-8rem)] flex-col sm:h-[40rem]">
                     <div className="bg-gradient-to-r from-blue-600 to-purple-600 text-white px-4 py-3 flex items-center justify-between gap-3">
                       <button
                         onClick={handleBackToWidgetList}
@@ -1673,7 +1708,7 @@ const getChatNoteBadgeClass = (result?: string | null) => {
                         {language === "km" ? "??????????????" : "View order"}
                       </Button>
                     </div>
-                    <div ref={chatWidgetMessagesRef} className="p-4 space-y-3 max-h-72 overflow-y-auto">
+                    <div ref={chatWidgetMessagesRef} className="min-h-0 flex-1 overflow-y-auto overscroll-contain p-4 space-y-3 touch-pan-y [-webkit-overflow-scrolling:touch]">
                       {chatWidgetMessagesLoading ? (
                         <div className="flex items-center gap-2 text-sm text-gray-500">
                           <Loader2 className="w-4 h-4 animate-spin" />
@@ -2125,7 +2160,11 @@ const getChatNoteBadgeClass = (result?: string | null) => {
 
             {/* User Account Icon - Desktop */}
             {isAuthenticated && user ? (
-              <div className="relative hidden md:block">
+              <div
+                className={`relative ${
+                  isDesktopSidebarViewport ? "block" : "hidden"
+                }`}
+              >
                 <button
                   onClick={() => setAccountPopupOpen(!accountPopupOpen)}
                   className="p-2 hover:bg-gray-100 dark:hover:bg-gray-800 rounded-lg transition-colors"
@@ -2199,7 +2238,11 @@ const getChatNoteBadgeClass = (result?: string | null) => {
                 )}
               </div>
             ) : (
-              <div className="hidden md:flex items-center space-x-2">
+              <div
+                className={`items-center gap-2 ${
+                  isDesktopSidebarViewport ? "flex" : "hidden"
+                }`}
+              >
                 <Button
                   variant="ghost"
                   size="sm"
@@ -2221,7 +2264,11 @@ const getChatNoteBadgeClass = (result?: string | null) => {
 
             {/* User Account Icon - Mobile */}
             {isAuthenticated && user ? (
-              <div className="relative md:hidden">
+              <div
+                className={`relative ${
+                  isDesktopSidebarViewport ? "hidden" : "block"
+                }`}
+              >
                 <button
                   onClick={() => setAccountPopupOpen(!accountPopupOpen)}
                   className="p-1.5 hover:bg-gray-100 dark:hover:bg-gray-800 rounded-lg transition-colors"
@@ -2289,7 +2336,9 @@ const getChatNoteBadgeClass = (result?: string | null) => {
             ) : (
               <button
                 onClick={() => onNavigate('login')}
-                className="md:hidden p-2 text-gray-700 dark:text-gray-300 hover:text-blue-600 dark:hover:text-blue-400 transition-colors"
+                className={`p-2 text-gray-700 dark:text-gray-300 hover:text-blue-600 dark:hover:text-blue-400 transition-colors ${
+                  isDesktopSidebarViewport ? "hidden" : "block"
+                }`}
               >
                 <User className="w-6 h-6" />
               </button>

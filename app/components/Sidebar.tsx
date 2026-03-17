@@ -42,14 +42,15 @@ export function Sidebar({
 
   /* ================= MOBILE NAV ================= */
   const navigationLinks = [
-    { id: "home", icon: Home, label: language === "km" ? "ទំព័រដើម" : "Home", page: "home" },
-    { id: "all", icon: Grid, label: language === "km" ? "ទាំងអស់" : "All", page: "all" },
+    { id: "home", icon: Home, label: language === "km" ? "แ‘แแ–แแแแพแ" : "Home", page: "home" },
+    { id: "all", icon: Grid, label: language === "km" ? "แ‘แถแแแขแแ" : "All", page: "all" },
     { id: "courses", icon: GraduationCap, label: "AI", page: "courses" },
-    { id: "programs", icon: Code, label: language === "km" ? "កម្មវិធី" : "Programs", page: "programs" },
-    { id: "games", icon: Gamepad2, label: language === "km" ? "ហ្គេម" : "Games", page: "games" },
-    { id: "tools", icon: Wrench, label: language === "km" ? "ឧបករណ៍" : "Tools", page: "tools" },
-    { id: "blog", icon: Play, label: language === "km" ? "ប្លុក" : "Blog", page: "blog" },
-    { id: "about", icon: Info, label: language === "km" ? "អំពីយើង" : "About", page: "services" },
+    { id: "programs", icon: Code, label: language === "km" ? "แ€แแ’แแแทแ’แธ" : "Programs", page: "programs" },
+    { id: "games", icon: Gamepad2, label: language === "km" ? "แ แ’แแแ" : "Games", page: "games" },
+    { id: "tools", icon: Wrench, label: language === "km" ? "แงแ”แ€แแแ" : "Tools", page: "tools" },
+    { id: "video-courses", icon: GraduationCap, label: language === "km" ? "Video Courses" : "Courses", page: "video-courses" },
+    { id: "blog", icon: Play, label: language === "km" ? "แ”แ’แแปแ€" : "Blog", page: "blog" },
+    { id: "about", icon: Info, label: language === "km" ? "แขแแ–แธแแพแ" : "About", page: "services" },
   ];
 
   /* ================= MAIN MENU (SPA) ================= */
@@ -57,7 +58,7 @@ export function Sidebar({
     {
       id: "cart",
       icon: ShoppingCart,
-      label: language === "km" ? "កន្ត្រក" : "Cart",
+      label: language === "km" ? "แ€แ“แ’แแ’แแ€" : "Cart",
       onClick: () => {
         onNavigate("cart");
         if (isMobile && onClose) onClose();
@@ -66,7 +67,7 @@ export function Sidebar({
     {
       id: "orders",
       icon: Package,
-      label: language === "km" ? "ការបញ្ជាទិញ" : "Orders",
+      label: language === "km" ? "แ€แถแแ”แแ’แแถแ‘แทแ" : "Orders",
       onClick: () => {
         onNavigate("orders");
         if (isMobile && onClose) onClose();
@@ -75,7 +76,7 @@ export function Sidebar({
     {
       id: "chat",
       icon: MessageCircle,
-      label: language === "km" ? "ជជែក" : "Chat",
+      label: language === "km" ? "แแแแ€" : "Chat",
       onClick: () => {
         onNavigate("chat");
         if (isMobile && onClose) onClose();
@@ -84,7 +85,7 @@ export function Sidebar({
     {
       id: "services",
       icon: Layers,
-      label: language === "km" ? "អំពីយើង" : "About",
+      label: language === "km" ? "แขแแ–แธแแพแ" : "About",
       onClick: () => {
         onNavigate("services");
         if (isMobile && onClose) onClose();
@@ -93,7 +94,7 @@ export function Sidebar({
     {
       id: "profile",
       icon: User,
-      label: language === "km" ? "ប្រវត្តិរូប" : "Profile",
+      label: language === "km" ? "แ”แ’แแแแ’แแทแแผแ”" : "Profile",
       onClick: () => {
         onNavigate("profile");
         if (isMobile && onClose) onClose();
@@ -102,7 +103,7 @@ export function Sidebar({
     {
       id: "support-center",
       icon: LifeBuoy,
-      label: language === "km" ? "មជ្ឈមណ្ឌលជំនួយ" : "Support Center",
+      label: language === "km" ? "แแแ’แแแแ’แแแแแ“แฝแ" : "Support Center",
       onClick: () => {
         onNavigate("support-center");
         if (isMobile && onClose) onClose();
@@ -124,29 +125,28 @@ export function Sidebar({
     { id: "admin-test", label: "Payments", page: "admin-test" },
   ];
 
-  if (!isMobile && !isOpen) return null;
+  if (!isOpen) return null;
 
   return (
     <>
-      {/* Mobile Backdrop */}
-      {isMobile && isOpen && (
+      {isMobile && (
         <div
-          className="fixed inset-0 bg-black/50 z-40 md:hidden"
+          className="fixed inset-0 z-40 bg-black/50"
           onClick={onClose}
         />
       )}
 
-      {/* Sidebar */}
       <div
         className={`${
           isMobile
-            ? `fixed top-0 left-0 h-full z-50 md:hidden transform transition-transform duration-300 ${
-                isOpen ? "translate-x-0" : "-translate-x-full"
-              }`
-            : "hidden md:block md:relative"
-        } flex-shrink-0 w-64 lg:w-72 xl:w-80 bg-gradient-to-b from-gray-900 to-gray-800 text-white shadow-2xl overflow-y-auto md:sticky md:top-0 md:h-full md:self-stretch`}
+            ? "fixed top-0 left-0 z-50 h-full w-72 max-w-[82vw] sm:w-80"
+            : "relative block"
+        } flex-shrink-0 ${
+          isMobile ? "" : "w-56 xl:w-72 2xl:w-80"
+        } overflow-y-auto bg-gradient-to-b from-gray-900 to-gray-800 text-white shadow-2xl ${
+          isMobile ? "" : "sticky top-0 h-full self-stretch"
+        }`}
       >
-        {/* Close button */}
         {isMobile && onClose && (
           <button
             onClick={onClose}
@@ -156,7 +156,6 @@ export function Sidebar({
           </button>
         )}
 
-        {/* USER CARD */}
         {isAuthenticated && user ? (
           <div className="relative p-6 bg-gradient-to-br from-blue-600 to-blue-700 rounded-b-3xl mb-4">
             <div className="absolute top-0 right-0 flex gap-2">
@@ -182,7 +181,7 @@ export function Sidebar({
 
               <div className="mt-2 w-full">
                 <div className="text-xs text-blue-200 truncate">
-                  {language === "km" ? "អត្តសញ្ញាណ" : "User ID"}: {user.id}
+                  {language === "km" ? "แขแแ’แแแแ’แแถแ" : "User ID"}: {user.id}
                 </div>
                 <div className="font-bold truncate">
                   {user.username || user.email}
@@ -207,13 +206,12 @@ export function Sidebar({
                 }}
                 className="w-full bg-white text-blue-600"
               >
-                {language === "km" ? "ចូលគណនី" : "Login"}
+                {language === "km" ? "แ…แผแแแแ“แธ" : "Login"}
               </Button>
             </div>
           </div>
         )}
 
-        {/* MOBILE NAV */}
         {isMobile && (
           <div className="px-3 mb-4">
             {navigationLinks.map((l) => (
@@ -233,7 +231,6 @@ export function Sidebar({
           </div>
         )}
 
-        {/* MAIN MENU */}
         <nav className="px-3 space-y-1">
           {sidebarMenuItems.map((item) => (
             <button
@@ -248,7 +245,6 @@ export function Sidebar({
           ))}
         </nav>
 
-        {/* ADMIN MENU */}
         {isAuthenticated && user?.role === "admin" && (
           <div className="px-3 mt-6 border-t border-white/10 pt-4">
             <p className="text-xs font-bold text-gray-400 uppercase px-4 mb-2">
@@ -258,7 +254,7 @@ export function Sidebar({
               <button
                 key={item.id}
                 onClick={() => {
-                  onNavigate(item.page); // <-- use App.tsx navigation
+                  onNavigate(item.page);
                   if (isMobile && onClose) onClose();
                 }}
                 className="w-full flex items-center px-4 py-3 rounded-lg text-orange-300 hover:bg-orange-500/10"

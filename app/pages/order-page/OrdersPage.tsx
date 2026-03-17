@@ -4,6 +4,7 @@ import { useLanguage } from "../../contexts/LanguageContext";
 import { useCurrency } from "../../contexts/CurrencyContext";
 import { Button } from "../../components/ui/button";
 import { Pagination } from "../../components/Pagination";
+import { ScrollableChipTabs } from "../../components/ScrollableChipTabs";
 import type { OrderStatus } from "@/lib/order-status";
 import { ORDER_STATUS_TABS, getStatusLabel } from "./orderStatusConfig";
 
@@ -144,36 +145,28 @@ export function OrdersPage({ onNavigate, onOpenOrderDetail }: OrdersPageProps) {
         </div>
 
         <div className="bg-white dark:bg-gray-800 rounded-xl shadow-sm p-4 mb-8">
-          <div className="flex flex-wrap gap-2">
-            {ORDER_STATUS_TABS.map((tab) => {
+          <ScrollableChipTabs
+            items={ORDER_STATUS_TABS.map((tab) => {
               const isActive = activeTab === tab.key;
-              const label = language === "km" ? tab.labelKm : tab.labelEn;
-              const count = statusCounts[tab.key] ?? 0;
-
-              return (
-                <button
-                  key={tab.key}
-                  onClick={() => setActiveTab(tab.key)}
-                  className={`flex items-center gap-2 rounded-full border px-4 py-2 text-sm transition ${
-                    isActive
-                      ? "bg-gradient-to-r from-blue-600 to-purple-600 text-white border-blue-600 shadow"
-                      : "bg-white text-gray-600 dark:bg-gray-900 dark:text-gray-300 border-gray-200 hover:border-blue-400"
-                  }`}
-                >
-                  <span>{label}</span>
-                  <span
-                    className={`text-xs font-semibold px-2 py-0.5 rounded-full ${
-                      isActive
-                        ? "bg-white/20 text-white border border-white/30"
-                        : "bg-gray-100 text-gray-700 dark:bg-gray-800 dark:text-gray-200"
-                    }`}
-                  >
-                    {count}
-                  </span>
-                </button>
-              );
+              return {
+                key: tab.key,
+                label: language === "km" ? tab.labelKm : tab.labelEn,
+                count: statusCounts[tab.key] ?? 0,
+                active: isActive,
+                onClick: () => setActiveTab(tab.key),
+                className: `flex items-center gap-2 rounded-full border px-4 py-2 text-sm transition ${
+                  isActive
+                    ? "bg-gradient-to-r from-blue-600 to-purple-600 text-white border-blue-600 shadow"
+                    : "bg-white text-gray-600 dark:bg-gray-900 dark:text-gray-300 border-gray-200 hover:border-blue-400"
+                }`,
+                countClassName: `text-xs font-semibold px-2 py-0.5 rounded-full ${
+                  isActive
+                    ? "bg-white/20 text-white border border-white/30"
+                    : "bg-gray-100 text-gray-700 dark:bg-gray-800 dark:text-gray-200"
+                }`,
+              };
             })}
-          </div>
+          />
         </div>
 
         {loading ? (

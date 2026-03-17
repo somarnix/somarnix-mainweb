@@ -130,12 +130,12 @@ export function AllPage({ onOpenProductDetail }: { onOpenProductDetail: (slug: s
   return (
     <div className="min-h-screen bg-gray-50 dark:bg-gray-900">
       {/* ================= HEADER ================= */}
-      <div className="bg-gradient-to-r from-blue-600 to-purple-600 text-white py-16">
+      <div className="bg-gradient-to-r from-blue-600 to-purple-600 py-10 text-white sm:py-16">
         <div className="max-w-7xl mx-auto px-4">
-          <h1 className="text-4xl md:text-5xl font-bold mb-4">
+          <h1 className="mb-3 text-3xl font-bold md:mb-4 md:text-5xl">
             {t("all.title")}
           </h1>
-          <p className="text-xl text-blue-100">
+          <p className="text-base text-blue-100 sm:text-xl">
             {t("all.subtitle")}
           </p>
         </div>
@@ -164,14 +164,14 @@ export function AllPage({ onOpenProductDetail }: { onOpenProductDetail: (slug: s
                 <div className="mb-6 flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4">
                   <div>
                     <h2 className="text-2xl font-bold">
-                    {selectedType === "all"
-                      ? t("all.allProducts")
-                      : contentTypes.find((type) => type.id === selectedType)?.label ??
-                        selectedType}
-                  </h2>
-                  <p className="text-gray-600 mt-1">
-                    {sortedItems.length} {t("all.products")} {t("all.available")}
-                  </p>
+                      {selectedType === "all"
+                        ? t("all.allProducts")
+                        : contentTypes.find((type) => type.id === selectedType)?.label ??
+                          selectedType}
+                    </h2>
+                    <p className="text-gray-600 mt-1">
+                      {sortedItems.length} {t("all.products")} {t("all.available")}
+                    </p>
                   </div>
                   <Search
                     value={searchTerm}

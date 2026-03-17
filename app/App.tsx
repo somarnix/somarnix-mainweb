@@ -464,7 +464,7 @@ export default function App() {
 
   const activePage = routeState.page;
 
-  const [sidebarOpen, setSidebarOpen] = useState(true);
+  const [sidebarOpen, setSidebarOpen] = useState(false);
   const [mobileSidebarOpen, setMobileSidebarOpen] = useState(false);
   const [selectedCartGroupKeys, setSelectedCartGroupKeys] = useState<string[]>([]);
 

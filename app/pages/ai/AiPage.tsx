@@ -130,12 +130,12 @@ export function AiPage({ onOpenProductDetail }: { onOpenProductDetail: (slug: st
   return (
     <div className="min-h-screen bg-gray-50 dark:bg-gray-900">
       {/* ================= HEADER ================= */}
-      <div className="bg-gradient-to-r from-blue-600 to-purple-600 text-white py-16">
+      <div className="bg-gradient-to-r from-blue-600 to-purple-600 py-10 text-white sm:py-16">
         <div className="max-w-7xl mx-auto px-4">
-          <h1 className="text-4xl md:text-5xl font-bold mb-4">
+          <h1 className="mb-3 text-3xl font-bold md:mb-4 md:text-5xl">
             {t("courses.title") || "Explore Our Courses"}
           </h1>
-          <p className="text-xl text-blue-100">
+          <p className="text-base text-blue-100 sm:text-xl">
             {t("courses.subtitle") ||
               "Discover courses in web development, design, business, and more"}
           </p>

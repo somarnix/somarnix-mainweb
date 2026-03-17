@@ -130,15 +130,15 @@ export function ToolsPage({ onOpenProductDetail }: { onOpenProductDetail: (slug:
   return (
     <div className="min-h-screen bg-gray-50 dark:bg-gray-900">
       {/* ================= HEADER ================= */}
-      <div className="bg-gradient-to-r from-green-600 to-teal-600 text-white py-16">
+      <div className="bg-gradient-to-r from-green-600 to-teal-600 py-10 text-white sm:py-16">
         <div className="max-w-7xl mx-auto px-4">
-          <div className="flex items-center gap-3 mb-4">
-            <Wrench className="w-12 h-12" />
-            <h1 className="text-4xl md:text-5xl font-bold">
+          <div className="mb-3 flex items-center gap-3 md:mb-4">
+            <Wrench className="h-9 w-9 sm:h-12 sm:w-12" />
+            <h1 className="text-3xl font-bold md:text-5xl">
               {t("tools.title")}
             </h1>
           </div>
-          <p className="text-xl text-green-100">
+          <p className="text-base text-green-100 sm:text-xl">
             {t("tools.subtitle")}
           </p>
         </div>

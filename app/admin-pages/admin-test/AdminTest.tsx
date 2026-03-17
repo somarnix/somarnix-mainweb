@@ -407,10 +407,10 @@ export default function AdminTest() {
   };
 
   return (
-    <div className="max-w-7xl mx-auto px-4 py-12">
-      <div className="flex items-center justify-between">
+    <div className="mx-auto max-w-7xl px-4 py-6 sm:px-6 sm:py-8 lg:px-8 lg:py-12">
+      <div className="flex flex-col gap-4 md:flex-row md:items-center md:justify-between">
         <h1 className="text-2xl font-bold">Payments</h1>
-        <div className="flex items-center gap-3">
+        <div className="flex flex-wrap items-center gap-3">
           <div className="rounded-lg border bg-white px-3 py-2 text-sm text-gray-700">
             Filtered: <span className="font-semibold">{totalFiltered}</span>
             <span className="mx-1 text-gray-400">/</span>
@@ -588,6 +588,81 @@ export default function AdminTest() {
                 </tbody>
               </table>
             </div>
+          </div>
+          <div className="space-y-3 p-3 md:hidden">
+            {pagedPayments.map((p) => {
+              const paymentStatus = normalizeDecision(p.admin_decision, p.payment_state, p.state);
+              const paymentLabel =
+                paymentStatus === "approved"
+                  ? "Approve payment"
+                  : paymentStatus === "declined"
+                    ? "Decline payment"
+                    : "Waiting payment";
+
+              return (
+                <div key={p.id} className="rounded-xl border p-4 space-y-3">
+                  <div className="flex items-start justify-between gap-3">
+                    <div>
+                      <div className="font-semibold">Payment #{p.id}</div>
+                      <div className="text-xs text-gray-500">
+                        Order: {p.order_number ? `#${p.order_number}` : "-"}
+                      </div>
+                      <div className="text-xs text-gray-500 break-all">{p.user_email || "-"}</div>
+                    </div>
+                    <div className="text-right">
+                      <div className="font-semibold">${getTotal(p).toFixed(2)}</div>
+                      <div className="text-xs text-gray-500">{p.paid_at || "-"}</div>
+                    </div>
+                  </div>
+
+                  <div className="grid grid-cols-2 gap-3 text-sm">
+                    <div className="rounded-lg border bg-gray-50 p-3">
+                      <div className="text-xs text-gray-500">Method</div>
+                      <div className="mt-1 font-medium text-gray-900">{p.method || "-"}</div>
+                    </div>
+                    <div className="rounded-lg border bg-gray-50 p-3">
+                      <div className="text-xs text-gray-500">Category</div>
+                      <div className="mt-1 font-medium capitalize text-gray-900">{p.categories || "-"}</div>
+                    </div>
+                  </div>
+
+                  <div>
+                    <span className={paymentBadgeClass(paymentStatus)}>{paymentLabel}</span>
+                  </div>
+
+                  <div className="text-xs leading-5 text-gray-700 space-y-1">
+                    <div>
+                      <span className="font-semibold">Account ID:</span> {p.account_id || "-"}
+                    </div>
+                    <div>
+                      <span className="font-semibold">Payment ID:</span> {p.payment_id || "-"}
+                    </div>
+                    <div>
+                      <span className="font-semibold">Payment APV:</span> {p.payment_apv || "-"}
+                    </div>
+                  </div>
+
+                  <div className="rounded-lg border bg-gray-50 p-3 text-xs text-gray-600 whitespace-pre-line break-words leading-5">
+                    {compactNoteLines(p.decision_note).join("\n") || "-"}
+                  </div>
+
+                  <div className="flex justify-end">
+                    <button
+                      onClick={() => openEdit(p)}
+                      className="rounded-md bg-blue-600 px-3 py-2 text-xs font-semibold text-white hover:bg-blue-700"
+                    >
+                      Edit
+                    </button>
+                  </div>
+                </div>
+              );
+            })}
+
+            {filtered.length === 0 ? (
+              <div className="rounded-xl border p-6 text-center text-gray-500">
+                No payments found.
+              </div>
+            ) : null}
           </div>
         </div>
       )}

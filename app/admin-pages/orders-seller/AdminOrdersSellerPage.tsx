@@ -3,6 +3,7 @@
 import { useEffect, useMemo, useState } from "react";
 import { Package, RefreshCw, MessageCircle } from "lucide-react";
 import { Pagination } from "@/app/components/Pagination";
+import { ScrollableChipTabs } from "@/app/components/ScrollableChipTabs";
 import { Button } from "@/app/components/ui/button";
 import type { OrderStatus } from "@/lib/order-status";
 import { ORDER_STATUS_TABS, getStatusLabel } from "@/app/pages/order-page/orderStatusConfig";
@@ -156,31 +157,26 @@ export default function AdminOrdersSellerPage({
         </div>
 
         <div className="mb-8 rounded-xl bg-white p-4 shadow-sm">
-          <div className="flex flex-wrap gap-2">
-            {ORDER_STATUS_TABS.map((tab) => {
+          <ScrollableChipTabs
+            items={ORDER_STATUS_TABS.map((tab) => {
               const isActive = activeTab === tab.key;
-              return (
-                <button
-                  key={tab.key}
-                  onClick={() => setActiveTab(tab.key)}
-                  className={`flex items-center gap-2 rounded-full border px-4 py-2 text-sm transition ${
-                    isActive
-                      ? "border-blue-600 bg-gradient-to-r from-blue-600 to-purple-600 text-white shadow"
-                      : "border-gray-200 bg-white text-gray-700 hover:border-blue-400"
-                  }`}
-                >
-                  <span>{tab.labelEn}</span>
-                  <span
-                    className={`rounded-full px-2 py-0.5 text-xs font-semibold ${
-                      isActive ? "border border-white/30 bg-white/20 text-white" : "bg-gray-100 text-gray-700"
-                    }`}
-                  >
-                    {statusCounts[tab.key] ?? 0}
-                  </span>
-                </button>
-              );
+              return {
+                key: tab.key,
+                label: tab.labelEn,
+                count: statusCounts[tab.key] ?? 0,
+                active: isActive,
+                onClick: () => setActiveTab(tab.key),
+                className: `flex items-center gap-2 rounded-full border px-4 py-2 text-sm transition ${
+                  isActive
+                    ? "border-blue-600 bg-gradient-to-r from-blue-600 to-purple-600 text-white shadow"
+                    : "border-gray-200 bg-white text-gray-700 hover:border-blue-400"
+                }`,
+                countClassName: `rounded-full px-2 py-0.5 text-xs font-semibold ${
+                  isActive ? "border border-white/30 bg-white/20 text-white" : "bg-gray-100 text-gray-700"
+                }`,
+              };
             })}
-          </div>
+          />
         </div>
 
         {loading ? (

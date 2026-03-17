@@ -666,7 +666,7 @@ export default function AdminToolLicensesPage() {
   };
 
   return (
-    <div className="max-w-7xl mx-auto px-4 py-12">
+    <div className="mx-auto max-w-7xl px-4 py-6 sm:px-6 sm:py-8 lg:px-8 lg:py-12">
       <h1 className="text-2xl font-bold">Tool Licenses</h1>
 
       <div className="rounded-xl border bg-white p-4 space-y-4">
@@ -785,7 +785,7 @@ export default function AdminToolLicensesPage() {
       </div>
 
       <div className="rounded-xl border bg-white p-4">
-        <div className="flex items-center justify-between mb-3 gap-3 flex-wrap">
+        <div className="mb-3 flex flex-col gap-3 md:flex-row md:items-center md:justify-between">
           <h2 className="text-lg font-semibold">Recent licenses</h2>
           <div className="rounded-lg border bg-white px-3 py-2 text-sm text-gray-700">
             Filtered: <span className="font-semibold">{totalFiltered}</span>
@@ -795,7 +795,7 @@ export default function AdminToolLicensesPage() {
             Sum Max Devices: <span className="font-semibold">{filteredMaxDevicesSum}</span>
             <span className="mx-1 text-gray-400">(+{filteredUnlimitedCount} unlimited)</span>
           </div>
-          <div className="flex items-center gap-2">
+          <div className="flex flex-wrap items-center gap-2">
             <button
               onClick={exportFilteredToExcel}
               className="text-sm px-3 py-1 border rounded-lg disabled:opacity-50"
@@ -874,7 +874,8 @@ export default function AdminToolLicensesPage() {
         ) : displayedLicenses.length === 0 ? (
           <div className="text-sm text-gray-500">No licenses yet.</div>
         ) : (
-          <div className="max-h-[70vh] overflow-y-auto overflow-x-auto">
+          <>
+          <div className="hidden max-h-[70vh] overflow-y-auto overflow-x-auto md:block">
             <table className="min-w-[1500px] text-sm">
               <thead className="sticky top-0 z-10 bg-gray-50">
                 <tr className="border-b">
@@ -949,6 +950,97 @@ export default function AdminToolLicensesPage() {
               </tbody>
             </table>
           </div>
+          <div className="space-y-3 md:hidden">
+            {pagedLicenses.map((l) => (
+              <div key={l.id} className="rounded-xl border p-4 space-y-3">
+                <div className="flex items-start justify-between gap-3">
+                  <div className="min-w-0">
+                    <div className="font-semibold text-gray-900">{l.product_title}</div>
+                    <div className="font-mono text-xs text-gray-500 break-all">
+                      {l.product_slug || "-"}
+                    </div>
+                  </div>
+                  <div className="text-right text-xs text-gray-500">#{l.id}</div>
+                </div>
+
+                <div className="grid grid-cols-2 gap-3 text-sm">
+                  <div className="rounded-lg border bg-gray-50 p-3">
+                    <div className="text-xs text-gray-500">Buyer</div>
+                    <div className="mt-1 break-words font-medium text-gray-900">
+                      {l.user_username || "user"} - {l.user_email}
+                    </div>
+                  </div>
+                  <div className="rounded-lg border bg-gray-50 p-3">
+                    <div className="text-xs text-gray-500">Order</div>
+                    <div className="mt-1 font-medium text-gray-900">
+                      {l.order_number
+                        ? `#${l.order_number}`
+                        : l.order_id
+                          ? `#${l.order_id}`
+                          : "-"}
+                    </div>
+                  </div>
+                  <div className="rounded-lg border bg-gray-50 p-3">
+                    <div className="text-xs text-gray-500">Status</div>
+                    <div className="mt-1 font-medium text-gray-900">{l.effectiveStatus}</div>
+                  </div>
+                  <div className="rounded-lg border bg-gray-50 p-3">
+                    <div className="text-xs text-gray-500">Max devices</div>
+                    <div className="mt-1 font-medium text-gray-900">
+                      {l.max_devices >= 9999 ? "Unlimited" : l.max_devices}
+                    </div>
+                  </div>
+                </div>
+
+                <div className="space-y-2 text-xs">
+                  <div>
+                    <span className="text-gray-500">License key:</span>{" "}
+                    <span className="font-mono break-all text-gray-900">{l.license_key}</span>
+                  </div>
+                  <div>
+                    <span className="text-gray-500">Last device:</span>{" "}
+                    <span className="font-mono break-all text-gray-900">
+                      {l.last_device_id || "auto-on-first-activate"}
+                    </span>
+                  </div>
+                  <div className="text-gray-600">
+                    Created: {l.created_at ? new Date(l.created_at).toLocaleString() : "-"}
+                  </div>
+                  <div className="text-gray-600">
+                    Expires: {l.expires_at ? new Date(l.expires_at).toLocaleString() : "-"}
+                  </div>
+                </div>
+
+                <div className="flex flex-wrap gap-2">
+                  <button
+                    className="flex-1 rounded border px-3 py-2 text-xs hover:bg-gray-50 sm:flex-none"
+                    onClick={() => openEdit(l)}
+                  >
+                    Edit
+                  </button>
+                  <button
+                    className="flex-1 rounded border border-blue-300 px-3 py-2 text-xs text-blue-700 hover:bg-blue-50 sm:flex-none"
+                    onClick={() => void generateToken(l)}
+                  >
+                    Token
+                  </button>
+                  <button
+                    className="flex-1 rounded border border-indigo-300 px-3 py-2 text-xs text-indigo-700 hover:bg-indigo-50 sm:flex-none"
+                    onClick={() => void removeDeviceFromLicense(l.id, l.last_device_id || "")}
+                  >
+                    Remove device
+                  </button>
+                  <button
+                    className="flex-1 rounded border px-3 py-2 text-xs text-red-600 hover:bg-red-50 sm:flex-none"
+                    onClick={() => void removeLicense(l.id)}
+                  >
+                    Remove
+                  </button>
+                </div>
+              </div>
+            ))}
+          </div>
+          </>
         )}
         {!loading && !error && displayedLicenses.length > PAGE_SIZE && (
           <PaginationNext

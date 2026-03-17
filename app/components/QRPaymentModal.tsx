@@ -383,10 +383,10 @@ export function QRPaymentModal({
       />
       
       {/* Modal */}
-      <div className="fixed inset-0 z-50 flex items-center justify-center p-4 overflow-y-auto">
-        <div className="bg-white dark:bg-gray-800 rounded-2xl shadow-2xl max-w-md w-full my-8">
+      <div className="fixed inset-0 z-50 flex items-center justify-center overflow-y-auto p-2 sm:p-4">
+        <div className="my-2 w-full max-w-[1120px] overflow-hidden rounded-2xl bg-white shadow-2xl dark:bg-gray-800 sm:my-4">
           {/* Header with Timer */}
-          <div className="relative bg-gradient-to-r from-red-500 to-red-600 text-white px-6 py-3 rounded-t-2xl">
+          <div className="relative rounded-t-2xl bg-gradient-to-r from-red-500 to-red-600 px-5 py-3 text-white">
             <div className="flex items-center justify-between">
               <div className="flex items-center gap-3">
                 {step === 'processing' && (
@@ -407,44 +407,46 @@ export function QRPaymentModal({
               
               <button
                 onClick={onClose}
-                className="w-10 h-10 rounded-full bg-white/20 hover:bg-white/30 flex items-center justify-center transition-colors"
+                className="flex h-9 w-9 items-center justify-center rounded-full bg-white/20 transition-colors hover:bg-white/30"
               >
                 <X className="w-5 h-5" />
               </button>
             </div>
 
-            <div className="text-center font-bold text-xl">
+            <div className="text-center text-xl font-bold">
               ABA PayWay
             </div>
           </div>
 
           {/* Content */}
-          <div className="p-6">
+          <div className="max-h-[calc(100vh-120px)] overflow-y-auto p-3 sm:p-4">
             {/* Step 1: QR Code */}
             {step === 'qr' && (
-              <>
-                {/* User Info Display */}
-                {user && (
-                  <div className="bg-gradient-to-r from-blue-50 to-purple-50 dark:from-blue-900/20 dark:to-purple-900/20 rounded-xl p-2 mb-3 border border-blue-200 dark:border-blue-800">
-                    <div className="flex items-center gap-3">
-                      <div className="w-12 h-12 rounded-full bg-gradient-to-br from-blue-500 to-purple-600 flex items-center justify-center text-white">
-                        <User className="w-6 h-6" />
-                      </div>
-                      <div className="flex-1">
-                        <div className="font-bold text-gray-900 dark:text-white">
-                          {userDisplayName}
+              <div className="space-y-4">
+                <div className="grid gap-4 md:grid-cols-[minmax(0,1fr)_360px] lg:grid-cols-[minmax(0,1fr)_420px]">
+                  <div className="rounded-2xl border border-gray-200 bg-white p-4 shadow-sm dark:border-gray-700 dark:bg-gray-900">
+                    <div className="flex flex-col gap-3">
+                  {/* User Info Display */}
+                  {user && (
+                    <div className="rounded-xl border border-gray-200 bg-slate-50 p-3 dark:border-gray-700 dark:bg-gray-800">
+                      <div className="flex items-center gap-3">
+                        <div className="flex h-10 w-10 items-center justify-center rounded-full bg-gradient-to-br from-indigo-500 to-purple-500 text-white">
+                          <User className="h-5 w-5" />
                         </div>
-                        <div className="text-sm text-gray-600 dark:text-gray-400">
-                          {language === 'km' ? 'អត្តសញ្ញាណ' : 'User ID'}: {user.id}
+                        <div className="min-w-0 flex-1">
+                          <div className="truncate font-bold text-gray-900 dark:text-white">
+                            {userDisplayName}
+                          </div>
+                          <div className="text-sm text-gray-600 dark:text-gray-400">
+                            {language === 'km' ? 'អត្តសញ្ញាណ' : 'User ID'}: {user.id}
+                          </div>
                         </div>
                       </div>
                     </div>
-                  </div>
-                )}
-
+                  )}
                 {/* Amount Display */}
-                <div className="bg-gray-50 dark:bg-gray-900 rounded-xl p-2 mb-2">
-                  <div className="font-bold text-gray-900 dark:text-white text-lg mb-1">
+                <div className="rounded-xl bg-slate-50 p-3 dark:bg-gray-900">
+                  <div className="mb-1 text-lg font-bold text-gray-900 dark:text-white">
                     {language === 'km' ? 'ចំនួនទឹកប្រាក់' : 'Total Amount'}
                   </div>
                   <div className="text-3xl font-bold text-red-600 dark:text-red-400">
@@ -453,7 +455,7 @@ export function QRPaymentModal({
                 </div>
 
                 {/* Product Info */}
-                <div className="bg-white dark:bg-gray-900 rounded-xl p-2 mb-4 border border-gray-200 dark:border-gray-700">
+                <div className="rounded-xl border border-gray-200 bg-white p-3 dark:border-gray-700 dark:bg-gray-900">
                   <div className="text-xs text-gray-500 dark:text-gray-400 uppercase tracking-wide">
                     {language === 'km' ? 'ផលិតផល' : 'Product'}
                   </div>
@@ -470,58 +472,66 @@ export function QRPaymentModal({
                       {variantLabel}
                     </div>
                   )}
+                  {orderId ? (
+                    <div className="mt-2 text-xs font-medium text-gray-500 dark:text-gray-400">
+                      Order ID: #{orderId}
+                    </div>
+                  ) : null}
                 </div>
 
                 {preferTelegramCheckout ? (
-                  <div className="mb-4 rounded-2xl border border-blue-200 bg-blue-50 p-4 text-center dark:border-blue-900 dark:bg-blue-950/30">
-                    <div className="text-sm font-semibold text-blue-900 dark:text-blue-100">
+                  <div className="rounded-xl border border-gray-300 bg-slate-100 p-4 text-left dark:border-gray-700 dark:bg-slate-800/40">
+                    <div className="text-[15px] font-semibold leading-6 text-gray-900 dark:text-white">
                       {language === 'km'
                         ? 'បន្តការទូទាត់តាម Telegram ដើម្បីទទួលបាន ABA QR និងផ្ញើរូបថតការផ្ទេរប្រាក់នៅទីនោះ។'
                         : 'Continue in Telegram to receive the ABA QR, send a clear payment photo, and confirm money in the bot.'}
                     </div>
-                    <p className="mt-2 text-xs text-blue-800 dark:text-blue-200">
+                    <p className="mt-2 text-sm leading-6 text-gray-700 dark:text-gray-300">
                       {language === 'km'
                         ? 'Bot នឹងបង្ហាញព័ត៌មានអ្នកទិញ លេខប៊ីល ចំនួនទឹកប្រាក់ ហើយផ្ញើទាំង KHR QR និង USD QR ដោយស្វ័យប្រវត្តិ។'
                         : 'The bot will show the buyer details, bill number, amount, and ask for a clear payment photo.'}
                     </p>
-                    <p className="mt-2 text-xs font-medium text-blue-900 dark:text-blue-100">
+                    <p className="mt-2 text-sm font-medium leading-6 text-gray-900 dark:text-white">
                       Telegram will show the Confirm Money button after you send a clear proof photo.
                     </p>
                   </div>
                 ) : null}
 
+                    </div>
+                  </div>
+
                 {/* QR Selector */}
-                <div className="mb-3">
-                  <div className="flex gap-3 mb-4">
+                <div className="w-full rounded-2xl border border-gray-200 bg-white p-4 shadow-sm dark:border-gray-700 dark:bg-gray-900">
+                  <div className="mb-3 flex gap-2.5">
                     <Button
                       onClick={() => setActiveQrType('khqr')}
                       variant={activeQrType === 'khqr' ? 'default' : 'outline'}
-                      className="flex-1"
+                      className="w-full"
                     >
                       KHR QR
                     </Button>
                     <Button
                       onClick={() => setActiveQrType('usdqr')}
                       variant={activeQrType === 'usdqr' ? 'default' : 'outline'}
-                      className="flex-1"
+                      className="w-full"
                       disabled={!resolvedUsdQr}
                     >
                       USD QR
                     </Button>
                   </div>
 
-                  <div className="flex flex-col items-center">
+                  <div className="flex flex-col items-center text-center">
                     {qrLoading ? (
                       <div className="w-full rounded-2xl border border-gray-200 dark:border-gray-700 p-10 text-center text-sm text-gray-500 dark:text-gray-400">
                         <Loader2 className="w-6 h-6 animate-spin mx-auto mb-3" />
                         {language === 'km' ? 'កំពុងបង្កើត ABA PayWay QR...' : 'Generating ABA PayWay QR...'}
                       </div>
                     ) : activeQrUrl ? (
-                      <div className="bg-white dark:bg-gray-900 border border-gray-200 dark:border-gray-700 rounded-2xl p-4 shadow-lg">
+                      <div className="rounded-2xl border border-gray-200 bg-white p-5 shadow-sm dark:border-gray-700 dark:bg-gray-900">
                         <img
                           src={activeQrUrl}
                           alt="Payment QR"
-                          className="w-56 h-56 object-contain"
+                          className="h-48 w-48 max-w-full object-contain sm:h-52 sm:w-52 md:h-64 md:w-64"
                         />
                       </div>
                     ) : (
@@ -539,19 +549,19 @@ export function QRPaymentModal({
                     <img
                       src="/paymentQR/bank_support.webp"
                       alt="Bank Support"
-                      className="w-full h-8 mx-auto mt-3"
+                      className="mx-auto mt-3 h-8 w-full max-w-[280px] object-contain md:max-w-[320px]"
                     />
-                    <p className="text-sm text-gray-600 dark:text-gray-400 mt-3">
+                    <p className="mt-2 text-sm text-gray-600 dark:text-gray-400">
                       {language === 'km'
                         ? 'ស្កេន QR ដែលបានជ្រើសជាមួយ ABA Mobile របស់អ្នកដើម្បីបន្តការទូទាត់។'
                         : 'Scan the selected QR with your ABA Mobile app to pay.'}
                     </p>
-                    <p className="mt-2 text-xs text-gray-500 dark:text-gray-400 text-center">
+                    <p className="mt-1.5 text-center text-xs text-gray-500 dark:text-gray-400">
                       {activeQrType === 'usdqr'
                         ? `USD ${amount.toFixed(2)}`
                         : `KHR ${Math.round(amount * KHR_PER_USD).toLocaleString()}`}
                     </p>
-                    <p className="mt-3 text-xs font-medium text-green-600 dark:text-green-400 text-center">
+                    <p className="mt-3 text-center text-xs font-medium text-green-600 dark:text-green-400">
                       {autoConfirming
                         ? 'Telegram confirmation detected. Finalizing order...'
                         : 'After payment, confirm money in Telegram. Blurry or unclear photos are not allowed.'}
@@ -559,8 +569,22 @@ export function QRPaymentModal({
                   </div>
                 </div>
 
+                </div>
+
+                <div className="w-full">
+                  {resolvedTelegramSupportUrl ? (
+                    <Button
+                      onClick={() => window.open(resolvedTelegramSupportUrl, '_blank', 'noopener,noreferrer')}
+                      className="w-full rounded-xl"
+                      size="lg"
+                    >
+                      {telegramSupportLabel}
+                    </Button>
+                  ) : null}
+                </div>
+
                 {/* Continue Button */}
-                <div className="space-y-3">
+                <div className="hidden space-y-3">
                   {resolvedTelegramSupportUrl ? (
                     <Button
                       onClick={() => window.open(resolvedTelegramSupportUrl, '_blank', 'noopener,noreferrer')}
@@ -591,7 +615,7 @@ export function QRPaymentModal({
                   </Button>
                 </div>
 
-                <div className={preferTelegramCheckout ? "hidden" : "mt-4 rounded-xl border border-blue-200 bg-blue-50 p-3 text-left dark:border-blue-900 dark:bg-blue-950/30"}>
+                <div className={preferTelegramCheckout ? "hidden" : "rounded-xl border border-blue-200 bg-blue-50 p-3 text-left dark:border-blue-900 dark:bg-blue-950/30"}>
                   <div className="text-xs font-semibold uppercase tracking-wide text-blue-700 dark:text-blue-300">
                     Telegram proof message
                   </div>
@@ -602,7 +626,7 @@ export function QRPaymentModal({
 
                 {/* Timer Warning */}
                 {showPaymentTimer && timeLeft < 60 && (
-                  <div className="mt-4 p-3 bg-yellow-50 dark:bg-yellow-900/20 rounded-lg text-center">
+                  <div className="rounded-lg bg-yellow-50 p-3 text-center dark:bg-yellow-900/20">
                     <div className="text-sm font-semibold text-yellow-800 dark:text-yellow-400">
                       {language === 'km' 
                         ? `⚠️ នៅសល់ពេល ${timeLeft} វិនាទី!`
@@ -611,7 +635,7 @@ export function QRPaymentModal({
                     </div>
                   </div>
                 )}
-              </>
+              </div>
             )}
 
             {/* Step 2: Payment Info Form */}
