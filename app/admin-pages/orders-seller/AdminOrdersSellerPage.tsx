@@ -133,30 +133,30 @@ export default function AdminOrdersSellerPage({
   }, [currentPage, totalPages]);
 
   return (
-    <div className="min-h-screen bg-gray-50 py-8">
+    <div className="min-h-screen bg-gray-50 py-6 sm:py-8">
       <div className="mx-auto max-w-7xl px-4 sm:px-6 lg:px-8">
-        <div className="mb-8 flex items-start justify-between gap-4">
-          <div>
+        <div className="mb-6 flex flex-col gap-4 sm:mb-8 lg:flex-row lg:items-start lg:justify-between">
+          <div className="min-w-0">
             <div className="mb-3 flex items-center gap-3">
               <div className="flex h-12 w-12 items-center justify-center rounded-xl bg-gradient-to-r from-blue-600 to-purple-600">
                 <Package className="h-6 w-6 text-white" />
               </div>
-              <h1 className="text-3xl font-bold text-gray-900">Orders Seller</h1>
+              <h1 className="text-2xl font-bold leading-tight text-gray-900 sm:text-3xl">Orders Seller</h1>
             </div>
             <p className="text-gray-600">Track all system orders and open chat in any status.</p>
           </div>
-          <div className="flex items-center gap-2">
-            <Button variant="outline" onClick={() => void loadOrders()}>
+          <div className="grid w-full grid-cols-2 gap-2 sm:w-auto sm:grid-cols-2 lg:flex lg:flex-wrap lg:items-center">
+            <Button className="w-full sm:w-auto" variant="outline" onClick={() => void loadOrders()}>
               <RefreshCw className="mr-2 h-4 w-4" />
               Refresh
             </Button>
-            <Button variant="outline" onClick={onOpenAdminOrders}>
+            <Button className="w-full sm:w-auto" variant="outline" onClick={onOpenAdminOrders}>
               Manage table
             </Button>
           </div>
         </div>
 
-        <div className="mb-8 rounded-xl bg-white p-4 shadow-sm">
+        <div className="mb-6 overflow-hidden rounded-xl bg-white p-3 shadow-sm sm:mb-8 sm:p-4">
           <ScrollableChipTabs
             items={ORDER_STATUS_TABS.map((tab) => {
               const isActive = activeTab === tab.key;
@@ -188,7 +188,7 @@ export default function AdminOrdersSellerPage({
         ) : (
           <div className="space-y-4">
             {pagedOrders.map((order) => (
-              <div key={order.id} className="rounded-xl bg-white p-6 shadow-sm">
+              <div key={order.id} className="rounded-xl bg-white p-4 shadow-sm sm:p-6">
                 <div className="grid gap-4 md:grid-cols-3">
                   <div>
                     <div className="text-sm text-gray-500">
@@ -217,7 +217,7 @@ export default function AdminOrdersSellerPage({
                     <span className={stateBadgeClass(order.state)}>{getStatusLabel(order.state, "en")}</span>
                     <div className="text-2xl font-bold text-blue-600">${toNumber(order.total).toFixed(2)}</div>
                     <Button
-                      className="bg-gradient-to-r from-blue-600 to-purple-600 hover:from-blue-700 hover:to-purple-700"
+                      className="w-full bg-gradient-to-r from-blue-600 to-purple-600 hover:from-blue-700 hover:to-purple-700 sm:w-auto"
                       onClick={() => onOpenChat(order.id)}
                     >
                       <MessageCircle className="mr-2 h-4 w-4" />

@@ -15,6 +15,7 @@ import {
   Volume2,
   X,
 } from "lucide-react";
+import { useAppShellMode } from "../../lib/app-shell";
 
 export type PreviewLesson = {
   id: string;
@@ -117,6 +118,7 @@ export function PreviewVideoPage({
   initialLessonId,
   onBack,
 }: PreviewVideoPageProps) {
+  const isAppShell = useAppShellMode();
   const [activeId, setActiveId] = useState<string>(() => {
     if (initialLessonId && lessons.some((lesson) => lesson.id === initialLessonId)) {
       return initialLessonId;
@@ -129,6 +131,7 @@ export function PreviewVideoPage({
   const fullscreenRef = useRef<HTMLDivElement | null>(null);
   const userQualityRef = useRef(false);
   const qualityLevelsRef = useRef<string>("");
+  const shouldLockLandscapeRef = useRef(false);
 
   const active = useMemo(() => {
     return lessons.find((l) => l.id === activeId) ?? lessons[0];
@@ -249,15 +252,37 @@ export function PreviewVideoPage({
     }
   }, []);
 
+  const unlockFullscreenOrientation = useCallback(() => {
+    if (typeof window === "undefined") return;
+    const orientation = window.screen?.orientation as
+      | (ScreenOrientation & { unlock?: () => void })
+      | undefined;
+    try {
+      orientation?.unlock?.();
+    } catch {}
+  }, []);
+
+  const lockFullscreenOrientation = useCallback(async () => {
+    if (typeof window === "undefined" || !shouldLockLandscapeRef.current) return;
+    const orientation = window.screen?.orientation as
+      | (ScreenOrientation & {
+          lock?: (orientation: "landscape") => Promise<void>;
+        })
+      | undefined;
+    try {
+      await orientation?.lock?.("landscape");
+    } catch {}
+  }, []);
+
   const toggleFullscreen = useCallback(() => {
     if (typeof document === "undefined") return;
     const target = fullscreenRef.current;
     if (!target) return;
     if (document.fullscreenElement) {
-      document.exitFullscreen?.();
+      void document.exitFullscreen?.();
       return;
     }
-    target.requestFullscreen?.();
+    void target.requestFullscreen?.();
   }, []);
 
   const handleVolumeChange = useCallback((value: number) => {
@@ -453,14 +478,34 @@ export function PreviewVideoPage({
   }, [loadYouTubeApi, videoId]);
 
   useEffect(() => {
+    if (typeof window === "undefined") return;
+    const mediaQuery = window.matchMedia("(max-width: 1024px), (pointer: coarse)");
+    const syncTarget = () => {
+      shouldLockLandscapeRef.current = mediaQuery.matches;
+    };
+    syncTarget();
+    mediaQuery.addEventListener?.("change", syncTarget);
+    return () => mediaQuery.removeEventListener?.("change", syncTarget);
+  }, []);
+
+  useEffect(() => {
     if (typeof document === "undefined") return;
     const handleChange = () => {
-      setIsFullscreen(document.fullscreenElement === fullscreenRef.current);
+      const nextIsFullscreen = document.fullscreenElement === fullscreenRef.current;
+      setIsFullscreen(nextIsFullscreen);
+      if (nextIsFullscreen) {
+        void lockFullscreenOrientation();
+        return;
+      }
+      unlockFullscreenOrientation();
     };
     document.addEventListener("fullscreenchange", handleChange);
     handleChange();
-    return () => document.removeEventListener("fullscreenchange", handleChange);
-  }, []);
+    return () => {
+      document.removeEventListener("fullscreenchange", handleChange);
+      unlockFullscreenOrientation();
+    };
+  }, [lockFullscreenOrientation, unlockFullscreenOrientation]);
 
   useEffect(() => {
     if (!playerRef.current || !videoId) return;
@@ -519,19 +564,46 @@ export function PreviewVideoPage({
     qualityOption,
   ]);
 
+  useEffect(() => {
+    if (typeof document === "undefined" || !isAppShell) return;
+
+    const previousBodyOverflow = document.body.style.overflow;
+    const previousHtmlOverflow = document.documentElement.style.overflow;
+
+    document.body.style.overflow = "hidden";
+    document.documentElement.style.overflow = "hidden";
+
+    return () => {
+      document.body.style.overflow = previousBodyOverflow;
+      document.documentElement.style.overflow = previousHtmlOverflow;
+    };
+  }, [isAppShell]);
+
   return (
-    <div className="min-h-screen bg-slate-950 text-white">
-      <div className="mx-auto w-full max-w-6xl px-4 lg:px-8 py-6">
+    <div
+      className={`bg-slate-950 text-white ${
+        isAppShell
+          ? "fixed inset-0 z-[120] overflow-y-auto overscroll-contain"
+          : "min-h-screen"
+      }`}
+    >
+      <div
+        className={`mx-auto w-full max-w-6xl px-3 py-4 sm:px-4 sm:py-6 lg:px-8 ${
+          isAppShell ? "app-safe-top pb-8" : ""
+        }`}
+      >
         {/* Header */}
-        <div className="flex items-start justify-between gap-4">
-          <div>
+        <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between sm:gap-4">
+          <div className="min-w-0">
             <div className="text-sm font-semibold text-slate-300">Course Preview</div>
-            <div className="mt-1 text-xl md:text-2xl font-bold">{courseTitle}</div>
+            <div className="mt-1 text-lg font-bold leading-tight sm:text-xl md:text-2xl">
+              {courseTitle}
+            </div>
           </div>
 
           <button
             onClick={onBack}
-            className="inline-flex items-center gap-2 rounded-xl bg-white/10 px-3 py-2 text-sm hover:bg-white/15"
+            className="inline-flex items-center justify-center gap-2 self-start rounded-xl bg-white/10 px-3 py-2 text-sm hover:bg-white/15 sm:self-auto"
           >
             <X className="w-4 h-4" />
             Close
@@ -539,14 +611,14 @@ export function PreviewVideoPage({
         </div>
 
         {/* Player */}
-        <div className="mt-6 rounded-2xl border border-white/10 bg-black/30 p-4">
+        <div className="mt-5 rounded-[1.5rem] border border-white/10 bg-black/30 p-3 sm:mt-6 sm:rounded-2xl sm:p-4">
           <div
             ref={fullscreenRef}
-            className={`relative ${isFullscreen ? "h-full w-full bg-black" : ""}`}
+            className={`relative ${isFullscreen ? "fixed inset-0 z-[100] flex flex-col bg-black" : ""}`}
           >
             <div
-              className={`relative w-full overflow-hidden rounded-xl bg-black ${
-                isFullscreen ? "h-full" : "aspect-video"
+              className={`relative w-full overflow-hidden bg-black ${
+                isFullscreen ? "flex-1 rounded-none" : "aspect-video rounded-xl"
               }`}
             >
             {videoId ? (
@@ -571,31 +643,33 @@ export function PreviewVideoPage({
 
           <div
             className={`${
-              isFullscreen ? "absolute left-4 right-4 bottom-4 z-30" : "mt-3"
+              isFullscreen
+                ? "absolute inset-x-0 bottom-0 z-30 bg-gradient-to-t from-black via-black/85 to-transparent px-4 pb-4 pt-10"
+                : "mt-3"
             }`}
           >
-            <div className="text-sm text-slate-200 font-semibold">
-              {active?.title}
+            <div className="text-xs font-semibold text-slate-200 sm:text-sm">
+              <div className="leading-snug">{active?.title}</div>
               <span className="ml-2 text-slate-400 font-normal">• {active?.time}</span>
             </div>
 
-            <div className="mt-2 rounded-xl border border-white/10 bg-black/70 px-3 py-2">
-              <div className="flex flex-col gap-2">
-                <div className="flex items-center gap-3">
+            <div className="mt-3 rounded-2xl border border-white/10 bg-black/70 px-3 py-3 sm:mt-2 sm:rounded-xl sm:px-3 sm:py-2">
+              <div className="flex flex-col gap-3">
+                <div className="flex flex-wrap items-center gap-2">
                   <button
                     type="button"
                     onClick={togglePlay}
                     disabled={!isReady}
-                    className="inline-flex items-center gap-2 rounded-lg bg-white/10 px-3 py-1.5 text-xs font-semibold text-white hover:bg-white/20 disabled:opacity-50"
+                    className="inline-flex min-h-10 items-center gap-2 rounded-xl bg-white/10 px-3 py-2 text-xs font-semibold text-white hover:bg-white/20 disabled:opacity-50"
                   >
                     {isPlaying ? <Pause className="h-4 w-4" /> : <Play className="h-4 w-4" />}
-                    <span className="hidden sm:inline">{isPlaying ? "Pause" : "Play"}</span>
+                    <span>{isPlaying ? "Pause" : "Play"}</span>
                   </button>
                   <button
                     type="button"
                     onClick={goPrev}
                     disabled={!hasPrev}
-                    className="inline-flex items-center justify-center rounded-lg bg-white/10 px-2 py-1.5 text-xs font-semibold text-white hover:bg-white/20 disabled:opacity-50"
+                    className="inline-flex min-h-10 min-w-10 items-center justify-center rounded-xl bg-white/10 px-3 py-2 text-xs font-semibold text-white hover:bg-white/20 disabled:opacity-50"
                     aria-label="Previous"
                   >
                     <SkipBack className="h-4 w-4" />
@@ -604,14 +678,14 @@ export function PreviewVideoPage({
                     type="button"
                     onClick={goNext}
                     disabled={!hasNext}
-                    className="inline-flex items-center justify-center rounded-lg bg-white/10 px-2 py-1.5 text-xs font-semibold text-white hover:bg-white/20 disabled:opacity-50"
+                    className="inline-flex min-h-10 min-w-10 items-center justify-center rounded-xl bg-white/10 px-3 py-2 text-xs font-semibold text-white hover:bg-white/20 disabled:opacity-50"
                     aria-label="Next"
                   >
                     <SkipForward className="h-4 w-4" />
                   </button>
 
                   <div className="flex w-full items-center gap-2 text-xs text-slate-300">
-                    <span className="w-10 text-left tabular-nums">{formatTime(currentTime)}</span>
+                    <span className="w-10 shrink-0 text-left tabular-nums">{formatTime(currentTime)}</span>
                     <input
                       type="range"
                       min={0}
@@ -623,16 +697,16 @@ export function PreviewVideoPage({
                         setCurrentTime(value);
                         playerRef.current?.seekTo?.(value, true);
                       }}
-                      className="flex-1 accent-blue-400"
+                      className="min-w-0 flex-1 accent-blue-400"
                       disabled={!isReady || duration === 0}
                     />
-                    <span className="w-10 text-right tabular-nums">{formatTime(duration)}</span>
+                    <span className="w-10 shrink-0 text-right tabular-nums">{formatTime(duration)}</span>
                   </div>
                 </div>
 
-                <div className="flex flex-wrap items-center justify-center gap-3">
-                  <div className="flex items-center gap-2 text-xs">
-                    <Gauge className="h-4 w-4 text-slate-300" />
+                <div className="grid grid-cols-2 gap-2 sm:flex sm:flex-wrap sm:items-center sm:justify-center sm:gap-3">
+                  <div className="flex min-w-0 items-center gap-2 text-xs">
+                    <Gauge className="h-4 w-4 shrink-0 text-slate-300" />
                     <select
                       value={playbackRate}
                       onChange={(event) => {
@@ -640,7 +714,7 @@ export function PreviewVideoPage({
                         setPlaybackRate(next);
                         playerRef.current?.setPlaybackRate?.(next);
                       }}
-                      className="w-20 rounded-lg border border-white/10 bg-black/40 px-2 py-1 text-xs text-white"
+                      className="min-h-10 w-full rounded-xl border border-white/10 bg-black/40 px-3 py-2 text-xs text-white sm:w-20 sm:rounded-lg sm:px-2 sm:py-1"
                       disabled={!isReady}
                     >
                       {availableRates.map((rate) => (
@@ -651,8 +725,8 @@ export function PreviewVideoPage({
                     </select>
                   </div>
 
-                  <div className="flex items-center gap-2 text-xs">
-                    <Volume2 className="h-4 w-4 text-slate-300" />
+                  <div className="col-span-2 flex min-w-0 items-center gap-2 text-xs sm:col-span-1">
+                    <Volume2 className="h-4 w-4 shrink-0 text-slate-300" />
                     <input
                       type="range"
                       min={0}
@@ -660,17 +734,17 @@ export function PreviewVideoPage({
                       step={1}
                       value={volume}
                       onChange={(event) => handleVolumeChange(Number(event.target.value))}
-                      className="w-24 accent-blue-400"
+                      className="min-w-0 flex-1 accent-blue-400 sm:w-24 sm:flex-none"
                       disabled={!isReady}
                     />
                   </div>
 
-                <div className="flex items-center gap-2 text-xs">
-                  <Subtitles className="h-4 w-4 text-slate-300" />
+                <div className="col-span-2 flex min-w-0 items-center gap-2 text-xs sm:col-span-1">
+                  <Subtitles className="h-4 w-4 shrink-0 text-slate-300" />
                   <select
                     value={captionSelection}
                     onChange={(event) => handleCaptionMenuChange(event.target.value)}
-                    className="w-32 rounded-lg border border-white/10 bg-black/40 px-2 py-1 text-xs text-white"
+                    className="min-h-10 w-full rounded-xl border border-white/10 bg-black/40 px-3 py-2 text-xs text-white sm:w-32 sm:rounded-lg sm:px-2 sm:py-1"
                     disabled={!isReady || captionsLoading}
                   >
                     <option value="off">Off</option>
@@ -695,8 +769,8 @@ export function PreviewVideoPage({
                   </select>
                 </div>
 
-                  <div className="flex items-center gap-2 text-xs">
-                    <Settings2 className="h-4 w-4 text-slate-300" />
+                  <div className="flex min-w-0 items-center gap-2 text-xs">
+                    <Settings2 className="h-4 w-4 shrink-0 text-slate-300" />
                     <select
                       value={qualityOption}
                       onChange={(event) => {
@@ -705,7 +779,7 @@ export function PreviewVideoPage({
                         setQualityOption(nextOption);
                         applyQualitySelection(nextOption);
                       }}
-                      className="w-24 rounded-lg border border-white/10 bg-black/40 px-2 py-1 text-xs text-white"
+                      className="min-h-10 w-full rounded-xl border border-white/10 bg-black/40 px-3 py-2 text-xs text-white sm:w-24 sm:rounded-lg sm:px-2 sm:py-1"
                       disabled={!isReady}
                     >
                       {qualityOptions.map((option) => (
@@ -719,11 +793,11 @@ export function PreviewVideoPage({
                   <button
                     type="button"
                     onClick={toggleFullscreen}
-                    className="inline-flex items-center gap-2 rounded-lg bg-white/10 px-3 py-1.5 text-xs font-semibold text-white hover:bg-white/20 disabled:opacity-50"
+                    className="col-span-2 inline-flex min-h-10 items-center justify-center gap-2 rounded-xl bg-white/10 px-3 py-2 text-xs font-semibold text-white hover:bg-white/20 disabled:opacity-50 sm:col-span-1 sm:rounded-lg sm:py-1.5"
                     disabled={!isReady}
                   >
                     <Maximize2 className="h-4 w-4" />
-                    <span className="hidden sm:inline">Fullscreen</span>
+                    <span>{isFullscreen ? "Exit fullscreen" : "Fullscreen"}</span>
                   </button>
                 </div>
               </div>
@@ -733,7 +807,7 @@ export function PreviewVideoPage({
         </div>
 
         {/* List */}
-        <div className="mt-6">
+        <div className="mt-5 sm:mt-6">
           <div className="text-sm font-semibold text-slate-200">Free Sample Videos:</div>
 
           <div className="mt-3 rounded-2xl border border-white/10 overflow-hidden">

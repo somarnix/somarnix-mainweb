@@ -20,6 +20,7 @@ import {
   DEVICE_ACTION_LOCK_HOURS,
   verifyLoginVerificationCode,
 } from "@/lib/trusted-devices";
+import { createSystemNotification } from "@/lib/system-notifications";
 import bcrypt from "bcryptjs";
 import jwt from "jsonwebtoken";
 import type { RowDataPacket, ResultSetHeader } from "mysql2";
@@ -323,6 +324,20 @@ export async function POST(req: Request): Promise<Response> {
       jwtSecret,
       { expiresIn: "7d" }
     );
+
+    try {
+      await createSystemNotification({
+        userId: user.id,
+        category: "login_activity",
+        icon: "security",
+        title: "Account login activity",
+        description: deviceName
+          ? `A new login was detected on your account from ${deviceName}.`
+          : "A new login was detected on your account.",
+      });
+    } catch (notificationError) {
+      console.error("LOGIN NOTIFICATION ERROR:", notificationError);
+    }
 
     return new Response(
       JSON.stringify({

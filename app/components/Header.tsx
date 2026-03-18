@@ -99,6 +99,32 @@ type HeaderNotificationOrder = {
   id: number;
   order_number: string;
   product_title: string | null;
+  isRead: boolean;
+};
+
+type HeaderSystemNotification = {
+  id: string;
+  title: string;
+  description: string;
+  icon: "security" | "account" | "product" | "update";
+  createdAt?: string | null;
+  linkUrl?: string | null;
+  isRead: boolean;
+};
+
+const normalizeHeaderSystemNotificationIcon = (
+  value: unknown
+): HeaderSystemNotification["icon"] => {
+  if (
+    value === "security" ||
+    value === "account" ||
+    value === "product" ||
+    value === "update"
+  ) {
+    return value;
+  }
+
+  return "security";
 };
 
 interface HeaderProps {
@@ -110,6 +136,7 @@ interface HeaderProps {
   mobileSidebarOpen: boolean;
   setMobileSidebarOpen: (open: boolean) => void;
   onOpenChat: (orderId: number) => void;
+  isAppShell?: boolean;
 }
 
 export function Header({
@@ -121,11 +148,13 @@ export function Header({
   mobileSidebarOpen,
   setMobileSidebarOpen,
   onOpenChat,
+  isAppShell = false,
 }: HeaderProps) {
   const [isDesktopSidebarViewport, setIsDesktopSidebarViewport] = useState(false);
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
   const [accountPopupOpen, setAccountPopupOpen] = useState(false);
   const [notificationOpen, setNotificationOpen] = useState(false);
+  const [notificationTab, setNotificationTab] = useState<"orders" | "system">("orders");
   const [notificationLoading, setNotificationLoading] = useState(false);
   const [purchaseNotifications, setPurchaseNotifications] = useState<
     HeaderNotificationOrder[]
@@ -136,7 +165,21 @@ export function Header({
   const [soldNotifications, setSoldNotifications] = useState<
     HeaderNotificationOrder[]
   >([]);
+  const [orderUnreadCounts, setOrderUnreadCounts] = useState({
+    cancelled: 0,
+    purchase: 0,
+    sold: 0,
+    total: 0,
+  });
+  const [systemNotifications, setSystemNotifications] = useState<
+    HeaderSystemNotification[]
+  >([]);
+  const [systemUnreadCount, setSystemUnreadCount] = useState(0);
   const [notificationError, setNotificationError] = useState<string | null>(null);
+  const [systemNotificationError, setSystemNotificationError] = useState<string | null>(null);
+  const [systemNotificationLoading, setSystemNotificationLoading] = useState(false);
+  const [orderNotificationSaving, setOrderNotificationSaving] = useState<string | "all" | null>(null);
+  const [systemNotificationSaving, setSystemNotificationSaving] = useState<string | "all" | null>(null);
   const { language, setLanguage, t } = useLanguage();
   const { theme, toggleTheme } = useTheme();
   const { user, isAuthenticated, logout } = useAuth();
@@ -227,11 +270,86 @@ export function Header({
     : null;
   const accountDisplayName =
     user?.firstName?.trim() || user?.username?.trim() || user?.email?.trim() || "User";
+  const totalNotificationUnread = systemUnreadCount + orderUnreadCounts.total;
+  const notificationHasOrderItems =
+    cancelledNotifications.length > 0 ||
+    purchaseNotifications.length > 0 ||
+    soldNotifications.length > 0;
+  const orderUnreadBadge =
+    orderUnreadCounts.total > 9 ? "9+" : String(Math.max(0, orderUnreadCounts.total));
+  const systemUnreadBadge =
+    systemUnreadCount > 9 ? "9+" : String(Math.max(0, systemUnreadCount));
   const activePartyInitials =
     activePartyName?.slice(0, 2).toUpperCase() ??
     activePartyFallback.slice(0, 2).toUpperCase();
   const activePartyAvatar = activeParty?.avatarUrl ?? null;
   const activePartyOnline = activeParty?.online ?? false;
+  const applySystemNotificationPayload = useCallback((payload: unknown) => {
+    const data =
+      payload && typeof payload === "object"
+        ? (payload as Record<string, unknown>)
+        : {};
+    const notifications: HeaderSystemNotification[] = Array.isArray(data.notifications)
+      ? data.notifications.map((item: unknown) => {
+          const entry =
+            item && typeof item === "object"
+              ? (item as Record<string, unknown>)
+              : {};
+          return {
+            id: String(entry.id ?? ""),
+            title: String(entry.title ?? ""),
+            description: String(entry.description ?? ""),
+            icon: normalizeHeaderSystemNotificationIcon(entry.icon),
+            createdAt:
+              typeof entry.createdAt === "string" ? entry.createdAt : null,
+            linkUrl: typeof entry.linkUrl === "string" ? entry.linkUrl : null,
+            isRead: entry.isRead === true,
+          };
+        })
+      : [];
+
+    setSystemNotifications(notifications);
+    setSystemUnreadCount(
+      Number.isFinite(Number(data.unreadCount)) ? Number(data.unreadCount) : 0
+    );
+  }, []);
+  const applyOrderNotificationPayload = useCallback((payload: unknown) => {
+    const data =
+      payload && typeof payload === "object"
+        ? (payload as Record<string, unknown>)
+        : {};
+    const mapOrders = (value: unknown): HeaderNotificationOrder[] =>
+      Array.isArray(value)
+        ? value.map((item: unknown) => {
+            const entry =
+              item && typeof item === "object"
+                ? (item as Record<string, unknown>)
+                : {};
+            return {
+              id: Number(entry.id ?? 0),
+              order_number: String(entry.order_number ?? ""),
+              product_title:
+                typeof entry.product_title === "string" ? entry.product_title : null,
+              isRead: entry.isRead === true,
+            };
+          })
+        : [];
+
+    const unreadCountsRaw =
+      data.unreadCounts && typeof data.unreadCounts === "object"
+        ? (data.unreadCounts as Record<string, unknown>)
+        : {};
+
+    setCancelledNotifications(mapOrders(data.cancelledOrders));
+    setPurchaseNotifications(mapOrders(data.purchaseOrders));
+    setSoldNotifications(mapOrders(data.soldOrders));
+    setOrderUnreadCounts({
+      cancelled: Number(unreadCountsRaw.cancelled ?? 0) || 0,
+      purchase: Number(unreadCountsRaw.purchase ?? 0) || 0,
+      sold: Number(unreadCountsRaw.sold ?? 0) || 0,
+      total: Number(unreadCountsRaw.total ?? 0) || 0,
+    });
+  }, []);
   const chatWidgetActivityCounts = useMemo(() => {
     const counts: Record<ChatWidgetActivityFilter, number> = {
       all: chatWidgetConversations.length,
@@ -611,6 +729,7 @@ const getChatNoteBadgeClass = (result?: string | null) => {
 
   const handleToggleNotifications = () => {
     setNotificationOpen((prev) => !prev);
+    setNotificationTab("orders");
   };
 
   useEffect(() => {
@@ -618,41 +737,73 @@ const getChatNoteBadgeClass = (result?: string | null) => {
     let active = true;
     const loadNotifications = async () => {
       setNotificationLoading(true);
+      setSystemNotificationLoading(true);
       setNotificationError(null);
+      setSystemNotificationError(null);
       try {
-        const res = await fetch("/api/notifications/orders", {
-          cache: "no-store",
-          credentials: "include",
-        });
-        const data = await res.json().catch(() => ({}));
-        if (!res.ok) {
-          throw new Error(
-            typeof data?.error === "string" ? data.error : "Failed to load"
-          );
-        }
+        const [ordersRes, systemRes] = await Promise.all([
+          fetch("/api/notifications/orders", {
+            cache: "no-store",
+            credentials: "include",
+          }),
+          fetch("/api/notifications/system", {
+            cache: "no-store",
+            credentials: "include",
+          }),
+        ]);
+        const [ordersData, systemData] = await Promise.all([
+          ordersRes.json().catch(() => ({})),
+          systemRes.json().catch(() => ({})),
+        ]);
         if (!active) return;
-        setCancelledNotifications(
-          Array.isArray(data.cancelledOrders) ? data.cancelledOrders : []
-        );
-        setPurchaseNotifications(
-          Array.isArray(data.purchaseOrders) ? data.purchaseOrders : []
-        );
-        setSoldNotifications(Array.isArray(data.soldOrders) ? data.soldOrders : []);
+        if (!ordersRes.ok) {
+          setNotificationError(
+            typeof ordersData?.error === "string"
+              ? ordersData.error
+              : "Failed to load"
+          );
+          setCancelledNotifications([]);
+          setPurchaseNotifications([]);
+          setSoldNotifications([]);
+          setOrderUnreadCounts({ cancelled: 0, purchase: 0, sold: 0, total: 0 });
+        } else {
+          applyOrderNotificationPayload(ordersData);
+        }
+
+        if (!systemRes.ok) {
+          setSystemNotificationError(
+            typeof systemData?.error === "string"
+              ? systemData.error
+              : "Failed to load"
+          );
+          setSystemNotifications([]);
+          setSystemUnreadCount(0);
+        } else {
+          applySystemNotificationPayload(systemData);
+        }
       } catch (err) {
         if (!active) return;
-        setNotificationError(err instanceof Error ? err.message : "Failed to load");
+        const message = err instanceof Error ? err.message : "Failed to load";
+        setNotificationError(message);
+        setSystemNotificationError(message);
         setCancelledNotifications([]);
         setPurchaseNotifications([]);
         setSoldNotifications([]);
+        setOrderUnreadCounts({ cancelled: 0, purchase: 0, sold: 0, total: 0 });
+        setSystemNotifications([]);
+        setSystemUnreadCount(0);
       } finally {
-        if (active) setNotificationLoading(false);
+        if (active) {
+          setNotificationLoading(false);
+          setSystemNotificationLoading(false);
+        }
       }
     };
     loadNotifications();
     return () => {
       active = false;
     };
-  }, [notificationOpen]);
+  }, [notificationOpen, applyOrderNotificationPayload, applySystemNotificationPayload]);
 
   useEffect(() => {
     if (!notificationOpen) return;
@@ -665,6 +816,120 @@ const getChatNoteBadgeClass = (result?: string | null) => {
     document.addEventListener("mousedown", onDocClick);
     return () => document.removeEventListener("mousedown", onDocClick);
   }, [notificationOpen]);
+
+  const handleMarkSystemNotificationRead = useCallback(
+    async (notificationId: string) => {
+      if (!notificationId || systemNotificationSaving) return;
+      setSystemNotificationSaving(notificationId);
+      setSystemNotificationError(null);
+      try {
+        const res = await fetch("/api/notifications/system", {
+          method: "PATCH",
+          credentials: "include",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ notificationId: Number(notificationId) }),
+        });
+        const data = await res.json().catch(() => ({}));
+        if (!res.ok) {
+          throw new Error(
+            typeof data?.error === "string" ? data.error : "Failed to update"
+          );
+        }
+        applySystemNotificationPayload(data);
+      } catch (err) {
+        setSystemNotificationError(
+          err instanceof Error ? err.message : "Failed to update"
+        );
+      } finally {
+        setSystemNotificationSaving(null);
+      }
+    },
+    [applySystemNotificationPayload, systemNotificationSaving]
+  );
+
+  const handleMarkAllSystemNotificationsRead = useCallback(async () => {
+    if (systemNotificationSaving || systemUnreadCount <= 0) return;
+    setSystemNotificationSaving("all");
+    setSystemNotificationError(null);
+    try {
+      const res = await fetch("/api/notifications/system", {
+        method: "PATCH",
+        credentials: "include",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ markAll: true }),
+      });
+      const data = await res.json().catch(() => ({}));
+      if (!res.ok) {
+        throw new Error(
+          typeof data?.error === "string" ? data.error : "Failed to update"
+        );
+      }
+      applySystemNotificationPayload(data);
+    } catch (err) {
+      setSystemNotificationError(
+        err instanceof Error ? err.message : "Failed to update"
+      );
+    } finally {
+      setSystemNotificationSaving(null);
+    }
+  }, [applySystemNotificationPayload, systemNotificationSaving, systemUnreadCount]);
+
+  const handleMarkOrderNotificationRead = useCallback(
+    async (orderId: number, scope: "cancelled" | "purchase" | "sold") => {
+      if (!orderId || orderNotificationSaving) return;
+      setOrderNotificationSaving(`${scope}:${orderId}`);
+      setNotificationError(null);
+      try {
+        const res = await fetch("/api/notifications/orders", {
+          method: "PATCH",
+          credentials: "include",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ orderId, scope }),
+        });
+        const data = await res.json().catch(() => ({}));
+        if (!res.ok) {
+          throw new Error(
+            typeof data?.error === "string" ? data.error : "Failed to update"
+          );
+        }
+        applyOrderNotificationPayload(data);
+      } catch (err) {
+        setNotificationError(
+          err instanceof Error ? err.message : "Failed to update"
+        );
+      } finally {
+        setOrderNotificationSaving(null);
+      }
+    },
+    [applyOrderNotificationPayload, orderNotificationSaving]
+  );
+
+  const handleMarkAllOrderNotificationsRead = useCallback(async () => {
+    if (orderNotificationSaving || orderUnreadCounts.total <= 0) return;
+    setOrderNotificationSaving("all");
+    setNotificationError(null);
+    try {
+      const res = await fetch("/api/notifications/orders", {
+        method: "PATCH",
+        credentials: "include",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ markAll: true }),
+      });
+      const data = await res.json().catch(() => ({}));
+      if (!res.ok) {
+        throw new Error(
+          typeof data?.error === "string" ? data.error : "Failed to update"
+        );
+      }
+      applyOrderNotificationPayload(data);
+    } catch (err) {
+      setNotificationError(
+        err instanceof Error ? err.message : "Failed to update"
+      );
+    } finally {
+        setOrderNotificationSaving(null);
+    }
+  }, [applyOrderNotificationPayload, orderNotificationSaving, orderUnreadCounts.total]);
 
   const handleSelectWidgetConversation = (conversation: HeaderChatSummary) => {
     setChatWidgetActive(conversation);
@@ -1067,9 +1332,19 @@ const getChatNoteBadgeClass = (result?: string | null) => {
   };
 
   return (
-    <header className="bg-white dark:bg-gray-900 border-b border-gray-200 dark:border-gray-700 sticky top-0 z-30 shadow-sm transition-colors">
+    <header
+      className={`sticky top-0 z-30 border-b shadow-sm transition-colors ${
+        isAppShell
+          ? "app-safe-top bg-white/95 border-slate-200/80 backdrop-blur dark:bg-gray-950/95 dark:border-slate-800"
+          : "bg-white dark:bg-gray-900 border-gray-200 dark:border-gray-700"
+      }`}
+    >
       {/* Top Bar - Currency, Language, Theme, Social Icons */}
-      <div className="bg-gray-100 dark:bg-gray-800 border-b border-gray-200 dark:border-gray-700">
+      <div
+        className={`bg-gray-100 dark:bg-gray-800 border-b border-gray-200 dark:border-gray-700 ${
+          isAppShell ? "hidden" : ""
+        }`}
+      >
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
           <div className="flex justify-between items-center h-10">
             {/* Left Side - Currency, Language, Dark Mode */}
@@ -1154,13 +1429,17 @@ const getChatNoteBadgeClass = (result?: string | null) => {
       </div>
 
       {/* Main Header */}
-      <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
-        <div className="flex justify-between items-center h-16">
+      <div className={`max-w-7xl mx-auto ${isAppShell ? "px-3 sm:px-5" : "px-4 sm:px-6 lg:px-8"}`}>
+        <div className={`flex justify-between items-center ${isAppShell ? "h-[4.25rem]" : "h-16"}`}>
           {/* Left: Hamburger Menu + Logo */}
           <div className="flex items-center gap-3">
             <button
               onClick={toggleSidebarMenu}
-              className="p-2 hover:bg-gray-100 dark:hover:bg-gray-800 rounded-lg transition-colors"
+              className={`p-2 transition-colors ${
+                isAppShell
+                  ? "rounded-2xl hover:bg-slate-100 dark:hover:bg-slate-900"
+                  : "hover:bg-gray-100 dark:hover:bg-gray-800 rounded-lg"
+              }`}
             >
               {isDesktopSidebarViewport && sidebarOpen ? (
                 <X className="w-6 h-6 text-gray-700 dark:text-gray-300" />
@@ -1174,10 +1453,20 @@ const getChatNoteBadgeClass = (result?: string | null) => {
               onClick={() => onNavigate('home')}
               className="flex items-center space-x-2"
             >
-              <div className="w-8 h-8 sm:w-10 sm:h-10 bg-gradient-to-br from-blue-600 to-purple-600 rounded-lg flex items-center justify-center flex-shrink-0">
+              <div
+                className={`bg-gradient-to-br from-blue-600 to-purple-600 flex items-center justify-center flex-shrink-0 ${
+                  isAppShell
+                    ? "h-11 w-11 rounded-2xl shadow-[0_14px_30px_rgba(59,130,246,0.30)]"
+                    : "w-8 h-8 sm:w-10 sm:h-10 rounded-lg"
+                }`}
+              >
                 <span className="text-white font-bold text-lg sm:text-xl">E</span>
               </div>
-              <span className="text-lg sm:text-2xl font-bold bg-gradient-to-r from-blue-600 to-purple-600 bg-clip-text text-transparent whitespace-nowrap">
+              <span
+                className={`font-bold bg-gradient-to-r from-blue-600 to-purple-600 bg-clip-text text-transparent whitespace-nowrap ${
+                  isAppShell ? "text-xl" : "text-lg sm:text-2xl"
+                }`}
+              >
                 Edugroit
               </span>
             </button>
@@ -1203,8 +1492,8 @@ const getChatNoteBadgeClass = (result?: string | null) => {
           </nav>
 
           {/* Right Side Actions */}
-          <div className="flex items-center space-x-2 md:space-x-4">
-            <div className="hidden md:flex items-center gap-2">
+          <div className={`flex items-center ${isAppShell ? "space-x-1.5" : "space-x-2 md:space-x-4"}`}>
+            <div className={`hidden md:flex items-center gap-2 ${isAppShell ? "hidden" : ""}`}>
               <button
                 className="flex items-center gap-2 rounded-full border border-red-200 bg-red-600 px-3 py-1.5 text-xs font-semibold text-white shadow-sm hover:bg-red-700 transition-colors"
                 type="button"
@@ -1240,157 +1529,400 @@ const getChatNoteBadgeClass = (result?: string | null) => {
               title="Notifications"
             >
               <Bell className="w-5 h-5" />
-              <span className="absolute top-1 right-1 block w-2 h-2 rounded-full bg-green-500" />
+              {totalNotificationUnread > 0 ? (
+                <span className="absolute -right-1 -top-1 inline-flex min-w-[1rem] items-center justify-center rounded-full bg-red-500 px-1 text-[10px] font-semibold leading-4 text-white">
+                  {totalNotificationUnread > 9 ? "9+" : totalNotificationUnread}
+                </span>
+              ) : notificationHasOrderItems ? (
+                <span className="absolute top-1 right-1 block w-2 h-2 rounded-full bg-green-500" />
+              ) : null}
             </button>
 
             {notificationOpen && (
-              <div className="absolute right-0 mt-3 w-80 rounded-2xl border border-gray-100 dark:border-gray-700 bg-white dark:bg-gray-900 shadow-2xl overflow-hidden z-40">
-                <div className="bg-gray-50 dark:bg-gray-800/50 px-4 py-2 text-[11px] font-semibold tracking-[0.12em] text-gray-500 dark:text-gray-400 flex items-center justify-between">
-                  <span>Cancelled Orders</span>
-                  <button
-                    onClick={() => {
-                      setNotificationOpen(false);
-                      onNavigate("orders");
-                    }}
-                    className="text-red-500 hover:text-red-600 flex items-center gap-1"
-                  >
-                    View all
-                    <ChevronRight className="w-3 h-3" />
-                  </button>
+              <div className="absolute right-0 z-40 mt-3 w-80 overflow-hidden rounded-2xl border border-gray-100 bg-white shadow-2xl dark:border-gray-700 dark:bg-gray-900">
+                <div className="border-b border-gray-100 bg-white px-4 py-3 dark:border-gray-800 dark:bg-gray-900">
+                  <div className="flex items-center gap-2">
+                    <button
+                      type="button"
+                      onClick={() => setNotificationTab("orders")}
+                      className={`rounded-full px-3 py-1.5 text-xs font-semibold transition ${
+                        notificationTab === "orders"
+                          ? "bg-blue-600 text-white"
+                          : "border border-gray-200 bg-white text-gray-700 hover:bg-gray-50 dark:border-gray-700 dark:bg-gray-900 dark:text-gray-200"
+                      }`}
+                    >
+                      Order Notification
+                      {orderUnreadCounts.total > 0 ? (
+                        <span className="ml-2 rounded-full bg-red-500 px-1.5 py-0.5 text-[10px] leading-none text-white">
+                          {orderUnreadBadge}
+                        </span>
+                      ) : null}
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => setNotificationTab("system")}
+                      className={`rounded-full px-3 py-1.5 text-xs font-semibold transition ${
+                        notificationTab === "system"
+                          ? "bg-blue-600 text-white"
+                          : "border border-gray-200 bg-white text-gray-700 hover:bg-gray-50 dark:border-gray-700 dark:bg-gray-900 dark:text-gray-200"
+                      }`}
+                    >
+                      Notification
+                      {systemUnreadCount > 0 ? (
+                        <span className="ml-2 rounded-full bg-red-500 px-1.5 py-0.5 text-[10px] leading-none text-white">
+                          {systemUnreadBadge}
+                        </span>
+                      ) : null}
+                    </button>
+                  </div>
                 </div>
 
-                <div className="divide-y divide-gray-100 dark:divide-gray-800">
-                  {notificationLoading ? (
-                    <div className="px-4 py-4 text-sm text-gray-500">
-                      Loading...
-                    </div>
-                  ) : notificationError ? (
-                    <div className="px-4 py-4 text-sm text-red-500">
-                      {notificationError}
-                    </div>
-                  ) : cancelledNotifications.length === 0 ? (
-                    <div className="px-4 py-4 text-sm text-gray-500 dark:text-gray-400">
-                      No cancelled orders
-                    </div>
-                  ) : (
-                    cancelledNotifications.map((item) => (
-                      <div
-                        key={`cancelled-${item.order_number}`}
-                        className="flex items-start gap-3 px-4 py-3"
-                      >
-                        <div className="mt-1 h-9 w-9 rounded-full bg-red-50 dark:bg-red-900/20 flex items-center justify-center text-red-500">
-                          <X className="w-4 h-4" />
-                        </div>
-                        <div className="min-w-0">
-                          <div className="text-sm font-semibold text-gray-900 dark:text-white truncate">
-                            {item.product_title || "Order item"}
-                          </div>
-                          <div className="text-xs text-gray-500">
-                            #{item.order_number}
-                          </div>
-                        </div>
+                {notificationTab === "orders" ? (
+                  <div className="modal-scrollbar max-h-[28rem] overflow-y-auto">
+                    <div className="flex items-center justify-between px-4 py-3">
+                      <div className="text-[11px] font-semibold uppercase tracking-[0.12em] text-gray-500 dark:text-gray-400">
+                        Order Notifications
                       </div>
-                    ))
-                  )}
-                </div>
-
-                <div className="bg-gray-50 dark:bg-gray-800/50 px-4 py-2 text-[11px] font-semibold tracking-[0.12em] text-gray-500 dark:text-gray-400 flex items-center justify-between">
-                  <span>Purchase Orders</span>
-                  <button
-                    onClick={() => {
-                      setNotificationOpen(false);
-                      onNavigate("orders");
-                    }}
-                    className="text-red-500 hover:text-red-600 flex items-center gap-1"
-                  >
-                    View all
-                    <ChevronRight className="w-3 h-3" />
-                  </button>
-                </div>
-
-                <div className="divide-y divide-gray-100 dark:divide-gray-800">
-                  {notificationLoading ? (
-                    <div className="px-4 py-4 text-sm text-gray-500">
-                      Loading...
-                    </div>
-                  ) : notificationError ? (
-                    <div className="px-4 py-4 text-sm text-red-500">
-                      {notificationError}
-                    </div>
-                  ) : purchaseNotifications.length === 0 ? (
-                    <div className="px-4 py-4 text-sm text-gray-500">
-                      No purchase orders
-                    </div>
-                  ) : (
-                    purchaseNotifications.map((item) => (
-                      <div
-                        key={item.order_number}
-                        className="flex items-start gap-3 px-4 py-3"
+                      <button
+                        type="button"
+                        onClick={handleMarkAllOrderNotificationsRead}
+                        disabled={orderUnreadCounts.total <= 0 || orderNotificationSaving !== null}
+                        className="text-xs font-medium text-blue-600 disabled:cursor-not-allowed disabled:text-gray-400 dark:text-blue-400 dark:disabled:text-gray-600"
                       >
-                        <div className="mt-1 h-9 w-9 rounded-full bg-gray-100 dark:bg-gray-800 flex items-center justify-center text-gray-400">
-                          <ShoppingCart className="w-4 h-4" />
-                        </div>
-                        <div className="min-w-0">
-                          <div className="text-sm font-semibold text-gray-900 dark:text-white truncate">
-                            {item.product_title || "Order item"}
-                          </div>
-                          <div className="text-xs text-gray-500">
-                            #{item.order_number}
-                          </div>
-                        </div>
-                      </div>
-                    ))
-                  )}
-                </div>
-
-                <div className="bg-gray-50 dark:bg-gray-800/50 px-4 py-2 text-[11px] font-semibold tracking-[0.12em] text-gray-500 dark:text-gray-400 flex items-center justify-between">
-                  <span>Sold Orders</span>
-                  <button
-                    onClick={() => {
-                      setNotificationOpen(false);
-                      onNavigate("orders");
-                    }}
-                    className="text-red-500 hover:text-red-600 flex items-center gap-1"
-                  >
-                    View all
-                    <ChevronRight className="w-3 h-3" />
-                  </button>
-                </div>
-
-                <div className="divide-y divide-gray-100 dark:divide-gray-800">
-                  {notificationLoading ? (
-                    <div className="px-4 py-4 text-sm text-gray-500">
-                      Loading...
+                        {orderNotificationSaving === "all" ? "Saving..." : "Mark all read"}
+                      </button>
                     </div>
-                  ) : notificationError ? (
-                    <div className="px-4 py-4 text-sm text-red-500">
-                      {notificationError}
-                    </div>
-                  ) : soldNotifications.length === 0 ? (
-                    <div className="px-4 py-4 text-center text-sm text-gray-500 dark:text-gray-400">
-                      No new sold orders
-                    </div>
-                  ) : (
-                    soldNotifications.map((item) => (
-                      <div
-                        key={item.order_number}
-                        className="flex items-start gap-3 px-4 py-3"
+                    <div className="bg-gray-50 dark:bg-gray-800/50 px-4 py-2 text-[11px] font-semibold tracking-[0.12em] text-gray-500 dark:text-gray-400 flex items-center justify-between">
+                      <span className="flex items-center gap-2">
+                        <span>Cancelled Orders</span>
+                        {orderUnreadCounts.cancelled > 0 ? (
+                          <span className="rounded-full bg-red-500 px-1.5 py-0.5 text-[10px] leading-none text-white">
+                            {orderUnreadCounts.cancelled > 9 ? "9+" : orderUnreadCounts.cancelled}
+                          </span>
+                        ) : null}
+                      </span>
+                      <button
+                        onClick={() => {
+                          setNotificationOpen(false);
+                          onNavigate("orders");
+                        }}
+                        className="text-red-500 hover:text-red-600 flex items-center gap-1"
                       >
-                        <div className="mt-1 h-9 w-9 rounded-full bg-gray-100 dark:bg-gray-800 flex items-center justify-center text-gray-400">
-                          <Package className="w-4 h-4" />
+                        View all
+                        <ChevronRight className="w-3 h-3" />
+                      </button>
+                    </div>
+
+                    <div className="divide-y divide-gray-100 dark:divide-gray-800">
+                      {notificationLoading ? (
+                        <div className="px-4 py-4 text-sm text-gray-500">
+                          Loading...
                         </div>
-                        <div className="min-w-0">
-                          <div className="text-sm font-semibold text-gray-900 dark:text-white truncate">
-                            {item.product_title || "Order item"}
-                          </div>
-                          <div className="text-xs text-gray-500">
-                            #{item.order_number}
-                          </div>
+                      ) : notificationError ? (
+                        <div className="px-4 py-4 text-sm text-red-500">
+                          {notificationError}
                         </div>
+                      ) : cancelledNotifications.length === 0 ? (
+                        <div className="px-4 py-4 text-sm text-gray-500 dark:text-gray-400">
+                          No cancelled orders
+                        </div>
+                      ) : (
+                        cancelledNotifications.map((item) => (
+                          <div
+                            key={`cancelled-${item.order_number}`}
+                            className={`flex items-start gap-3 px-4 py-3 ${
+                              item.isRead ? "" : "bg-blue-50/50 dark:bg-blue-950/20"
+                            }`}
+                          >
+                            <div className="mt-1 flex h-9 w-9 items-center justify-center rounded-full bg-red-50 text-red-500 dark:bg-red-900/20">
+                              <X className="h-4 w-4" />
+                            </div>
+                            <div className="min-w-0">
+                              <div className="flex items-center gap-2">
+                                {!item.isRead ? (
+                                  <span className="h-2 w-2 shrink-0 rounded-full bg-blue-500" />
+                                ) : null}
+                                <div className="truncate text-sm font-semibold text-gray-900 dark:text-white">
+                                  {item.product_title || "Order item"}
+                                </div>
+                              </div>
+                              <div className="text-xs text-gray-500">
+                                #{item.order_number}
+                              </div>
+                              <div className="mt-2">
+                                {!item.isRead ? (
+                                  <button
+                                    type="button"
+                                    onClick={() => handleMarkOrderNotificationRead(item.id, "cancelled")}
+                                    disabled={orderNotificationSaving !== null}
+                                    className="text-xs font-medium text-blue-600 disabled:cursor-not-allowed disabled:text-gray-400 dark:text-blue-400 dark:disabled:text-gray-600"
+                                  >
+                                    {orderNotificationSaving === `cancelled:${item.id}` ? "Saving..." : "Mark read"}
+                                  </button>
+                                ) : (
+                                  <span className="text-xs text-gray-400 dark:text-gray-500">Read</span>
+                                )}
+                              </div>
+                            </div>
+                          </div>
+                        ))
+                      )}
+                    </div>
+
+                    <div className="bg-gray-50 dark:bg-gray-800/50 px-4 py-2 text-[11px] font-semibold tracking-[0.12em] text-gray-500 dark:text-gray-400 flex items-center justify-between">
+                      <span className="flex items-center gap-2">
+                        <span>Purchase Orders</span>
+                        {orderUnreadCounts.purchase > 0 ? (
+                          <span className="rounded-full bg-red-500 px-1.5 py-0.5 text-[10px] leading-none text-white">
+                            {orderUnreadCounts.purchase > 9 ? "9+" : orderUnreadCounts.purchase}
+                          </span>
+                        ) : null}
+                      </span>
+                      <button
+                        onClick={() => {
+                          setNotificationOpen(false);
+                          onNavigate("orders");
+                        }}
+                        className="text-red-500 hover:text-red-600 flex items-center gap-1"
+                      >
+                        View all
+                        <ChevronRight className="w-3 h-3" />
+                      </button>
+                    </div>
+
+                    <div className="divide-y divide-gray-100 dark:divide-gray-800">
+                      {notificationLoading ? (
+                        <div className="px-4 py-4 text-sm text-gray-500">
+                          Loading...
+                        </div>
+                      ) : notificationError ? (
+                        <div className="px-4 py-4 text-sm text-red-500">
+                          {notificationError}
+                        </div>
+                      ) : purchaseNotifications.length === 0 ? (
+                        <div className="px-4 py-4 text-sm text-gray-500">
+                          No purchase orders
+                        </div>
+                      ) : (
+                        purchaseNotifications.map((item) => (
+                          <div
+                            key={item.order_number}
+                            className={`flex items-start gap-3 px-4 py-3 ${
+                              item.isRead ? "" : "bg-blue-50/50 dark:bg-blue-950/20"
+                            }`}
+                          >
+                            <div className="mt-1 flex h-9 w-9 items-center justify-center rounded-full bg-gray-100 text-gray-400 dark:bg-gray-800">
+                              <ShoppingCart className="h-4 w-4" />
+                            </div>
+                            <div className="min-w-0">
+                              <div className="flex items-center gap-2">
+                                {!item.isRead ? (
+                                  <span className="h-2 w-2 shrink-0 rounded-full bg-blue-500" />
+                                ) : null}
+                                <div className="truncate text-sm font-semibold text-gray-900 dark:text-white">
+                                  {item.product_title || "Order item"}
+                                </div>
+                              </div>
+                              <div className="text-xs text-gray-500">
+                                #{item.order_number}
+                              </div>
+                              <div className="mt-2">
+                                {!item.isRead ? (
+                                  <button
+                                    type="button"
+                                    onClick={() => handleMarkOrderNotificationRead(item.id, "purchase")}
+                                    disabled={orderNotificationSaving !== null}
+                                    className="text-xs font-medium text-blue-600 disabled:cursor-not-allowed disabled:text-gray-400 dark:text-blue-400 dark:disabled:text-gray-600"
+                                  >
+                                    {orderNotificationSaving === `purchase:${item.id}` ? "Saving..." : "Mark read"}
+                                  </button>
+                                ) : (
+                                  <span className="text-xs text-gray-400 dark:text-gray-500">Read</span>
+                                )}
+                              </div>
+                            </div>
+                          </div>
+                        ))
+                      )}
+                    </div>
+
+                    <div className="bg-gray-50 dark:bg-gray-800/50 px-4 py-2 text-[11px] font-semibold tracking-[0.12em] text-gray-500 dark:text-gray-400 flex items-center justify-between">
+                      <span className="flex items-center gap-2">
+                        <span>Sold Orders</span>
+                        {orderUnreadCounts.sold > 0 ? (
+                          <span className="rounded-full bg-red-500 px-1.5 py-0.5 text-[10px] leading-none text-white">
+                            {orderUnreadCounts.sold > 9 ? "9+" : orderUnreadCounts.sold}
+                          </span>
+                        ) : null}
+                      </span>
+                      <button
+                        onClick={() => {
+                          setNotificationOpen(false);
+                          onNavigate("orders");
+                        }}
+                        className="text-red-500 hover:text-red-600 flex items-center gap-1"
+                      >
+                        View all
+                        <ChevronRight className="w-3 h-3" />
+                      </button>
+                    </div>
+
+                    <div className="divide-y divide-gray-100 dark:divide-gray-800">
+                      {notificationLoading ? (
+                        <div className="px-4 py-4 text-sm text-gray-500">
+                          Loading...
+                        </div>
+                      ) : notificationError ? (
+                        <div className="px-4 py-4 text-sm text-red-500">
+                          {notificationError}
+                        </div>
+                      ) : soldNotifications.length === 0 ? (
+                        <div className="px-4 py-4 text-center text-sm text-gray-500 dark:text-gray-400">
+                          No new sold orders
+                        </div>
+                      ) : (
+                        soldNotifications.map((item) => (
+                          <div
+                            key={item.order_number}
+                            className={`flex items-start gap-3 px-4 py-3 ${
+                              item.isRead ? "" : "bg-blue-50/50 dark:bg-blue-950/20"
+                            }`}
+                          >
+                            <div className="mt-1 flex h-9 w-9 items-center justify-center rounded-full bg-gray-100 text-gray-400 dark:bg-gray-800">
+                              <Package className="h-4 w-4" />
+                            </div>
+                            <div className="min-w-0">
+                              <div className="flex items-center gap-2">
+                                {!item.isRead ? (
+                                  <span className="h-2 w-2 shrink-0 rounded-full bg-blue-500" />
+                                ) : null}
+                                <div className="truncate text-sm font-semibold text-gray-900 dark:text-white">
+                                  {item.product_title || "Order item"}
+                                </div>
+                              </div>
+                              <div className="text-xs text-gray-500">
+                                #{item.order_number}
+                              </div>
+                              <div className="mt-2">
+                                {!item.isRead ? (
+                                  <button
+                                    type="button"
+                                    onClick={() => handleMarkOrderNotificationRead(item.id, "sold")}
+                                    disabled={orderNotificationSaving !== null}
+                                    className="text-xs font-medium text-blue-600 disabled:cursor-not-allowed disabled:text-gray-400 dark:text-blue-400 dark:disabled:text-gray-600"
+                                  >
+                                    {orderNotificationSaving === `sold:${item.id}` ? "Saving..." : "Mark read"}
+                                  </button>
+                                ) : (
+                                  <span className="text-xs text-gray-400 dark:text-gray-500">Read</span>
+                                )}
+                              </div>
+                            </div>
+                          </div>
+                        ))
+                      )}
+                    </div>
+                  </div>
+                ) : (
+                  <div className="modal-scrollbar max-h-[28rem] overflow-y-auto divide-y divide-gray-100 dark:divide-gray-800">
+                    <div className="flex items-center justify-between px-4 py-3">
+                      <div className="text-[11px] font-semibold uppercase tracking-[0.12em] text-gray-500 dark:text-gray-400">
+                        System Notifications
                       </div>
-                    ))
-                  )}
-                </div>
+                      <button
+                        type="button"
+                        onClick={handleMarkAllSystemNotificationsRead}
+                        disabled={systemUnreadCount <= 0 || systemNotificationSaving !== null}
+                        className="text-xs font-medium text-blue-600 disabled:cursor-not-allowed disabled:text-gray-400 dark:text-blue-400 dark:disabled:text-gray-600"
+                      >
+                        {systemNotificationSaving === "all" ? "Saving..." : "Mark all read"}
+                      </button>
+                    </div>
+                    {systemNotificationLoading ? (
+                      <div className="px-4 py-4 text-sm text-gray-500">
+                        Loading...
+                      </div>
+                    ) : systemNotificationError ? (
+                      <div className="px-4 py-4 text-sm text-red-500">
+                        {systemNotificationError}
+                      </div>
+                    ) : systemNotifications.length === 0 ? (
+                      <div className="px-4 py-4 text-sm text-gray-500 dark:text-gray-400">
+                        No notifications
+                      </div>
+                    ) : (
+                      systemNotifications.map((item) => {
+                        const iconNode =
+                          item.icon === "security" ? (
+                            <Bell className="h-4 w-4" />
+                          ) : item.icon === "account" ? (
+                            <User className="h-4 w-4" />
+                          ) : item.icon === "product" ? (
+                            <Package className="h-4 w-4" />
+                          ) : (
+                            <Layers className="h-4 w-4" />
+                          );
+                        const iconClass =
+                          item.icon === "security"
+                            ? "bg-blue-50 text-blue-600 dark:bg-blue-900/20 dark:text-blue-300"
+                            : item.icon === "account"
+                              ? "bg-violet-50 text-violet-600 dark:bg-violet-900/20 dark:text-violet-300"
+                              : item.icon === "product"
+                                ? "bg-emerald-50 text-emerald-600 dark:bg-emerald-900/20 dark:text-emerald-300"
+                                : "bg-amber-50 text-amber-600 dark:bg-amber-900/20 dark:text-amber-300";
+
+                        return (
+                          <div
+                            key={item.id}
+                            className={`flex items-start gap-3 px-4 py-3 ${
+                              item.isRead ? "" : "bg-blue-50/50 dark:bg-blue-950/20"
+                            }`}
+                          >
+                            <div className={`mt-1 flex h-9 w-9 items-center justify-center rounded-full ${iconClass}`}>
+                              {iconNode}
+                            </div>
+                            <div className="min-w-0">
+                              <div className="flex items-start justify-between gap-3">
+                                <div className="flex items-center gap-2">
+                                  {!item.isRead ? (
+                                    <span className="mt-0.5 h-2 w-2 shrink-0 rounded-full bg-blue-500" />
+                                  ) : null}
+                                  <div className="text-sm font-semibold text-gray-900 dark:text-white">
+                                    {item.title}
+                                  </div>
+                                </div>
+                                {item.createdAt ? (
+                                  <div className="shrink-0 text-[11px] text-gray-400 dark:text-gray-500">
+                                    {formatWidgetTime(item.createdAt)}
+                                  </div>
+                                ) : null}
+                              </div>
+                              <div className="mt-1 text-xs leading-5 text-gray-500 dark:text-gray-400">
+                                {item.description}
+                              </div>
+                              <div className="mt-2 flex items-center gap-3">
+                                {!item.isRead ? (
+                                  <button
+                                    type="button"
+                                    onClick={() => handleMarkSystemNotificationRead(item.id)}
+                                    disabled={systemNotificationSaving !== null}
+                                    className="text-xs font-medium text-blue-600 disabled:cursor-not-allowed disabled:text-gray-400 dark:text-blue-400 dark:disabled:text-gray-600"
+                                  >
+                                    {systemNotificationSaving === item.id ? "Saving..." : "Mark read"}
+                                  </button>
+                                ) : (
+                                  <span className="text-xs text-gray-400 dark:text-gray-500">
+                                    Read
+                                  </span>
+                                )}
+                              </div>
+                            </div>
+                          </div>
+                        );
+                      })
+                    )}
+                  </div>
+                )}
               </div>
             )}
           </div>
@@ -1523,7 +2055,7 @@ const getChatNoteBadgeClass = (result?: string | null) => {
                         })}
                       </div>
                     </div>
-                    <div className="min-h-0 flex-1 overflow-y-auto overscroll-contain p-4 space-y-2 touch-pan-y [-webkit-overflow-scrolling:touch]">
+                    <div className="scrollbar-hide min-h-0 flex-1 overflow-y-auto overscroll-contain p-4 space-y-2 touch-pan-y [-webkit-overflow-scrolling:touch]">
                       {chatWidgetLoading ? (
                         <div className="flex items-center gap-2 text-sm text-gray-500">
                           <Loader2 className="w-4 h-4 animate-spin" />
@@ -1708,7 +2240,7 @@ const getChatNoteBadgeClass = (result?: string | null) => {
                         {language === "km" ? "??????????????" : "View order"}
                       </Button>
                     </div>
-                    <div ref={chatWidgetMessagesRef} className="min-h-0 flex-1 overflow-y-auto overscroll-contain p-4 space-y-3 touch-pan-y [-webkit-overflow-scrolling:touch]">
+                    <div ref={chatWidgetMessagesRef} className="scrollbar-hide min-h-0 flex-1 overflow-y-auto overscroll-contain p-4 space-y-3 touch-pan-y [-webkit-overflow-scrolling:touch]">
                       {chatWidgetMessagesLoading ? (
                         <div className="flex items-center gap-2 text-sm text-gray-500">
                           <Loader2 className="w-4 h-4 animate-spin" />
