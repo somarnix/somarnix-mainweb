@@ -1131,12 +1131,36 @@ export default function AdminVideoCoursesPage({
           </>
         ) : null}
         {initialManagementTab === "promotions" ? (
-          <button
-            type="button"
-            className="px-3 py-2 rounded-lg text-sm border bg-black text-white border-black"
-          >
-            Promotions
-          </button>
+          <>
+            <button
+              type="button"
+              className="px-3 py-2 rounded-lg text-sm border bg-black text-white border-black"
+            >
+              Promotions
+            </button>
+            <button
+              type="button"
+              className={`px-3 py-2 rounded-lg text-sm border ${
+                promotionPanel === "form"
+                  ? "bg-black text-white border-black"
+                  : "bg-white text-gray-700 border-gray-200 hover:bg-gray-50"
+              }`}
+              onClick={() => setPromotionPanel("form")}
+            >
+              Promotion
+            </button>
+            <button
+              type="button"
+              className={`px-3 py-2 rounded-lg text-sm border ${
+                promotionPanel === "results"
+                  ? "bg-black text-white border-black"
+                  : "bg-white text-gray-700 border-gray-200 hover:bg-gray-50"
+              }`}
+              onClick={() => setPromotionPanel("results")}
+            >
+              Promotion Result
+            </button>
+          </>
         ) : null}
       </div>
 
@@ -2317,30 +2341,6 @@ export default function AdminVideoCoursesPage({
         <div className="rounded-xl border bg-white p-4 space-y-4">
           <div className="flex flex-wrap items-center justify-between gap-2">
             <h2 className="font-semibold text-gray-900">Promotion Combos</h2>
-            <div className="flex items-center gap-2">
-              <button
-                type="button"
-                className={`px-3 py-1.5 rounded-lg text-sm border ${
-                  promotionPanel === "form"
-                    ? "bg-black text-white border-black"
-                    : "bg-white text-gray-700 border-gray-200 hover:bg-gray-50"
-                }`}
-                onClick={() => setPromotionPanel("form")}
-              >
-                Promotion
-              </button>
-              <button
-                type="button"
-                className={`px-3 py-1.5 rounded-lg text-sm border ${
-                  promotionPanel === "results"
-                    ? "bg-black text-white border-black"
-                    : "bg-white text-gray-700 border-gray-200 hover:bg-gray-50"
-                }`}
-                onClick={() => setPromotionPanel("results")}
-              >
-                Promotion Result
-              </button>
-            </div>
           </div>
           <div className="grid gap-3 lg:grid-cols-2">
             {promotionPanel === "form" ? (

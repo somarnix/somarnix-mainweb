@@ -301,7 +301,9 @@ export function CoursesPage({ onOpenVideoDetail }: CoursesPageProps) {
       setSelectedCategories([]);
       return;
     }
-    toggleSelection(value, selectedCategories, setSelectedCategories);
+    setSelectedCategories((prev) =>
+      prev.length === 1 && prev[0] === value ? [] : [value]
+    );
   };
 
   const handleSelectTag = (value: string) => {

@@ -5,6 +5,13 @@
   "scripts": {
     "dev": "next dev",
     "build": "next build",
+    "pwa:icons": "echo PWA icons are served from public/icons",
+    "cap:prepare": "node scripts/prepare-capacitor-web.mjs",
+    "cap:fix-android": "node scripts/fix-capacitor-android.mjs",
+    "cap:assets": "npx capacitor-assets generate --android",
+    "cap:sync": "npm run cap:prepare && npx cap sync && npm run cap:fix-android",
+    "cap:android": "npm run cap:prepare && npx cap sync android && npm run cap:fix-android",
+    "cap:open:android": "npx cap open android",
     "build:flow-extension": "node scripts/build-flow-extension.mjs",
     "pack:flow-extension": "node scripts/pack-flow-extension.mjs",
     "telegram:support-webhook": "node scripts/set-support-webhook.mjs",
@@ -15,6 +22,9 @@
     "lint": "eslint"
   },
   "dependencies": {
+    "@capacitor/android": "^7.6.0",
+    "@capacitor/cli": "^7.6.0",
+    "@capacitor/core": "^7.6.0",
     "@radix-ui/react-accordion": "^1.2.12",
     "@radix-ui/react-alert-dialog": "^1.1.15",
     "@radix-ui/react-aspect-ratio": "^1.1.8",
@@ -73,6 +83,7 @@
     "vaul": "^1.1.2"
   },
   "devDependencies": {
+    "@capacitor/assets": "^3.0.5",
     "@tailwindcss/postcss": "^4",
     "@types/jsonwebtoken": "^9.0.10",
     "@types/node": "^20",

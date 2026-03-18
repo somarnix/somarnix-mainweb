@@ -1,9 +1,16 @@
 // app/api/admin/products/[id]/route.ts
 import { db } from "@/lib/db";
 import { getAuthUser } from "@/lib/auth";
+import { createProductUpdateNotifications } from "@/lib/system-notifications";
 import type { ResultSetHeader, RowDataPacket } from "mysql2";
 
 export const runtime = "nodejs";
+
+type ProductRow = RowDataPacket & {
+  id: number;
+  title: string;
+  slug: string | null;
+};
 
 async function hasColumn(tableName: string, columnName: string): Promise<boolean> {
   const [rows] = await db.query<RowDataPacket[]>(
@@ -38,6 +45,20 @@ export async function PUT(
 
     if (!Number.isFinite(productId) || productId <= 0) {
       return Response.json({ error: "Invalid product id" }, { status: 400 });
+    }
+
+    const [existingRows] = await db.query<ProductRow[]>(
+      `
+      SELECT id, title, slug
+      FROM products
+      WHERE id = ?
+      LIMIT 1
+      `,
+      [productId]
+    );
+    const existingProduct = existingRows[0];
+    if (!existingProduct) {
+      return Response.json({ error: "Product not found" }, { status: 404 });
     }
 
     const body: unknown = await req.json().catch(() => ({}));
@@ -180,6 +201,25 @@ export async function PUT(
 
     if (result.affectedRows === 0) {
       return Response.json({ error: "Product not found" }, { status: 404 });
+    }
+
+    const nextTitle =
+      typeof b.title === "string" && b.title.trim()
+        ? b.title.trim()
+        : existingProduct.title;
+    const nextSlug =
+      typeof b.slug === "string" && b.slug.trim()
+        ? b.slug.trim()
+        : existingProduct.slug;
+
+    try {
+      await createProductUpdateNotifications({
+        productId,
+        productTitle: nextTitle,
+        productSlug: nextSlug,
+      });
+    } catch (notificationError) {
+      console.error("PRODUCT UPDATE NOTIFICATION ERROR:", notificationError);
     }
 
     return Response.json({ success: true });

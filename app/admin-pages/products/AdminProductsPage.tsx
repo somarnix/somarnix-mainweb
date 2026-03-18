@@ -2,7 +2,7 @@
 // app/admin-pages/products/AdminProductsPage.tsx
 "use client";
 
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import PaginationNext from "@/app/components/PaginationNext";
 
 /* ================= TYPES ================= */
@@ -222,6 +222,7 @@ export default function AdminProductsPage({
   /* ================= EDIT MODAL ================= */
   const [editOpen, setEditOpen] = useState(false);
   const [editing, setEditing] = useState<Product | null>(null);
+  const editModalBodyRef = useRef<HTMLDivElement | null>(null);
   const [saving, setSaving] = useState(false);
   const [uploading, setUploading] = useState(false);
 
@@ -393,6 +394,14 @@ export default function AdminProductsPage({
     void loadProducts();
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
+
+  useEffect(() => {
+    if (!editOpen || !editing || !editModalBodyRef.current) return;
+    const scrollEl = editModalBodyRef.current;
+    requestAnimationFrame(() => {
+      scrollEl.scrollTop = 0;
+    });
+  }, [editOpen, editing]);
 
   /* ================= UPLOAD IMAGE ================= */
 
@@ -828,6 +837,7 @@ export default function AdminProductsPage({
     setVKhQr(DEFAULT_KH_QR);
     setVUsdQr(USD_QR_NONE);
     setEditingVariant(null);
+    setShowVariants(false);
 
     setEditOpen(true);
 
@@ -1467,7 +1477,6 @@ export default function AdminProductsPage({
                     <div className="flex justify-end gap-2">
                       <button
                         onClick={() => {
-                          console.log("EDIT CLICK:", p);
                           openEdit(p);
                         }}
                         className="text-sm px-3 py-1.5 rounded-lg border hover:bg-white"
@@ -1649,7 +1658,7 @@ export default function AdminProductsPage({
               </button>
             </div>
 
-            <div className="grid min-h-0 flex-1 grid-cols-1 gap-3 overflow-y-auto overscroll-contain p-4 md:grid-cols-2">
+            <div className="grid min-h-0 flex-1 grid-cols-1 gap-3 overflow-x-hidden overflow-y-auto overscroll-contain p-4 md:grid-cols-2">
               <div className="md:col-span-2">
                 <label className="text-xs text-gray-600">Title</label>
                 <input
@@ -1727,22 +1736,27 @@ export default function AdminProductsPage({
 
       {/* ================= EDIT MODAL ================= */}
       {editOpen && editing ? (
-        <div className="fixed inset-0 z-50 flex items-start justify-center bg-black/40 p-2 sm:items-center sm:p-4">
-          <div className="flex w-full max-w-3xl flex-col overflow-hidden rounded-2xl bg-white shadow-lg max-h-[calc(100vh-2rem)]">
-            <div className="p-4 border-b flex items-center justify-between">
+        <div className="fixed inset-0 z-50 overflow-y-auto bg-black/40 p-2 sm:p-4 lg:p-6">
+          <div className="flex min-h-full items-start justify-center lg:items-center">
+            <div className="my-2 flex w-full max-w-3xl min-h-0 flex-col overflow-hidden rounded-2xl bg-white shadow-lg sm:my-4 lg:my-6 lg:max-h-[calc(100dvh-6rem)]">
+            <div className="shrink-0 flex items-center justify-between border-b px-4 py-3 lg:px-5 lg:py-3">
               <div>
                 <div className="text-lg font-semibold">Edit Product</div>
                 <div className="text-xs text-gray-500">ID: {editing.id}</div>
               </div>
               <button
                 onClick={closeEdit}
-                className="text-sm px-3 py-1.5 rounded-lg border hover:bg-gray-50"
+                className="rounded-lg border px-3 py-1.5 text-sm hover:bg-gray-50"
               >
                 Close
               </button>
             </div>
 
-            <div className="grid min-h-0 flex-1 grid-cols-1 gap-3 overflow-y-auto overscroll-contain p-4 md:grid-cols-2">
+            <div
+              ref={editModalBodyRef}
+              className="modal-scrollbar grid min-h-0 flex-1 grid-cols-1 gap-2 overflow-x-hidden overflow-y-auto overscroll-contain p-3 pr-2 sm:p-4 sm:pr-3 md:grid-cols-2 lg:gap-3"
+              style={{ WebkitOverflowScrolling: "touch" }}
+            >
               <div className="md:col-span-2">
                 <label className="text-xs text-gray-600">Title</label>
                 <input
@@ -1810,7 +1824,7 @@ export default function AdminProductsPage({
                 />
               </div>
 
-              <div className="flex items-center gap-2 mt-6">
+              <div className="flex items-center gap-2 md:mt-6">
                 <input
                   type="checkbox"
                   checked={!!fUnlimitedStock}
@@ -1890,7 +1904,7 @@ export default function AdminProductsPage({
                         <option value="email">email</option>
                         <option value="tel">tel</option>
                       </select>
-                      <div className="flex items-center gap-2 md:col-span-1">
+                      <div className="flex flex-wrap items-center gap-2 md:col-span-1">
                         <label className="flex items-center gap-2 text-xs">
                           <input
                             type="checkbox"
@@ -1910,7 +1924,7 @@ export default function AdminProductsPage({
                           onClick={() =>
                             setFOrderFields((prev) => prev.filter((_, i) => i !== idx))
                           }
-                          className="ml-auto text-xs text-red-600 hover:text-red-700"
+                          className="text-xs text-red-600 hover:text-red-700 md:ml-auto"
                         >
                           Remove
                         </button>
@@ -1957,7 +1971,7 @@ export default function AdminProductsPage({
               <div className="md:col-span-2">
                 <label className="text-xs text-gray-600">Product Image</label>
 
-                <div className="mt-1 flex items-center gap-3">
+                <div className="mt-1 flex flex-col gap-3 sm:flex-row sm:items-center">
                   <input
                     type="file"
                     accept="image/*"
@@ -1989,17 +2003,17 @@ export default function AdminProductsPage({
                 </div>
 
                 {fImageUrl ? (
-                  <div className="mt-2 flex items-start gap-3">
+                  <div className="mt-2 flex flex-col gap-3 sm:flex-row sm:items-start">
                     {/* Image preview */}
                     <img
                       src={fImageUrl}
                       alt="Product image preview"
                       width={120}
                       height={120}
-                      className="rounded-lg border object-cover"
+                      className="h-28 w-28 shrink-0 rounded-lg border object-cover sm:h-[120px] sm:w-[120px]"
                     />
                     {/* Text UNDER image */}
-                    <div className="flex flex-col text-xs text-gray-500 leading-tight">
+                    <div className="min-w-0 flex flex-col gap-1 text-xs leading-tight text-gray-500">
                       <span>Image uploaded</span>
                       <span className="text-gray-400">
                         Click “Upload image” to replace
@@ -2025,7 +2039,7 @@ export default function AdminProductsPage({
                             setUploading(false);
                           }
                         }}
-                        className="ml-auto text-xs px-2 py-1 rounded border hover:bg-gray-50"
+                        className="self-start rounded border px-2 py-1 text-xs hover:bg-gray-50"
                       >
                         Remove
                       </button>
@@ -2567,7 +2581,7 @@ export default function AdminProductsPage({
               {/* ================= END VARIANTS ================= */}
             </div>
 
-            <div className="sticky bottom-0 flex items-center justify-end gap-2 border-t bg-white p-4">
+            <div className="shrink-0 flex items-center justify-end gap-2 border-t bg-white px-4 py-3 lg:px-5">
               <button
                 onClick={closeEdit}
                 className="text-sm px-4 py-2 rounded-lg border hover:bg-gray-50"
@@ -2583,6 +2597,7 @@ export default function AdminProductsPage({
               >
                 {saving ? "Saving..." : "Save"}
               </button>
+            </div>
             </div>
           </div>
         </div>

@@ -15,6 +15,7 @@ type MainLayoutProps = {
   setMobileSidebarOpen: (value: boolean) => void;
   cartCount: number;
   onOpenChat: (orderId: number) => void;
+  isAppShell: boolean;
 };
 
 export function MainLayout({
@@ -27,6 +28,7 @@ export function MainLayout({
   setMobileSidebarOpen,
   cartCount,
   onOpenChat,
+  isAppShell,
 }: MainLayoutProps) {
   return (
     <>
@@ -39,11 +41,20 @@ export function MainLayout({
         setMobileSidebarOpen={setMobileSidebarOpen}
         cartCount={cartCount}
         onOpenChat={onOpenChat}
+        isAppShell={isAppShell}
       />
 
-      <main id="main_container" className="flex flex-1 min-h-0">
+      <main
+        id="main_container"
+        className={`flex flex-1 min-h-0 ${isAppShell ? "bg-slate-50 dark:bg-slate-950" : ""}`}
+      >
         <div className="sidebar">
-          <Sidebar isOpen={sidebarOpen} onNavigate={onNavigate} isMobile={false} />
+          <Sidebar
+            isOpen={sidebarOpen}
+            onNavigate={onNavigate}
+            isMobile={false}
+            isAppShell={isAppShell}
+          />
         </div>
 
         <Sidebar
@@ -51,12 +62,13 @@ export function MainLayout({
           onNavigate={onNavigate}
           onClose={() => setMobileSidebarOpen(false)}
           isMobile={true}
+          isAppShell={isAppShell}
         />
 
         <div className="content_area flex-1 min-w-0">{children}</div>
       </main>
 
-      <Footer />
+      <Footer isAppShell={isAppShell} />
     </>
   );
 }

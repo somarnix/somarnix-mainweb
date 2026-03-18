@@ -2,6 +2,7 @@ import bcrypt from "bcryptjs";
 import type { RowDataPacket, ResultSetHeader } from "mysql2";
 import { db } from "@/lib/db";
 import { getAuthUser } from "@/lib/auth";
+import { createSystemNotification } from "@/lib/system-notifications";
 
 function isObject(v: unknown): v is Record<string, unknown> {
   return typeof v === "object" && v !== null;
@@ -215,6 +216,30 @@ export async function PUT(req: Request): Promise<Response> {
       `UPDATE users SET ${sets.join(", ")} WHERE id = ?`,
       values
     );
+
+    try {
+      if (newPassword) {
+        await createSystemNotification({
+          userId: auth.userId,
+          category: "password_change",
+          icon: "account",
+          title: "Password changed",
+          description: "Your account password was updated successfully.",
+        });
+      }
+
+      if (newEmail) {
+        await createSystemNotification({
+          userId: auth.userId,
+          category: "email_change",
+          icon: "account",
+          title: "Email updated",
+          description: `Your account email was changed to ${newEmail}.`,
+        });
+      }
+    } catch (notificationError) {
+      console.error("PROFILE NOTIFICATION ERROR:", notificationError);
+    }
 
     return Response.json({ success: true });
   } catch (err) {

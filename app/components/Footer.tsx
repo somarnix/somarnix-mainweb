@@ -13,9 +13,17 @@ import { Input } from "./ui/input";
 import { Button } from "./ui/button";
 import { useLanguage } from "../contexts/LanguageContext";
 
-export function Footer() {
+interface FooterProps {
+  isAppShell?: boolean;
+}
+
+export function Footer({ isAppShell = false }: FooterProps) {
   const currentYear = new Date().getFullYear();
   const { t } = useLanguage();
+
+  if (isAppShell) {
+    return null;
+  }
 
   const quickLinks = [
     t("footer.aboutUs"),

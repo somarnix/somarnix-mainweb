@@ -3,6 +3,7 @@
 import { useEffect, useMemo, useState } from "react";
 import { usePathname } from "next/navigation";
 import { MainLayout } from "./layouts/MainLayout";
+import { useAppShellMode } from "./lib/app-shell";
 
 import HomePage from "./pages/homepage/HomePage";
 import { AllPage } from "./pages/all-category/AllPage";
@@ -40,6 +41,7 @@ import AdminUsersPage from "./admin-pages/users/AdminUsersPage";
 import AdminTest from "./admin-pages/admin-test/AdminTest";
 import AdminVideoCoursesPage from "./admin-pages/video-courses/AdminVideoCoursesPage";
 import AdminToolLicensesPage from "./admin-pages/tool-licenses/AdminToolLicensesPage";
+import AdminNotificationsPage from "./admin-pages/notifications/AdminNotificationsPage";
 
 import ProductDetailPage from "./pages/product-detail/ProductDetailPage";
 import { ChatPage } from "./pages/chat/ChatPage";
@@ -85,6 +87,7 @@ type AppPage =
   | "admin-orders"
   | "admin-users"
   | "admin-test"
+  | "admin-notifications"
   | "admin-video-courses"
   | "admin-video-courses-promotions"
   | "admin-video-course-detail";
@@ -132,6 +135,7 @@ const ALL_PAGES: ReadonlyArray<AppPage> = [
   "admin-orders",
   "admin-users",
   "admin-test",
+  "admin-notifications",
   "admin-video-courses",
   "admin-video-courses-promotions",
   "admin-video-course-detail",
@@ -166,6 +170,7 @@ const STATIC_ROUTES: Record<string, AppPage> = {
   "/admin/orders": "admin-orders",
   "/admin/users": "admin-users",
   "/admin/test": "admin-test",
+  "/admin/notifications": "admin-notifications",
   "/admin/video-courses": "admin-video-courses",
   "/admin/video-courses/promotions": "admin-video-courses-promotions",
 };
@@ -375,6 +380,8 @@ function buildPathForPage(
       return "/admin/users";
     case "admin-test":
       return "/admin/test";
+    case "admin-notifications":
+      return "/admin/notifications";
     case "admin-video-courses":
       return "/admin/video-courses";
     case "admin-video-courses-promotions":
@@ -466,6 +473,7 @@ export default function App() {
 
   const [sidebarOpen, setSidebarOpen] = useState(false);
   const [mobileSidebarOpen, setMobileSidebarOpen] = useState(false);
+  const isAppShell = useAppShellMode();
   const [selectedCartGroupKeys, setSelectedCartGroupKeys] = useState<string[]>([]);
 
   /* ================= CART COUNT ================= */
@@ -834,6 +842,8 @@ export default function App() {
 
       case "admin-test":
         return <AdminTest />;
+      case "admin-notifications":
+        return <AdminNotificationsPage />;
       case "admin-video-courses":
         return <AdminVideoCoursesPage />;
       case "admin-video-courses-promotions":
@@ -884,7 +894,11 @@ const showHeaderFooter =
           <CurrencyProvider>
             <PresenceWatcher />
             <CartCountAuthWatcher />
-            <div className="min-h-screen flex flex-col bg-white dark:bg-gray-900">
+            <div
+              className={`min-h-screen flex flex-col bg-white dark:bg-gray-900 ${
+                isAppShell ? "app-shell-root" : ""
+              }`}
+            >
               <Toaster position="top-right" richColors />
 
               {showHeaderFooter ? (
@@ -897,6 +911,7 @@ const showHeaderFooter =
                   setMobileSidebarOpen={setMobileSidebarOpen}
                   cartCount={cartCount}
                   onOpenChat={handleOpenChat}
+                  isAppShell={isAppShell}
                 >
                   {renderPage()}
                 </MainLayout>

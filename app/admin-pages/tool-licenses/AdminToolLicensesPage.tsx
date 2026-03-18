@@ -787,7 +787,7 @@ export default function AdminToolLicensesPage() {
       <div className="rounded-xl border bg-white p-4">
         <div className="mb-3 flex flex-col gap-3 md:flex-row md:items-center md:justify-between">
           <h2 className="text-lg font-semibold">Recent licenses</h2>
-          <div className="rounded-lg border bg-white px-3 py-2 text-sm text-gray-700">
+          <div className="min-w-0 break-words rounded-lg border bg-white px-3 py-2 text-sm text-gray-700">
             Filtered: <span className="font-semibold">{totalFiltered}</span>
             <span className="mx-1 text-gray-400">/</span>
             Total: <span className="font-semibold">{licenses.length}</span>
@@ -795,15 +795,15 @@ export default function AdminToolLicensesPage() {
             Sum Max Devices: <span className="font-semibold">{filteredMaxDevicesSum}</span>
             <span className="mx-1 text-gray-400">(+{filteredUnlimitedCount} unlimited)</span>
           </div>
-          <div className="flex flex-wrap items-center gap-2">
+          <div className="grid grid-cols-1 gap-2 sm:flex sm:flex-wrap sm:items-center">
             <button
               onClick={exportFilteredToExcel}
-              className="text-sm px-3 py-1 border rounded-lg disabled:opacity-50"
+              className="rounded-lg border px-3 py-2 text-sm disabled:opacity-50"
               disabled={displayedLicenses.length === 0}
             >
               Export Excel
             </button>
-            <button onClick={() => void handleRefresh()} className="text-sm px-3 py-1 border rounded-lg">
+            <button onClick={() => void handleRefresh()} className="rounded-lg border px-3 py-2 text-sm">
               Refresh
             </button>
           </div>
@@ -952,7 +952,7 @@ export default function AdminToolLicensesPage() {
           </div>
           <div className="space-y-3 md:hidden">
             {pagedLicenses.map((l) => (
-              <div key={l.id} className="rounded-xl border p-4 space-y-3">
+              <div key={l.id} className="rounded-xl border p-4 space-y-3 overflow-hidden">
                 <div className="flex items-start justify-between gap-3">
                   <div className="min-w-0">
                     <div className="font-semibold text-gray-900">{l.product_title}</div>
@@ -963,16 +963,16 @@ export default function AdminToolLicensesPage() {
                   <div className="text-right text-xs text-gray-500">#{l.id}</div>
                 </div>
 
-                <div className="grid grid-cols-2 gap-3 text-sm">
-                  <div className="rounded-lg border bg-gray-50 p-3">
+                <div className="grid grid-cols-1 gap-3 text-sm">
+                  <div className="min-w-0 rounded-lg border bg-gray-50 p-3">
                     <div className="text-xs text-gray-500">Buyer</div>
-                    <div className="mt-1 break-words font-medium text-gray-900">
+                    <div className="mt-1 break-all font-medium text-gray-900">
                       {l.user_username || "user"} - {l.user_email}
                     </div>
                   </div>
-                  <div className="rounded-lg border bg-gray-50 p-3">
+                  <div className="min-w-0 rounded-lg border bg-gray-50 p-3">
                     <div className="text-xs text-gray-500">Order</div>
-                    <div className="mt-1 font-medium text-gray-900">
+                    <div className="mt-1 break-all font-medium text-gray-900">
                       {l.order_number
                         ? `#${l.order_number}`
                         : l.order_id
@@ -980,11 +980,11 @@ export default function AdminToolLicensesPage() {
                           : "-"}
                     </div>
                   </div>
-                  <div className="rounded-lg border bg-gray-50 p-3">
+                  <div className="min-w-0 rounded-lg border bg-gray-50 p-3">
                     <div className="text-xs text-gray-500">Status</div>
                     <div className="mt-1 font-medium text-gray-900">{l.effectiveStatus}</div>
                   </div>
-                  <div className="rounded-lg border bg-gray-50 p-3">
+                  <div className="min-w-0 rounded-lg border bg-gray-50 p-3">
                     <div className="text-xs text-gray-500">Max devices</div>
                     <div className="mt-1 font-medium text-gray-900">
                       {l.max_devices >= 9999 ? "Unlimited" : l.max_devices}
@@ -1011,27 +1011,27 @@ export default function AdminToolLicensesPage() {
                   </div>
                 </div>
 
-                <div className="flex flex-wrap gap-2">
+                <div className="grid grid-cols-1 gap-2 sm:grid-cols-2">
                   <button
-                    className="flex-1 rounded border px-3 py-2 text-xs hover:bg-gray-50 sm:flex-none"
+                    className="rounded border px-3 py-2 text-xs hover:bg-gray-50"
                     onClick={() => openEdit(l)}
                   >
                     Edit
                   </button>
                   <button
-                    className="flex-1 rounded border border-blue-300 px-3 py-2 text-xs text-blue-700 hover:bg-blue-50 sm:flex-none"
+                    className="rounded border border-blue-300 px-3 py-2 text-xs text-blue-700 hover:bg-blue-50"
                     onClick={() => void generateToken(l)}
                   >
                     Token
                   </button>
                   <button
-                    className="flex-1 rounded border border-indigo-300 px-3 py-2 text-xs text-indigo-700 hover:bg-indigo-50 sm:flex-none"
+                    className="rounded border border-indigo-300 px-3 py-2 text-xs text-indigo-700 hover:bg-indigo-50"
                     onClick={() => void removeDeviceFromLicense(l.id, l.last_device_id || "")}
                   >
                     Remove device
                   </button>
                   <button
-                    className="flex-1 rounded border px-3 py-2 text-xs text-red-600 hover:bg-red-50 sm:flex-none"
+                    className="rounded border px-3 py-2 text-xs text-red-600 hover:bg-red-50 sm:col-span-2"
                     onClick={() => void removeLicense(l.id)}
                   >
                     Remove
