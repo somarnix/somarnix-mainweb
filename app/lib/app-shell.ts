@@ -1,6 +1,6 @@
 "use client";
 
-import { useSyncExternalStore } from "react";
+import { useEffect, useState } from "react";
 
 export function detectAppShellMode(): boolean {
   if (typeof window === "undefined") return false;
@@ -24,25 +24,26 @@ export function detectAppShellMode(): boolean {
   );
 }
 
-function subscribeToAppShellChange(onStoreChange: () => void) {
-  if (typeof window === "undefined") {
-    return () => {};
-  }
-
-  const mediaQuery = window.matchMedia("(display-mode: standalone)");
-  const handleChange = () => onStoreChange();
-
-  mediaQuery.addEventListener?.("change", handleChange);
-  window.addEventListener("appinstalled", handleChange);
-  window.addEventListener("focus", handleChange);
-
-  return () => {
-    mediaQuery.removeEventListener?.("change", handleChange);
-    window.removeEventListener("appinstalled", handleChange);
-    window.removeEventListener("focus", handleChange);
-  };
-}
-
 export function useAppShellMode() {
-  return useSyncExternalStore(subscribeToAppShellChange, detectAppShellMode, () => false);
+  const [isAppShell, setIsAppShell] = useState(false);
+
+  useEffect(() => {
+    if (typeof window === "undefined") return;
+
+    const mediaQuery = window.matchMedia("(display-mode: standalone)");
+    const update = () => setIsAppShell(detectAppShellMode());
+
+    update();
+    mediaQuery.addEventListener?.("change", update);
+    window.addEventListener("appinstalled", update);
+    window.addEventListener("focus", update);
+
+    return () => {
+      mediaQuery.removeEventListener?.("change", update);
+      window.removeEventListener("appinstalled", update);
+      window.removeEventListener("focus", update);
+    };
+  }, []);
+
+  return isAppShell;
 }

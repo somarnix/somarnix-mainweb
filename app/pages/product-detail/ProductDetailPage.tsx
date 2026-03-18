@@ -19,6 +19,7 @@ import { Badge } from "@/app/components/ui/badge";
 import { useLanguage } from "@/app/contexts/LanguageContext";
 import { useCurrency } from "@/app/contexts/CurrencyContext";
 import { AddToCartModal } from "@/app/components/AddToCartModal";
+import { ProfileAvatar } from "@/app/components/ProfileAvatar";
 import { useAuth } from "@/app/contexts/AuthContext";
 import { Textarea } from "@/app/components/ui/textarea";
 import { toast } from "sonner";
@@ -82,6 +83,7 @@ type ProductDetail = {
   posted_by_name?: string | null;
   posted_by_username?: string | null;
   posted_by_avatar?: string | null;
+  posted_by_avatar_border?: string | null;
 };
 
 type ApiResponse = {
@@ -109,6 +111,7 @@ type Review = {
   user_id: number;
   user_name: string;
   user_avatar?: string | null;
+  user_avatar_border?: string | null;
   rating: number;
   comment?: string | null;
   created_at: string;
@@ -707,17 +710,14 @@ export default function ProductDetailPage({
                   disabled={!product.posted_by}
                   className="mt-4 flex w-full items-center gap-3 rounded-xl border bg-white p-3 text-left transition hover:border-blue-300 hover:bg-blue-50/40 disabled:cursor-default disabled:hover:border-inherit disabled:hover:bg-white dark:bg-gray-900 dark:disabled:hover:bg-gray-900"
                 >
-                  {product.posted_by_avatar ? (
-                    <img
-                      src={product.posted_by_avatar}
-                      alt={postedByName}
-                      className="w-12 h-12 rounded-full object-cover border"
-                    />
-                  ) : (
-                    <div className="w-12 h-12 rounded-full bg-gray-100 dark:bg-gray-800 flex items-center justify-center text-gray-500">
-                      {postedByName.slice(0, 1).toUpperCase()}
-                    </div>
-                  )}
+                  <ProfileAvatar
+                    src={product.posted_by_avatar}
+                    alt={postedByName}
+                    fallback={postedByName}
+                    borderUrl={product.posted_by_avatar_border}
+                    className="h-12 w-12"
+                    contentClassName="border"
+                  />
                   <div>
                     <div className="text-xs uppercase text-gray-400">Posted by</div>
                     <div className="font-semibold text-gray-900 dark:text-white">{postedByName}</div>
@@ -1093,17 +1093,14 @@ export default function ProductDetailPage({
                             className="w-full border rounded-xl p-4 bg-gray-50 dark:bg-gray-950"
                           >
                             <div className="flex items-start gap-3">
-                              {rev.user_avatar ? (
-                                <img
-                                  src={rev.user_avatar}
-                                  alt={rev.user_name}
-                                  className="w-12 h-12 rounded-full object-cover border"
-                                />
-                              ) : (
-                                <div className="w-12 h-12 rounded-full bg-gradient-to-r from-blue-500 to-purple-500 text-white flex items-center justify-center font-semibold">
-                                  {initials}
-                                </div>
-                              )}
+                              <ProfileAvatar
+                                src={rev.user_avatar}
+                                alt={rev.user_name}
+                                fallback={initials}
+                                borderUrl={rev.user_avatar_border}
+                                className="h-12 w-12"
+                                contentClassName="border"
+                              />
 
                               <div className="flex-1">
                                 <div className="flex items-start justify-between gap-3">

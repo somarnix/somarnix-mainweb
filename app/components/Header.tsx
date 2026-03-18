@@ -2,6 +2,7 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { ShoppingCart, Menu, X, User, Globe, Moon, Sun, LogOut, Settings, BookOpen, Wallet, DollarSign, Package, FileText, Layers, ChevronRight, Facebook, Youtube, Send, MessageCircle, Loader2, Smile, SmilePlus, Sticker, Pin, ArrowLeft, MoreVertical, Edit3, Trash2, Check, Bell, Search } from 'lucide-react';
 import { Button } from './ui/button';
+import { ProfileAvatar } from "./ProfileAvatar";
 import { useLanguage } from '../contexts/LanguageContext';
 import { useTheme } from '../contexts/ThemeContext';
 import { useAuth } from '../contexts/AuthContext';
@@ -42,6 +43,7 @@ type HeaderChatParticipant = {
   name: string | null;
   email: string | null;
   avatarUrl: string | null;
+  avatarBorderUrl?: string | null;
   online: boolean;
 };
 
@@ -56,6 +58,7 @@ type HeaderChatSummary = {
   seller: HeaderChatParticipant;
   sellerName?: string | null;
   sellerAvatar?: string | null;
+  sellerAvatarBorderUrl?: string | null;
   sellerOnline?: boolean | null;
   lastMessage: string | null;
   lastMessageAt: string | null;
@@ -82,6 +85,7 @@ type HeaderChatMessage = {
   deletedAt?: string | null;
   reactions: MessageReaction[];
   senderAvatar?: string | null;
+  senderAvatarBorderUrl?: string | null;
   editedAt?: string | null;
   isPinned?: boolean;
   buyerSeenAt?: string | null;
@@ -270,11 +274,24 @@ export function Header({
     : null;
   const accountDisplayName =
     user?.firstName?.trim() || user?.username?.trim() || user?.email?.trim() || "User";
+  const unreadCancelledNotifications = useMemo(
+    () => cancelledNotifications.filter((item) => !item.isRead),
+    [cancelledNotifications]
+  );
+  const unreadPurchaseNotifications = useMemo(
+    () => purchaseNotifications.filter((item) => !item.isRead),
+    [purchaseNotifications]
+  );
+  const unreadSoldNotifications = useMemo(
+    () => soldNotifications.filter((item) => !item.isRead),
+    [soldNotifications]
+  );
+  const unreadSystemNotifications = useMemo(
+    () => systemNotifications.filter((item) => !item.isRead),
+    [systemNotifications]
+  );
   const totalNotificationUnread = systemUnreadCount + orderUnreadCounts.total;
-  const notificationHasOrderItems =
-    cancelledNotifications.length > 0 ||
-    purchaseNotifications.length > 0 ||
-    soldNotifications.length > 0;
+  const notificationHasOrderItems = totalNotificationUnread > 0;
   const orderUnreadBadge =
     orderUnreadCounts.total > 9 ? "9+" : String(Math.max(0, orderUnreadCounts.total));
   const systemUnreadBadge =
@@ -283,6 +300,7 @@ export function Header({
     activePartyName?.slice(0, 2).toUpperCase() ??
     activePartyFallback.slice(0, 2).toUpperCase();
   const activePartyAvatar = activeParty?.avatarUrl ?? null;
+  const activePartyAvatarBorderUrl = activeParty?.avatarBorderUrl ?? null;
   const activePartyOnline = activeParty?.online ?? false;
   const applySystemNotificationPayload = useCallback((payload: unknown) => {
     const data =
@@ -430,6 +448,7 @@ export function Header({
     createdAt: msg.createdAt ?? null,
       senderName: msg.sender?.name ?? msg.sender?.email ?? null,
       senderAvatar: msg.sender?.avatarUrl ?? null,
+      senderAvatarBorderUrl: msg.sender?.avatarBorderUrl ?? null,
       type: msg.type ?? 'text',
       stickerPath: msg.stickerPath ?? null,
     deletedAt: msg.deletedAt ?? null,
@@ -488,6 +507,7 @@ const normalizeParticipant = (participant?: any): HeaderChatParticipant => {
     name: participant?.name ?? null,
     email: participant?.email ?? null,
     avatarUrl: participant?.avatarUrl ?? null,
+    avatarBorderUrl: participant?.avatarBorderUrl ?? null,
     online: isPresenceOnline(
       participant?.presence?.status ?? null,
       lastActive
@@ -549,6 +569,7 @@ const mapSummary = (raw: any): HeaderChatSummary => {
     name: raw.buyer?.name ?? raw.buyer_name ?? null,
     email: raw.buyer?.email ?? raw.buyer_email ?? null,
     avatarUrl: raw.buyer?.avatarUrl ?? raw.buyer_avatar ?? null,
+    avatarBorderUrl: raw.buyer?.avatarBorderUrl ?? raw.buyer_avatar_border ?? null,
     presence: {
       status: raw.buyer?.presence?.status ?? raw.buyer_status ?? null,
       lastActiveAt: raw.buyer?.presence?.lastActiveAt ?? raw.buyer_last_active_at ?? null,
@@ -559,6 +580,7 @@ const mapSummary = (raw: any): HeaderChatSummary => {
     name: raw.seller?.name ?? raw.seller_name ?? null,
     email: raw.seller?.email ?? raw.seller_email ?? null,
     avatarUrl: raw.seller?.avatarUrl ?? raw.seller_avatar ?? null,
+    avatarBorderUrl: raw.seller?.avatarBorderUrl ?? raw.seller_avatar_border ?? null,
     presence: {
       status: raw.seller?.presence?.status ?? raw.seller_status ?? null,
       lastActiveAt: raw.seller?.presence?.lastActiveAt ?? raw.seller_last_active_at ?? null,
@@ -579,6 +601,8 @@ const mapSummary = (raw: any): HeaderChatSummary => {
         : null,
     buyer,
     seller,
+    sellerAvatarBorderUrl:
+      raw.seller?.avatarBorderUrl ?? raw.seller_avatar_border ?? null,
     lastMessage: raw.lastMessage ?? raw.last_body ?? null,
     lastMessageAt:
       raw.lastMessageAt instanceof Date
@@ -732,12 +756,12 @@ const getChatNoteBadgeClass = (result?: string | null) => {
     setNotificationTab("orders");
   };
 
-  useEffect(() => {
-    if (!notificationOpen) return;
-    let active = true;
-    const loadNotifications = async () => {
-      setNotificationLoading(true);
-      setSystemNotificationLoading(true);
+  const loadNotifications = useCallback(
+    async (showLoading = true) => {
+      if (showLoading) {
+        setNotificationLoading(true);
+        setSystemNotificationLoading(true);
+      }
       setNotificationError(null);
       setSystemNotificationError(null);
       try {
@@ -755,7 +779,6 @@ const getChatNoteBadgeClass = (result?: string | null) => {
           ordersRes.json().catch(() => ({})),
           systemRes.json().catch(() => ({})),
         ]);
-        if (!active) return;
         if (!ordersRes.ok) {
           setNotificationError(
             typeof ordersData?.error === "string"
@@ -782,7 +805,6 @@ const getChatNoteBadgeClass = (result?: string | null) => {
           applySystemNotificationPayload(systemData);
         }
       } catch (err) {
-        if (!active) return;
         const message = err instanceof Error ? err.message : "Failed to load";
         setNotificationError(message);
         setSystemNotificationError(message);
@@ -793,17 +815,34 @@ const getChatNoteBadgeClass = (result?: string | null) => {
         setSystemNotifications([]);
         setSystemUnreadCount(0);
       } finally {
-        if (active) {
+        if (showLoading) {
           setNotificationLoading(false);
           setSystemNotificationLoading(false);
         }
       }
+    },
+    [applyOrderNotificationPayload, applySystemNotificationPayload]
+  );
+
+  useEffect(() => {
+    if (!notificationOpen) return;
+    void loadNotifications(true);
+  }, [notificationOpen, loadNotifications]);
+
+  useEffect(() => {
+    const handleRefresh = () => {
+      if (!isAuthenticated) return;
+      void loadNotifications(notificationOpen);
     };
-    loadNotifications();
+
+    window.addEventListener("edugroit-system-notifications-changed", handleRefresh);
+    window.addEventListener("edugroit-order-notifications-changed", handleRefresh);
+
     return () => {
-      active = false;
+      window.removeEventListener("edugroit-system-notifications-changed", handleRefresh);
+      window.removeEventListener("edugroit-order-notifications-changed", handleRefresh);
     };
-  }, [notificationOpen, applyOrderNotificationPayload, applySystemNotificationPayload]);
+  }, [isAuthenticated, loadNotifications, notificationOpen]);
 
   useEffect(() => {
     if (!notificationOpen) return;
@@ -1429,10 +1468,10 @@ const getChatNoteBadgeClass = (result?: string | null) => {
       </div>
 
       {/* Main Header */}
-      <div className={`max-w-7xl mx-auto ${isAppShell ? "px-3 sm:px-5" : "px-4 sm:px-6 lg:px-8"}`}>
-        <div className={`flex justify-between items-center ${isAppShell ? "h-[4.25rem]" : "h-16"}`}>
+      <div className={`max-w-7xl mx-auto overflow-x-clip ${isAppShell ? "px-2.5 sm:px-5" : "px-4 sm:px-6 lg:px-8"}`}>
+        <div className={`flex items-center justify-between ${isAppShell ? "h-[4.1rem] sm:h-[4.25rem]" : "h-16"}`}>
           {/* Left: Hamburger Menu + Logo */}
-          <div className="flex items-center gap-3">
+          <div className="flex min-w-0 flex-1 items-center gap-1.5 sm:gap-3">
             <button
               onClick={toggleSidebarMenu}
               className={`p-2 transition-colors ${
@@ -1451,23 +1490,25 @@ const getChatNoteBadgeClass = (result?: string | null) => {
             {/* Logo */}
             <button 
               onClick={() => onNavigate('home')}
-              className="flex items-center space-x-2"
+              className="flex min-w-0 max-w-full items-center gap-2 sm:gap-3"
             >
-              <div
-                className={`bg-gradient-to-br from-blue-600 to-purple-600 flex items-center justify-center flex-shrink-0 ${
+              <img
+                src="/khqr-assets/gstechkh-logo.png"
+                alt="GSTECHKH"
+                className={`flex-shrink-0 object-contain ${
                   isAppShell
-                    ? "h-11 w-11 rounded-2xl shadow-[0_14px_30px_rgba(59,130,246,0.30)]"
-                    : "w-8 h-8 sm:w-10 sm:h-10 rounded-lg"
+                    ? "h-8 w-8 rounded-2xl shadow-[0_14px_30px_rgba(59,130,246,0.30)] sm:h-11 sm:w-11"
+                    : "h-8 w-8 rounded-lg sm:h-10 sm:w-10"
                 }`}
-              >
-                <span className="text-white font-bold text-lg sm:text-xl">E</span>
-              </div>
+              />
               <span
-                className={`font-bold bg-gradient-to-r from-blue-600 to-purple-600 bg-clip-text text-transparent whitespace-nowrap ${
-                  isAppShell ? "text-xl" : "text-lg sm:text-2xl"
+                className={`min-w-0 truncate font-bold bg-gradient-to-r from-blue-600 to-purple-600 bg-clip-text text-transparent ${
+                  isAppShell
+                    ? "max-w-[5.75rem] text-base sm:max-w-none sm:text-xl"
+                    : "max-w-[7rem] text-base sm:text-2xl"
                 }`}
               >
-                Edugroit
+                GSTECHKH
               </span>
             </button>
           </div>
@@ -1492,7 +1533,7 @@ const getChatNoteBadgeClass = (result?: string | null) => {
           </nav>
 
           {/* Right Side Actions */}
-          <div className={`flex items-center ${isAppShell ? "space-x-1.5" : "space-x-2 md:space-x-4"}`}>
+          <div className={`flex shrink-0 items-center ${isAppShell ? "space-x-0.5 sm:space-x-1.5" : "space-x-1.5 sm:space-x-2 md:space-x-4"}`}>
             <div className={`hidden md:flex items-center gap-2 ${isAppShell ? "hidden" : ""}`}>
               <button
                 className="flex items-center gap-2 rounded-full border border-red-200 bg-red-600 px-3 py-1.5 text-xs font-semibold text-white shadow-sm hover:bg-red-700 transition-colors"
@@ -1525,10 +1566,10 @@ const getChatNoteBadgeClass = (result?: string | null) => {
           <div className="relative" ref={notificationRef}>
             <button
               onClick={handleToggleNotifications}
-              className="relative p-2 text-gray-700 dark:text-gray-300 hover:text-blue-600 dark:hover:text-blue-400 transition-colors"
+              className="relative rounded-lg p-1.5 text-gray-700 transition-colors hover:text-blue-600 dark:text-gray-300 dark:hover:text-blue-400 sm:p-2"
               title="Notifications"
             >
-              <Bell className="w-5 h-5" />
+              <Bell className="h-[1.15rem] w-[1.15rem] sm:h-5 sm:w-5" />
               {totalNotificationUnread > 0 ? (
                 <span className="absolute -right-1 -top-1 inline-flex min-w-[1rem] items-center justify-center rounded-full bg-red-500 px-1 text-[10px] font-semibold leading-4 text-white">
                   {totalNotificationUnread > 9 ? "9+" : totalNotificationUnread}
@@ -1539,21 +1580,22 @@ const getChatNoteBadgeClass = (result?: string | null) => {
             </button>
 
             {notificationOpen && (
-              <div className="absolute right-0 z-40 mt-3 w-80 overflow-hidden rounded-2xl border border-gray-100 bg-white shadow-2xl dark:border-gray-700 dark:bg-gray-900">
-                <div className="border-b border-gray-100 bg-white px-4 py-3 dark:border-gray-800 dark:bg-gray-900">
-                  <div className="flex items-center gap-2">
+              <div className="fixed left-1/2 top-24 z-50 w-[calc(100vw-1rem)] max-w-sm -translate-x-1/2 overflow-hidden rounded-2xl border border-gray-100 bg-white shadow-2xl dark:border-gray-700 dark:bg-gray-900 sm:absolute sm:left-auto sm:right-0 sm:top-full sm:z-40 sm:mt-3 sm:w-80 sm:max-w-none sm:translate-x-0">
+                <div className="border-b border-gray-100 bg-white px-3 py-3 dark:border-gray-800 dark:bg-gray-900 sm:px-4">
+                  <div className="grid grid-cols-2 gap-2">
                     <button
                       type="button"
                       onClick={() => setNotificationTab("orders")}
-                      className={`rounded-full px-3 py-1.5 text-xs font-semibold transition ${
+                      className={`inline-flex min-w-0 items-center justify-center rounded-full px-2.5 py-2 text-[11px] font-semibold whitespace-nowrap transition sm:px-3 sm:py-1.5 sm:text-xs ${
                         notificationTab === "orders"
                           ? "bg-blue-600 text-white"
                           : "border border-gray-200 bg-white text-gray-700 hover:bg-gray-50 dark:border-gray-700 dark:bg-gray-900 dark:text-gray-200"
                       }`}
                     >
-                      Order Notification
+                      <span className="truncate sm:hidden">Orders</span>
+                      <span className="hidden truncate sm:inline">Order Notification</span>
                       {orderUnreadCounts.total > 0 ? (
-                        <span className="ml-2 rounded-full bg-red-500 px-1.5 py-0.5 text-[10px] leading-none text-white">
+                        <span className="ml-1.5 rounded-full bg-red-500 px-1.5 py-0.5 text-[10px] leading-none text-white">
                           {orderUnreadBadge}
                         </span>
                       ) : null}
@@ -1561,15 +1603,16 @@ const getChatNoteBadgeClass = (result?: string | null) => {
                     <button
                       type="button"
                       onClick={() => setNotificationTab("system")}
-                      className={`rounded-full px-3 py-1.5 text-xs font-semibold transition ${
+                      className={`inline-flex min-w-0 items-center justify-center rounded-full px-2.5 py-2 text-[11px] font-semibold whitespace-nowrap transition sm:px-3 sm:py-1.5 sm:text-xs ${
                         notificationTab === "system"
                           ? "bg-blue-600 text-white"
                           : "border border-gray-200 bg-white text-gray-700 hover:bg-gray-50 dark:border-gray-700 dark:bg-gray-900 dark:text-gray-200"
                       }`}
                     >
-                      Notification
+                      <span className="truncate sm:hidden">Alerts</span>
+                      <span className="hidden truncate sm:inline">Notification</span>
                       {systemUnreadCount > 0 ? (
-                        <span className="ml-2 rounded-full bg-red-500 px-1.5 py-0.5 text-[10px] leading-none text-white">
+                        <span className="ml-1.5 rounded-full bg-red-500 px-1.5 py-0.5 text-[10px] leading-none text-white">
                           {systemUnreadBadge}
                         </span>
                       ) : null}
@@ -1578,23 +1621,24 @@ const getChatNoteBadgeClass = (result?: string | null) => {
                 </div>
 
                 {notificationTab === "orders" ? (
-                  <div className="modal-scrollbar max-h-[28rem] overflow-y-auto">
-                    <div className="flex items-center justify-between px-4 py-3">
-                      <div className="text-[11px] font-semibold uppercase tracking-[0.12em] text-gray-500 dark:text-gray-400">
-                        Order Notifications
+                  <div className="modal-scrollbar max-h-[calc(100vh-8rem)] overflow-y-auto sm:max-h-[28rem]">
+                    <div className="flex items-center justify-between gap-3 px-3 py-3 sm:px-4">
+                      <div className="text-[10px] font-semibold uppercase tracking-[0.08em] text-gray-500 dark:text-gray-400 sm:text-[11px] sm:tracking-[0.12em]">
+                        <span className="sm:hidden">Orders</span>
+                        <span className="hidden sm:inline">Order Notifications</span>
                       </div>
                       <button
                         type="button"
                         onClick={handleMarkAllOrderNotificationsRead}
                         disabled={orderUnreadCounts.total <= 0 || orderNotificationSaving !== null}
-                        className="text-xs font-medium text-blue-600 disabled:cursor-not-allowed disabled:text-gray-400 dark:text-blue-400 dark:disabled:text-gray-600"
+                        className="shrink-0 text-[11px] font-medium text-blue-600 disabled:cursor-not-allowed disabled:text-gray-400 dark:text-blue-400 dark:disabled:text-gray-600 sm:text-xs"
                       >
-                        {orderNotificationSaving === "all" ? "Saving..." : "Mark all read"}
+                        {orderNotificationSaving === "all" ? "Saving..." : "Mark all"}
                       </button>
                     </div>
-                    <div className="bg-gray-50 dark:bg-gray-800/50 px-4 py-2 text-[11px] font-semibold tracking-[0.12em] text-gray-500 dark:text-gray-400 flex items-center justify-between">
-                      <span className="flex items-center gap-2">
-                        <span>Cancelled Orders</span>
+                    <div className="bg-gray-50 dark:bg-gray-800/50 px-3 py-2 text-[10px] font-semibold tracking-[0.08em] text-gray-500 dark:text-gray-400 flex items-center justify-between gap-3 sm:px-4 sm:text-[11px] sm:tracking-[0.12em]">
+                      <span className="flex min-w-0 items-center gap-2">
+                        <span className="truncate">Cancelled Orders</span>
                         {orderUnreadCounts.cancelled > 0 ? (
                           <span className="rounded-full bg-red-500 px-1.5 py-0.5 text-[10px] leading-none text-white">
                             {orderUnreadCounts.cancelled > 9 ? "9+" : orderUnreadCounts.cancelled}
@@ -1606,7 +1650,7 @@ const getChatNoteBadgeClass = (result?: string | null) => {
                           setNotificationOpen(false);
                           onNavigate("orders");
                         }}
-                        className="text-red-500 hover:text-red-600 flex items-center gap-1"
+                        className="shrink-0 whitespace-nowrap text-xs text-red-500 hover:text-red-600 flex items-center gap-1"
                       >
                         View all
                         <ChevronRight className="w-3 h-3" />
@@ -1622,12 +1666,12 @@ const getChatNoteBadgeClass = (result?: string | null) => {
                         <div className="px-4 py-4 text-sm text-red-500">
                           {notificationError}
                         </div>
-                      ) : cancelledNotifications.length === 0 ? (
+                      ) : unreadCancelledNotifications.length === 0 ? (
                         <div className="px-4 py-4 text-sm text-gray-500 dark:text-gray-400">
                           No cancelled orders
                         </div>
                       ) : (
-                        cancelledNotifications.map((item) => (
+                        unreadCancelledNotifications.map((item) => (
                           <div
                             key={`cancelled-${item.order_number}`}
                             className={`flex items-start gap-3 px-4 py-3 ${
@@ -1669,9 +1713,9 @@ const getChatNoteBadgeClass = (result?: string | null) => {
                       )}
                     </div>
 
-                    <div className="bg-gray-50 dark:bg-gray-800/50 px-4 py-2 text-[11px] font-semibold tracking-[0.12em] text-gray-500 dark:text-gray-400 flex items-center justify-between">
-                      <span className="flex items-center gap-2">
-                        <span>Purchase Orders</span>
+                    <div className="bg-gray-50 dark:bg-gray-800/50 px-3 py-2 text-[10px] font-semibold tracking-[0.08em] text-gray-500 dark:text-gray-400 flex items-center justify-between gap-3 sm:px-4 sm:text-[11px] sm:tracking-[0.12em]">
+                      <span className="flex min-w-0 items-center gap-2">
+                        <span className="truncate">Purchase Orders</span>
                         {orderUnreadCounts.purchase > 0 ? (
                           <span className="rounded-full bg-red-500 px-1.5 py-0.5 text-[10px] leading-none text-white">
                             {orderUnreadCounts.purchase > 9 ? "9+" : orderUnreadCounts.purchase}
@@ -1683,7 +1727,7 @@ const getChatNoteBadgeClass = (result?: string | null) => {
                           setNotificationOpen(false);
                           onNavigate("orders");
                         }}
-                        className="text-red-500 hover:text-red-600 flex items-center gap-1"
+                        className="shrink-0 whitespace-nowrap text-xs text-red-500 hover:text-red-600 flex items-center gap-1"
                       >
                         View all
                         <ChevronRight className="w-3 h-3" />
@@ -1699,12 +1743,12 @@ const getChatNoteBadgeClass = (result?: string | null) => {
                         <div className="px-4 py-4 text-sm text-red-500">
                           {notificationError}
                         </div>
-                      ) : purchaseNotifications.length === 0 ? (
+                      ) : unreadPurchaseNotifications.length === 0 ? (
                         <div className="px-4 py-4 text-sm text-gray-500">
                           No purchase orders
                         </div>
                       ) : (
-                        purchaseNotifications.map((item) => (
+                        unreadPurchaseNotifications.map((item) => (
                           <div
                             key={item.order_number}
                             className={`flex items-start gap-3 px-4 py-3 ${
@@ -1746,9 +1790,9 @@ const getChatNoteBadgeClass = (result?: string | null) => {
                       )}
                     </div>
 
-                    <div className="bg-gray-50 dark:bg-gray-800/50 px-4 py-2 text-[11px] font-semibold tracking-[0.12em] text-gray-500 dark:text-gray-400 flex items-center justify-between">
-                      <span className="flex items-center gap-2">
-                        <span>Sold Orders</span>
+                    <div className="bg-gray-50 dark:bg-gray-800/50 px-3 py-2 text-[10px] font-semibold tracking-[0.08em] text-gray-500 dark:text-gray-400 flex items-center justify-between gap-3 sm:px-4 sm:text-[11px] sm:tracking-[0.12em]">
+                      <span className="flex min-w-0 items-center gap-2">
+                        <span className="truncate">Sold Orders</span>
                         {orderUnreadCounts.sold > 0 ? (
                           <span className="rounded-full bg-red-500 px-1.5 py-0.5 text-[10px] leading-none text-white">
                             {orderUnreadCounts.sold > 9 ? "9+" : orderUnreadCounts.sold}
@@ -1760,7 +1804,7 @@ const getChatNoteBadgeClass = (result?: string | null) => {
                           setNotificationOpen(false);
                           onNavigate("orders");
                         }}
-                        className="text-red-500 hover:text-red-600 flex items-center gap-1"
+                        className="shrink-0 whitespace-nowrap text-xs text-red-500 hover:text-red-600 flex items-center gap-1"
                       >
                         View all
                         <ChevronRight className="w-3 h-3" />
@@ -1776,12 +1820,12 @@ const getChatNoteBadgeClass = (result?: string | null) => {
                         <div className="px-4 py-4 text-sm text-red-500">
                           {notificationError}
                         </div>
-                      ) : soldNotifications.length === 0 ? (
+                      ) : unreadSoldNotifications.length === 0 ? (
                         <div className="px-4 py-4 text-center text-sm text-gray-500 dark:text-gray-400">
                           No new sold orders
                         </div>
                       ) : (
-                        soldNotifications.map((item) => (
+                        unreadSoldNotifications.map((item) => (
                           <div
                             key={item.order_number}
                             className={`flex items-start gap-3 px-4 py-3 ${
@@ -1824,16 +1868,16 @@ const getChatNoteBadgeClass = (result?: string | null) => {
                     </div>
                   </div>
                 ) : (
-                  <div className="modal-scrollbar max-h-[28rem] overflow-y-auto divide-y divide-gray-100 dark:divide-gray-800">
-                    <div className="flex items-center justify-between px-4 py-3">
-                      <div className="text-[11px] font-semibold uppercase tracking-[0.12em] text-gray-500 dark:text-gray-400">
+                  <div className="modal-scrollbar max-h-[calc(100vh-8rem)] overflow-y-auto divide-y divide-gray-100 dark:divide-gray-800 sm:max-h-[28rem]">
+                    <div className="flex items-center justify-between gap-3 px-3 py-3 sm:px-4">
+                      <div className="text-[10px] font-semibold uppercase tracking-[0.08em] text-gray-500 dark:text-gray-400 sm:text-[11px] sm:tracking-[0.12em]">
                         System Notifications
                       </div>
                       <button
                         type="button"
                         onClick={handleMarkAllSystemNotificationsRead}
                         disabled={systemUnreadCount <= 0 || systemNotificationSaving !== null}
-                        className="text-xs font-medium text-blue-600 disabled:cursor-not-allowed disabled:text-gray-400 dark:text-blue-400 dark:disabled:text-gray-600"
+                        className="shrink-0 text-[11px] font-medium text-blue-600 disabled:cursor-not-allowed disabled:text-gray-400 dark:text-blue-400 dark:disabled:text-gray-600 sm:text-xs"
                       >
                         {systemNotificationSaving === "all" ? "Saving..." : "Mark all read"}
                       </button>
@@ -1846,12 +1890,12 @@ const getChatNoteBadgeClass = (result?: string | null) => {
                       <div className="px-4 py-4 text-sm text-red-500">
                         {systemNotificationError}
                       </div>
-                    ) : systemNotifications.length === 0 ? (
+                    ) : unreadSystemNotifications.length === 0 ? (
                       <div className="px-4 py-4 text-sm text-gray-500 dark:text-gray-400">
                         No notifications
                       </div>
                     ) : (
-                      systemNotifications.map((item) => {
+                      unreadSystemNotifications.map((item) => {
                         const iconNode =
                           item.icon === "security" ? (
                             <Bell className="h-4 w-4" />
@@ -1931,9 +1975,9 @@ const getChatNoteBadgeClass = (result?: string | null) => {
           <div className="relative">
             <button
               onClick={handleToggleChatWidget}
-              className="relative p-2 text-gray-700 dark:text-gray-300 hover:text-blue-600 dark:hover:text-blue-400 transition-colors"
+              className="relative rounded-lg p-1.5 text-gray-700 transition-colors hover:text-blue-600 dark:text-gray-300 dark:hover:text-blue-400 sm:p-2"
             >
-              <MessageCircle className="w-5 h-5" />
+              <MessageCircle className="h-[1.15rem] w-[1.15rem] sm:h-5 sm:w-5" />
               {hasChatActivity && (
                 <span className="absolute top-1 right-1 block w-2 h-2 rounded-full bg-green-500" />
               )}
@@ -2086,6 +2130,9 @@ const getChatNoteBadgeClass = (result?: string | null) => {
                           const avatar = isAdmin
                             ? counterpart?.avatarUrl ?? null
                             : conv.sellerAvatar ?? counterpart?.avatarUrl ?? null;
+                          const avatarBorderUrl = isAdmin
+                            ? counterpart?.avatarBorderUrl ?? null
+                            : conv.sellerAvatarBorderUrl ?? counterpart?.avatarBorderUrl ?? null;
                           const online = isAdmin
                             ? !!counterpart?.online
                             : typeof conv.sellerOnline === "boolean"
@@ -2110,17 +2157,15 @@ const getChatNoteBadgeClass = (result?: string | null) => {
                             >
                               <div className="flex items-center gap-3">
                                 <div className="relative">
-                                  {avatar ? (
-                                    <img
-                                      src={avatar}
-                                      alt={displayName}
-                                      className="w-10 h-10 rounded-full object-cover border border-blue-200"
-                                    />
-                                  ) : (
-                                    <div className="w-10 h-10 rounded-full bg-gradient-to-r from-blue-500 to-purple-500 text-white flex items-center justify-center text-sm font-semibold">
-                                      {initials}
-                                    </div>
-                                  )}
+                                  <ProfileAvatar
+                                    src={avatar}
+                                    alt={displayName}
+                                    fallback={initials}
+                                    borderUrl={avatarBorderUrl}
+                                    className="h-10 w-10"
+                                    contentClassName="border border-blue-200"
+                                    fallbackClassName="text-sm"
+                                  />
                                   {online && (
                                     <span className="absolute -right-0.5 -bottom-0.5 w-3 h-3 rounded-full bg-green-400 border-2 border-white dark:border-gray-900" />
                                   )}
@@ -2192,17 +2237,15 @@ const getChatNoteBadgeClass = (result?: string | null) => {
                       </button>
                       <div className="flex items-center gap-3 min-w-0 flex-1">
                         <div className="relative">
-                          {activePartyAvatar ? (
-                            <img
-                              src={activePartyAvatar}
-                              alt={activePartyName ?? activePartyFallback}
-                              className="w-10 h-10 rounded-full object-cover border border-white/30"
-                            />
-                          ) : (
-                            <div className="w-10 h-10 rounded-full bg-white/20 text-white flex items-center justify-center text-sm font-semibold">
-                              {activePartyInitials}
-                            </div>
-                          )}
+                          <ProfileAvatar
+                            src={activePartyAvatar}
+                            alt={activePartyName ?? activePartyFallback}
+                            fallback={activePartyInitials}
+                            borderUrl={activePartyAvatarBorderUrl}
+                            className="h-10 w-10"
+                            contentClassName="border border-white/30"
+                            fallbackClassName="bg-white/20 text-sm"
+                          />
                           {activePartyOnline && (
                             <span className="absolute -right-0.5 -bottom-0.5 w-3 h-3 rounded-full bg-green-400 border-2 border-white" />
                           )}
@@ -2289,27 +2332,26 @@ const getChatNoteBadgeClass = (result?: string | null) => {
                             chatWidgetSeenMessageId === msg.id &&
                             !!activePartyName &&
                             !!seenAt;
-                          const seenAvatarElement = activePartyAvatar ? (
-                            <img
+                          const seenAvatarElement = (
+                            <ProfileAvatar
                               src={activePartyAvatar}
                               alt={activePartyName ?? activePartyFallback}
-                              className="w-full h-full object-cover"
+                              fallback={activePartyInitials}
+                              borderUrl={activePartyAvatarBorderUrl}
+                              className="h-full w-full"
+                              fallbackClassName="text-[10px]"
                             />
-                          ) : (
-                            <div className="w-full h-full rounded-full bg-gradient-to-r from-blue-500 to-purple-500 text-white flex items-center justify-center text-[10px] font-semibold">
-                                {activePartyInitials}
-                            </div>
                           );
-                          const avatarNode = msg.senderAvatar ? (
-                            <img
+                          const avatarNode = (
+                            <ProfileAvatar
                               src={msg.senderAvatar}
                               alt={displayName}
-                              className="w-8 h-8 rounded-full object-cover border border-white/40"
+                              fallback={displayName.trim().slice(0, 2).toUpperCase()}
+                              borderUrl={msg.senderAvatarBorderUrl}
+                              className="h-8 w-8"
+                              contentClassName="border border-white/40"
+                              fallbackClassName="text-xs"
                             />
-                          ) : (
-                            <div className="w-8 h-8 rounded-full bg-gradient-to-r from-blue-500 to-purple-500 text-white flex items-center justify-center text-xs font-semibold">
-                              {displayName.trim().slice(0, 2).toUpperCase()}
-                            </div>
                           );
                           return (
                             <div
@@ -2680,9 +2722,9 @@ const getChatNoteBadgeClass = (result?: string | null) => {
           {/* Cart */}
             <button
               onClick={() => onNavigate('cart')}
-              className="relative p-2 text-gray-700 dark:text-gray-300 hover:text-blue-600 dark:hover:text-blue-400 transition-colors"
+              className="relative rounded-lg p-1.5 text-gray-700 transition-colors hover:text-blue-600 dark:text-gray-300 dark:hover:text-blue-400 sm:p-2"
             >
-              <ShoppingCart className="w-5 h-5" />
+              <ShoppingCart className="h-[1.15rem] w-[1.15rem] sm:h-5 sm:w-5" />
               {cartCount > 0 && (
                 <span className="absolute -top-1 -right-1 bg-red-500 text-white text-xs rounded-full w-5 h-5 flex items-center justify-center">
                   {cartCount}
@@ -2701,20 +2743,17 @@ const getChatNoteBadgeClass = (result?: string | null) => {
                   onClick={() => setAccountPopupOpen(!accountPopupOpen)}
                   className="p-2 hover:bg-gray-100 dark:hover:bg-gray-800 rounded-lg transition-colors"
                 >
-                  {user.avatarUrl ? (
-                    <img
-                      src={user.avatarUrl}
-                      alt={accountDisplayName}
-                      className="w-8 h-8 rounded-full ring-2 ring-blue-500 object-cover"
-                    />
-                  ) : (
-                    <div className="w-8 h-8 rounded-full ring-2 ring-blue-500 bg-gradient-to-r from-blue-500 to-purple-500 text-white flex items-center justify-center text-sm font-semibold">
-                      {(user?.firstName || user?.username || user?.email || "U")
-                        .trim()
-                        .slice(0, 2)
-                        .toUpperCase()}
-                    </div>
-                  )}
+                  <ProfileAvatar
+                    src={user.avatarUrl}
+                    alt={accountDisplayName}
+                    fallback={(user?.firstName || user?.username || user?.email || "U")
+                      .trim()
+                      .slice(0, 2)
+                      .toUpperCase()}
+                    borderUrl={user.avatarBorderUrl}
+                    className="h-8 w-8 rounded-full ring-2 ring-blue-500"
+                    fallbackClassName="text-sm"
+                  />
                 </button>
 
                 {/* Account Popup */}
@@ -2803,22 +2842,19 @@ const getChatNoteBadgeClass = (result?: string | null) => {
               >
                 <button
                   onClick={() => setAccountPopupOpen(!accountPopupOpen)}
-                  className="p-1.5 hover:bg-gray-100 dark:hover:bg-gray-800 rounded-lg transition-colors"
+                  className="rounded-lg p-1 hover:bg-gray-100 dark:hover:bg-gray-800 transition-colors sm:p-1.5"
                 >
-                  {user.avatarUrl ? (
-                    <img
-                      src={user.avatarUrl}
-                      alt={accountDisplayName}
-                      className="w-8 h-8 rounded-full ring-2 ring-blue-500 object-cover"
-                    />
-                  ) : (
-                    <div className="w-8 h-8 rounded-full ring-2 ring-blue-500 bg-gradient-to-r from-blue-500 to-purple-500 text-white flex items-center justify-center text-sm font-semibold">
-                      {(user?.firstName || user?.username || user?.email || "U")
-                        .trim()
-                        .slice(0, 2)
-                        .toUpperCase()}
-                    </div>
-                  )}
+                  <ProfileAvatar
+                    src={user.avatarUrl}
+                    alt={accountDisplayName}
+                    fallback={(user?.firstName || user?.username || user?.email || "U")
+                      .trim()
+                      .slice(0, 2)
+                      .toUpperCase()}
+                    borderUrl={user.avatarBorderUrl}
+                    className="h-7 w-7 rounded-full ring-2 ring-blue-500 sm:h-8 sm:w-8"
+                    fallbackClassName="text-sm"
+                  />
                 </button>
 
                 {/* Mobile Account Popup */}

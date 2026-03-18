@@ -7,7 +7,7 @@ const serverUrl =
 
 const config: CapacitorConfig = {
   appId: "com.edugroit.app",
-  appName: "Edugroit",
+  appName: "GSTECHKH",
   webDir: "capacitor-web",
   server: {
     url: serverUrl,

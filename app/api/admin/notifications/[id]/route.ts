@@ -82,7 +82,13 @@ export async function PATCH(
       }
 
       const [userRows] = await db.query<UserRow[]>(
-        `SELECT id FROM users WHERE email = ? LIMIT 1`,
+        `
+        SELECT id
+        FROM users
+        WHERE LOWER(email) = LOWER(?)
+          AND deleted_at IS NULL
+        LIMIT 1
+        `,
         [recipientEmail]
       );
       if (userRows.length === 0) {

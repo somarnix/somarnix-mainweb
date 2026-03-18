@@ -15,12 +15,29 @@ type ReviewRow = RowDataPacket & {
   last_name: string | null;
   username: string | null;
   avatar_url: string | null;
+  avatar_border_url: string | null;
 };
 
 type SummaryRow = RowDataPacket & {
   avg_rating: number | null;
   rating_count: number;
 };
+
+async function hasColumn(tableName: string, columnName: string) {
+  const [rows] = await db.query<RowDataPacket[]>(
+    `
+    SELECT 1
+    FROM information_schema.columns
+    WHERE table_schema = DATABASE()
+      AND table_name = ?
+      AND column_name = ?
+    LIMIT 1
+    `,
+    [tableName, columnName]
+  );
+
+  return rows.length > 0;
+}
 
 export async function POST(
   req: Request,
@@ -60,6 +77,10 @@ export async function POST(
   }
 
   const productId = pRows[0].id;
+  const hasAvatarBorderColumn = await hasColumn("users", "avatar_border_url");
+  const avatarBorderSelect = hasAvatarBorderColumn
+    ? "u.avatar_border_url"
+    : "NULL AS avatar_border_url";
 
   const [purchaseRows] = await db.query<RowDataPacket[]>(
     `
@@ -103,7 +124,8 @@ export async function POST(
       u.first_name,
       u.last_name,
       u.username,
-      u.avatar_url
+      u.avatar_url,
+      ${avatarBorderSelect}
     FROM product_reviews r
     JOIN users u ON u.id = r.user_id
     WHERE r.product_id = ? AND r.user_id = ?
@@ -134,6 +156,7 @@ export async function POST(
             reviewRows[0].username ||
             "User",
           user_avatar: reviewRows[0].avatar_url,
+          user_avatar_border: reviewRows[0].avatar_border_url,
         };
 
   const [summaryRows] = await db.query<SummaryRow[]>(

@@ -22,7 +22,7 @@ const shellHtml = `<!doctype html>
   <head>
     <meta charset="utf-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1" />
-    <title>Edugroit</title>
+    <title>GSTECHKH</title>
     <style>
       :root {
         color-scheme: light dark;
@@ -51,7 +51,7 @@ const shellHtml = `<!doctype html>
   </head>
   <body>
     <div class="card">
-      <p>Loading Edugroit...</p>
+      <p>Loading GSTECHKH...</p>
     </div>
   </body>
 </html>

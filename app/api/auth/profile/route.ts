@@ -3,6 +3,7 @@ import type { RowDataPacket, ResultSetHeader } from "mysql2";
 import { db } from "@/lib/db";
 import { getAuthUser } from "@/lib/auth";
 import { createSystemNotification } from "@/lib/system-notifications";
+import { normalizeAvatarBorderUrl } from "@/app/lib/avatar-borders";
 
 function isObject(v: unknown): v is Record<string, unknown> {
   return typeof v === "object" && v !== null;
@@ -25,6 +26,26 @@ function normalizePhone(v: unknown, max = 40): string | null {
   return normalized.length > max ? normalized.slice(0, max) : normalized;
 }
 
+function hasOwn(value: object, key: string) {
+  return Object.prototype.hasOwnProperty.call(value, key);
+}
+
+async function hasColumn(tableName: string, columnName: string) {
+  const [rows] = await db.query<RowDataPacket[]>(
+    `
+    SELECT 1
+    FROM information_schema.columns
+    WHERE table_schema = DATABASE()
+      AND table_name = ?
+      AND column_name = ?
+    LIMIT 1
+    `,
+    [tableName, columnName]
+  );
+
+  return rows.length > 0;
+}
+
 /* ================= REQUEST BODY TYPE ================= */
 
 type ProfileUpdateBody = {
@@ -36,6 +57,7 @@ type ProfileUpdateBody = {
   bio?: unknown;
   phone?: unknown;
   avatarUrl?: unknown;
+  avatarBorderUrl?: unknown;
 
   newEmail?: unknown;
   newPassword?: unknown;
@@ -57,6 +79,7 @@ interface UserRow extends RowDataPacket {
   bio: string | null;
   phone: string | null;
   avatar_url: string | null;
+  avatar_border_url: string | null;
 
   created_at: string | null;
   updated_at: string | null;
@@ -72,11 +95,16 @@ interface UserRow extends RowDataPacket {
 export async function GET(req: Request): Promise<Response> {
   const auth = await getAuthUser(req);
   if (!auth) return Response.json({ error: "Unauthorized" }, { status: 401 });
+  const hasAvatarBorderColumn = await hasColumn("users", "avatar_border_url");
+  const avatarBorderSelect = hasAvatarBorderColumn
+    ? "avatar_border_url"
+    : "NULL AS avatar_border_url";
 
   const [rows] = await db.query<UserRow[]>(
     `SELECT
       id, email, role,
       first_name, last_name, username, birth_date, place, bio, phone, avatar_url,
+      ${avatarBorderSelect},
       created_at, updated_at,
       is_active, deleted_at
      FROM users
@@ -110,6 +138,7 @@ export async function GET(req: Request): Promise<Response> {
       bio: u.bio,
       phone: u.phone,
       avatarUrl: u.avatar_url,
+      avatarBorderUrl: u.avatar_border_url,
 
       joinedDate: u.created_at,
       updatedAt: u.updated_at,
@@ -122,6 +151,7 @@ export async function GET(req: Request): Promise<Response> {
 export async function PUT(req: Request): Promise<Response> {
   const auth = await getAuthUser(req);
   if (!auth) return Response.json({ error: "Unauthorized" }, { status: 401 });
+  const hasAvatarBorderColumn = await hasColumn("users", "avatar_border_url");
 
   const raw: unknown = await req.json().catch(() => ({}));
   const body: ProfileUpdateBody = isObject(raw) ? (raw as ProfileUpdateBody) : {};
@@ -135,6 +165,10 @@ export async function PUT(req: Request): Promise<Response> {
   const bio = cleanStr(body.bio, 500);
   const phone = normalizePhone(body.phone, 40);
   const avatarUrl = cleanStr(body.avatarUrl, 255);
+  const avatarBorderUrl =
+    hasAvatarBorderColumn && isObject(body) && hasOwn(body, "avatarBorderUrl")
+      ? normalizeAvatarBorderUrl(body.avatarBorderUrl)
+      : undefined;
 
   // optional email/password change fields
   const newEmail = cleanStr(body.newEmail, 255);
@@ -170,10 +204,17 @@ export async function PUT(req: Request): Promise<Response> {
 
   // build dynamic update query
   const sets: string[] = [];
-  const values: Array<string | number> = [];
+  const values: Array<string | number | null> = [];
 
   const add = (sql: string, val: string | null) => {
     if (val !== null && val !== undefined) {
+      sets.push(sql);
+      values.push(val);
+    }
+  };
+
+  const addNullable = (sql: string, val: string | null | undefined) => {
+    if (val !== undefined) {
       sets.push(sql);
       values.push(val);
     }
@@ -200,6 +241,7 @@ export async function PUT(req: Request): Promise<Response> {
 
   add("phone = ?", phone);
   add("avatar_url = ?", avatarUrl);
+  addNullable("avatar_border_url = ?", avatarBorderUrl);
 
   add("email = ?", newEmail);
   add("password_hash = ?", newPasswordHash);

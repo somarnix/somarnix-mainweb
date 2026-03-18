@@ -32,9 +32,11 @@ import {
 import { Button } from "../../components/ui/button";
 import { Input } from "../../components/ui/input";
 import { Pagination } from "../../components/Pagination";
+import { ProfileAvatar } from "../../components/ProfileAvatar";
 import { useAuth } from "../../contexts/AuthContext";
 import { useLanguage } from "../../contexts/LanguageContext";
 import { useTheme } from "../../contexts/ThemeContext";
+import { AVATAR_BORDER_URLS } from "../../lib/avatar-borders";
 
 interface ProfilePageProps {
   onNavigate: (page: string) => void;
@@ -1056,6 +1058,38 @@ export function ProfilePage({ onNavigate, onOpenProductDetail, onOpenToolDetail,
     { id: "my-courses", name: translate("profile.myCourses", "My Courses"), icon: ShoppingBag },
     { id: "settings", name: translate("profile.settings", "Settings"), icon: Settings },
   ];
+  const profileTabsRef = useRef<HTMLDivElement | null>(null);
+  const profileTabButtonRefs = useRef<Partial<Record<TabId, HTMLButtonElement | null>>>({});
+
+  useEffect(() => {
+    if (typeof window === "undefined") return;
+
+    const activeButton = profileTabButtonRefs.current[activeTab];
+    if (!activeButton) return;
+
+    if (window.innerWidth < 1024) {
+      activeButton.scrollIntoView({
+        behavior: "smooth",
+        block: "nearest",
+        inline: "center",
+      });
+      return;
+    }
+
+    const container = profileTabsRef.current;
+    if (!container) return;
+
+    const containerRect = container.getBoundingClientRect();
+    const buttonRect = activeButton.getBoundingClientRect();
+
+    if (buttonRect.left < containerRect.left || buttonRect.right > containerRect.right) {
+      activeButton.scrollIntoView({
+        behavior: "smooth",
+        block: "nearest",
+        inline: "nearest",
+      });
+    }
+  }, [activeTab]);
 
   const statsCards = useMemo(
     () => [
@@ -1285,53 +1319,184 @@ export function ProfilePage({ onNavigate, onOpenProductDetail, onOpenToolDetail,
   
   return (
     <div className="min-h-screen bg-gray-50 dark:bg-gray-900">
-      <div className="bg-gradient-to-r from-blue-600 to-purple-600 py-12">
-        <div className="max-w-7xl mx-auto px-4">
-          <div className="flex flex-col md:flex-row gap-6 items-center">
-            <div className="relative">
-              <img
-                src={user.avatarUrl || "/Job Jik.jpg"}
-                alt={displayName}
-                className="w-32 h-32 rounded-full border-4 border-white shadow-xl object-cover"
-              />
+      <div className="bg-gradient-to-r from-blue-600 to-purple-600 py-8 sm:py-10 lg:py-12">
+        <div className="max-w-7xl mx-auto px-4 sm:px-6">
+          <div className="flex flex-col gap-6 md:flex-row md:items-center md:gap-8">
+            <div className="relative mx-auto w-fit md:mx-0">
+              <div className="rounded-[2rem] bg-white/12 p-2 shadow-[0_18px_40px_rgba(15,23,42,0.28)] ring-1 ring-white/25 backdrop-blur-sm">
+                <ProfileAvatar
+                  src={user.avatarUrl || "/Job Jik.jpg"}
+                  alt={displayName}
+                  fallback={displayName}
+                  borderUrl={user.avatarBorderUrl}
+                  className="h-24 w-24 sm:h-28 sm:w-28 lg:h-32 lg:w-32"
+                  insetClassName={user.avatarBorderUrl ? "inset-[14.5%]" : undefined}
+                  contentClassName="border-4 border-white/90 shadow-xl"
+                  fallbackClassName="text-xl sm:text-2xl lg:text-3xl"
+                />
+              </div>
 
               <button
                 onClick={() => setAvatarOpen((v) => !v)}
-                className="absolute bottom-0 right-0 w-10 h-10 bg-blue-600 rounded-full flex items-center justify-center text-white"
+                className="absolute bottom-1 right-1 flex h-10 w-10 items-center justify-center rounded-full border-2 border-white bg-blue-600 text-white shadow-lg transition hover:scale-105 sm:h-11 sm:w-11"
                 type="button"
               >
                 <Camera className="w-5 h-5" />
               </button>
 
               {avatarOpen && (
-                <div className="absolute top-full mt-3 left-1/2 -translate-x-1/2 bg-white dark:bg-gray-800 rounded-xl shadow-xl p-3 w-64 z-50">
-                  <div className="text-sm font-semibold mb-2">
-                    {t("profile.chooseAvatar")}
+                <>
+                  <button
+                    type="button"
+                    aria-label="Close avatar picker"
+                    onClick={() => setAvatarOpen(false)}
+                    className="fixed inset-0 z-40 bg-slate-950/30 backdrop-blur-[2px]"
+                  />
+
+                  <div className="fixed inset-x-3 bottom-4 top-[5.5rem] z-50 overflow-hidden rounded-[1.5rem] border border-slate-200/80 bg-white/95 shadow-[0_24px_60px_rgba(15,23,42,0.22)] backdrop-blur dark:border-gray-700 dark:bg-gray-900/95 sm:absolute sm:inset-x-auto sm:bottom-auto sm:left-1/2 sm:top-full sm:mt-4 sm:h-auto sm:max-h-[min(80vh,42rem)] sm:w-[26rem] sm:max-w-[calc(100vw-2rem)] sm:-translate-x-1/2">
+                    <div className="flex h-full flex-col overflow-hidden">
+                      <div className="flex items-start justify-between gap-3 border-b border-slate-200/70 px-4 pb-3 pt-4 dark:border-gray-700 sm:border-b-0 sm:pb-0">
+                        <div>
+                          <div className="text-sm font-semibold text-slate-900 dark:text-white">
+                            {t("profile.chooseAvatar")}
+                          </div>
+                          <p className="mt-1 text-xs text-slate-500 dark:text-slate-400">
+                            Update your photo and pick a border style that fits your profile.
+                          </p>
+                        </div>
+                        <button
+                          type="button"
+                          onClick={() => setAvatarOpen(false)}
+                          className="rounded-full border border-slate-200 px-2.5 py-1 text-xs font-semibold text-slate-500 transition hover:bg-slate-100 dark:border-gray-700 dark:text-slate-300 dark:hover:bg-gray-800"
+                        >
+                          Close
+                        </button>
+                      </div>
+
+                      <div className="flex-1 overflow-y-auto px-4 pb-4 pt-4">
+                        <div className="flex items-center gap-4 rounded-[1.25rem] bg-gradient-to-br from-slate-100 via-white to-blue-50 p-4 dark:from-gray-800 dark:via-gray-900 dark:to-slate-800">
+                          <ProfileAvatar
+                            src={user.avatarUrl || "/Job Jik.jpg"}
+                            alt={displayName}
+                            fallback={displayName}
+                            borderUrl={user.avatarBorderUrl}
+                            className="h-20 w-20 sm:h-24 sm:w-24"
+                            insetClassName={user.avatarBorderUrl ? "inset-[14.5%]" : undefined}
+                            contentClassName="border-4 border-white/90 shadow-lg"
+                          />
+                          <div className="min-w-0">
+                            <div className="text-xs font-semibold uppercase tracking-[0.18em] text-blue-600 dark:text-blue-300">
+                              Current style
+                            </div>
+                            <div className="mt-1 truncate text-sm font-semibold text-slate-900 dark:text-white">
+                              {displayName}
+                            </div>
+                            <div className="mt-1 text-xs text-slate-500 dark:text-slate-400">
+                              {user.avatarBorderUrl ? "Border applied" : "No border selected"}
+                            </div>
+                          </div>
+                        </div>
+
+                        <div className="mt-5 text-sm font-semibold text-slate-900 dark:text-slate-100">
+                          {t("profile.chooseAvatar")}
+                        </div>
+                        <div className="mt-3 grid grid-cols-2 gap-3">
+                          {AVATARS.map((src) => (
+                            <button
+                              key={src}
+                              onClick={async () => {
+                                await updateProfile({ avatarUrl: src });
+                                setAvatarOpen(false);
+                              }}
+                              className={`overflow-hidden rounded-[1rem] border transition hover:-translate-y-0.5 hover:shadow-md ${
+                                user.avatarUrl === src
+                                  ? "border-blue-500 ring-2 ring-blue-100 dark:ring-blue-900/60"
+                                  : "border-slate-200 dark:border-gray-700"
+                              }`}
+                              type="button"
+                            >
+                              <img
+                                src={src}
+                                alt="Avatar option"
+                                className="h-24 w-full object-cover sm:h-28"
+                              />
+                            </button>
+                          ))}
+                        </div>
+
+                        <div className="mt-5 flex items-center justify-between gap-3">
+                          <div className="text-sm font-semibold text-slate-900 dark:text-slate-100">
+                            Choose Border
+                          </div>
+                          <div className="text-[11px] font-medium uppercase tracking-[0.18em] text-slate-400">
+                            {AVATAR_BORDER_URLS.length} styles
+                          </div>
+                        </div>
+                        <div className="mt-3 grid grid-cols-3 gap-3">
+                          <button
+                            type="button"
+                            onClick={async () => {
+                              await updateProfile({ avatarBorderUrl: null });
+                              setAvatarOpen(false);
+                            }}
+                            className={`group flex aspect-square flex-col items-center justify-center rounded-[1.1rem] border p-3 text-center transition hover:-translate-y-0.5 hover:shadow-md ${
+                              user.avatarBorderUrl
+                                ? "border-slate-200 bg-slate-50 text-slate-600 dark:border-gray-700 dark:bg-gray-800/80 dark:text-gray-300"
+                                : "border-blue-500 bg-blue-50 text-blue-600 ring-2 ring-blue-100 dark:border-blue-400 dark:bg-blue-500/10 dark:text-blue-300 dark:ring-blue-900/60"
+                            }`}
+                          >
+                            <span className="text-xs font-semibold uppercase tracking-[0.16em]">
+                              None
+                            </span>
+                            <span className="mt-2 text-[11px] leading-4 text-slate-400 dark:text-slate-500">
+                              Clean avatar
+                            </span>
+                          </button>
+                          {AVATAR_BORDER_URLS.map((borderUrl) => (
+                            <button
+                              key={borderUrl}
+                              type="button"
+                              onClick={async () => {
+                                await updateProfile({ avatarBorderUrl: borderUrl });
+                                setAvatarOpen(false);
+                              }}
+                              className={`group relative aspect-square rounded-[1.1rem] border p-3 transition hover:-translate-y-0.5 hover:shadow-md ${
+                                user.avatarBorderUrl === borderUrl
+                                  ? "border-blue-500 bg-blue-50 ring-2 ring-blue-100 dark:border-blue-400 dark:bg-blue-500/10 dark:ring-blue-900/60"
+                                  : "border-slate-200 bg-white dark:border-gray-700 dark:bg-gray-800/70"
+                              }`}
+                            >
+                              <div className="flex h-full items-center justify-center rounded-[0.9rem] bg-gradient-to-br from-slate-100 via-white to-slate-50 p-2 dark:from-gray-800 dark:via-gray-900 dark:to-slate-800">
+                                <ProfileAvatar
+                                  src={user.avatarUrl || "/Job Jik.jpg"}
+                                  alt={displayName}
+                                  fallback={displayName}
+                                  borderUrl={borderUrl}
+                                  className="h-full w-full max-h-[5.5rem] max-w-[5.5rem]"
+                                  insetClassName="inset-[14.5%]"
+                                  contentClassName="shadow-md"
+                                />
+                              </div>
+                              {user.avatarBorderUrl === borderUrl ? (
+                                <span className="absolute right-2 top-2 rounded-full bg-blue-600 px-1.5 py-0.5 text-[10px] font-semibold text-white">
+                                  On
+                                </span>
+                              ) : null}
+                            </button>
+                          ))}
+                        </div>
+                      </div>
+                    </div>
                   </div>
-                  <div className="grid grid-cols-2 gap-3">
-                    {AVATARS.map((src) => (
-                      <button
-                        key={src}
-                        onClick={async () => {
-                          await updateProfile({ avatarUrl: src });
-                          setAvatarOpen(false);
-                        }}
-                        className="rounded-lg overflow-hidden border"
-                        type="button"
-                      >
-                        <img src={src} className="w-full h-24 object-cover" />
-                      </button>
-                    ))}
-                  </div>
-                </div>
+                </>
               )}
             </div>
 
             <div className="flex-1 text-center md:text-left">
-              <h1 className="text-3xl font-bold text-white">{displayName}</h1>
-              <p className="text-blue-100">{user.email}</p>
+              <h1 className="text-2xl font-bold text-white sm:text-3xl">{displayName}</h1>
+              <p className="mt-1 break-all text-sm text-blue-100 sm:text-base">{user.email}</p>
 
-              <div className="flex gap-4 mt-2 justify-center md:justify-start">
+              <div className="mt-3 flex flex-col items-center gap-2 text-sm sm:flex-row sm:flex-wrap sm:gap-4 md:items-start md:justify-start">
                 {!!joinedText && (
                   <span className="text-white flex items-center gap-1">
                     <Calendar className="w-4 h-4" /> {t("profile.joined")} {joinedText}
@@ -1345,17 +1510,17 @@ export function ProfilePage({ onNavigate, onOpenProductDetail, onOpenToolDetail,
               </div>
             </div>
 
-            <div className="flex gap-3">
+            <div className="flex w-full flex-col gap-3 sm:flex-row md:w-auto">
               <Button
                 variant="outline"
-                className="border-white text-white"
+                className="w-full border-white/30 bg-white/10 text-white backdrop-blur hover:bg-white/20 sm:w-auto"
                 onClick={() => setActiveTab("settings")}
               >
                 <Settings className="w-4 h-4 mr-2" /> {t("profile.settings")}
               </Button>
               <Button
                 variant="outline"
-                className="border-white text-white"
+                className="w-full border-white/30 bg-white/10 text-white backdrop-blur hover:bg-white/20 sm:w-auto"
                 onClick={handleLogout}
               >
                 <LogOut className="w-4 h-4 mr-2" /> {t("profile.logout")}
@@ -1366,28 +1531,37 @@ export function ProfilePage({ onNavigate, onOpenProductDetail, onOpenToolDetail,
       </div>
 
       <div className="bg-white dark:bg-gray-800 border-b">
-        <div className="max-w-7xl mx-auto px-4 flex gap-8">
+        <div className="max-w-7xl mx-auto px-4 sm:px-6">
+          <div
+            ref={profileTabsRef}
+            className="flex gap-2 overflow-x-auto whitespace-nowrap scrollbar-hide sm:gap-3"
+          >
           {tabs.map((tab) => {
             const Icon = tab.icon;
             return (
               <button
                 key={tab.id}
+                ref={(node) => {
+                  profileTabButtonRefs.current[tab.id] = node;
+                }}
                 onClick={() => setActiveTab(tab.id)}
-                className={`py-4 flex items-center gap-2 border-b-2 ${
+                className={`inline-flex shrink-0 items-center gap-2 whitespace-nowrap border-b-2 px-1 py-4 text-sm sm:text-base ${
                   activeTab === tab.id
                     ? "border-blue-600 text-blue-600"
                     : "border-transparent text-gray-500"
                 }`}
                 type="button"
               >
-                <Icon className="w-5 h-5" /> {tab.name}
+                <Icon className="h-4 w-4 shrink-0 sm:h-5 sm:w-5" />
+                <span className="whitespace-nowrap">{tab.name}</span>
               </button>
             );
           })}
+          </div>
         </div>
       </div>
 
-      <div className="max-w-7xl mx-auto px-4 py-8">
+      <div className="max-w-7xl mx-auto px-4 py-6 sm:px-6 sm:py-8">
         {activeTab === "overview" && (
           <div className="space-y-6">
             {statsError && (
@@ -1402,21 +1576,21 @@ export function ProfilePage({ onNavigate, onOpenProductDetail, onOpenToolDetail,
               </div>
             )}
 
-            <div className="grid gap-6 md:grid-cols-2 xl:grid-cols-4">
+            <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
               {statsCards.map((card) => {
                 const Icon = card.icon;
                 return (
                   <div
                     key={card.key}
-                    className="rounded-2xl border border-gray-100 bg-white p-5 shadow-sm dark:border-gray-800 dark:bg-gray-900"
+                    className="rounded-2xl border border-gray-100 bg-white p-4 shadow-sm dark:border-gray-800 dark:bg-gray-900 sm:p-5"
                   >
-                    <div className="flex items-center justify-between">
-                      <div className={`flex h-12 w-12 items-center justify-center rounded-full ${card.accent}`}>
+                    <div className="flex items-start justify-between gap-3">
+                      <div className={`flex h-11 w-11 shrink-0 items-center justify-center rounded-full ${card.accent} sm:h-12 sm:w-12`}>
                         <Icon className="h-5 w-5" />
                       </div>
-                      <span className="text-sm text-gray-500 dark:text-gray-400">{card.label}</span>
+                      <span className="text-right text-sm text-gray-500 dark:text-gray-400">{card.label}</span>
                     </div>
-                    <div className="mt-4 text-3xl font-bold text-gray-900 dark:text-white">{card.value}</div>
+                    <div className="mt-4 text-2xl font-bold text-gray-900 dark:text-white sm:text-3xl">{card.value}</div>
                   </div>
                 );
               })}
@@ -1430,8 +1604,8 @@ export function ProfilePage({ onNavigate, onOpenProductDetail, onOpenToolDetail,
             )}
 
             <div className="grid gap-6 lg:grid-cols-2">
-              <div className="rounded-2xl border border-gray-100 bg-white p-6 shadow-sm dark:border-gray-800 dark:bg-gray-900">
-                <div className="mb-4 flex items-center justify-between gap-4">
+              <div className="rounded-2xl border border-gray-100 bg-white p-4 shadow-sm dark:border-gray-800 dark:bg-gray-900 sm:p-6">
+                <div className="mb-4 flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
                   <div>
                     <h3 className="text-lg font-semibold text-gray-900 dark:text-white">
                       {translate("profile.statusBreakdown", "Order status overview")}
@@ -1445,6 +1619,7 @@ export function ProfilePage({ onNavigate, onOpenProductDetail, onOpenToolDetail,
                     variant="outline"
                     onClick={fetchStats}
                     disabled={statsLoading}
+                    className="w-full sm:w-auto"
                   >
                     <Loader2 className={`h-4 w-4 ${statsLoading ? "animate-spin" : ""}`} />
                     {translate("profile.refresh", "Refresh")}
@@ -1455,7 +1630,7 @@ export function ProfilePage({ onNavigate, onOpenProductDetail, onOpenToolDetail,
                   {ORDER_STATUS_ORDER.map((status) => (
                     <div
                       key={status}
-                      className="flex items-center justify-between rounded-xl border border-gray-100 px-4 py-3 text-sm dark:border-gray-800"
+                      className="flex items-center justify-between gap-3 rounded-xl border border-gray-100 px-3 py-3 text-sm dark:border-gray-800 sm:px-4"
                     >
                       <div className="flex items-center gap-3">
                         <span className={`h-2.5 w-2.5 rounded-full ${STATUS_COLORS[status]}`} />
@@ -1471,8 +1646,8 @@ export function ProfilePage({ onNavigate, onOpenProductDetail, onOpenToolDetail,
                 </div>
               </div>
 
-              <div className="rounded-2xl border border-gray-100 bg-white p-6 shadow-sm dark:border-gray-800 dark:bg-gray-900">
-                <div className="mb-4 flex items-center justify-between gap-3">
+              <div className="rounded-2xl border border-gray-100 bg-white p-4 shadow-sm dark:border-gray-800 dark:bg-gray-900 sm:p-6">
+                <div className="mb-4 flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
                   <div>
                     <h3 className="text-lg font-semibold text-gray-900 dark:text-white">
                       {translate("profile.recentPurchases", "Recent purchases")}
@@ -1485,6 +1660,7 @@ export function ProfilePage({ onNavigate, onOpenProductDetail, onOpenToolDetail,
                     size="sm"
                     variant="ghost"
                     onClick={() => setActiveTab("courses")}
+                    className="w-full justify-between sm:w-auto"
                   >
                     {translate("profile.viewAllPurchases", "View all purchases")}
                     <ExternalLink className="h-4 w-4" />
@@ -1525,14 +1701,15 @@ export function ProfilePage({ onNavigate, onOpenProductDetail, onOpenToolDetail,
                         key={`${purchase.orderNumber}-${purchase.productId}`}
                         type="button"
                         onClick={() => goToProduct(purchase.slug)}
-                        className="flex w-full items-center gap-4 rounded-xl border border-gray-100 px-3 py-3 text-left transition hover:border-blue-300 dark:border-gray-800"
+                        className="flex w-full flex-col gap-3 rounded-xl border border-gray-100 px-3 py-3 text-left transition hover:border-blue-300 dark:border-gray-800 sm:flex-row sm:items-center sm:gap-4"
                       >
-                        <img
-                          src={purchase.imageUrl || "/Nut Roth Logo.png"}
-                          alt={purchase.title}
-                          className="h-12 w-12 rounded-lg object-cover"
-                        />
-                        <div className="flex-1">
+                        <div className="flex items-center gap-3 sm:flex-1 sm:gap-4">
+                          <img
+                            src={purchase.imageUrl || "/Nut Roth Logo.png"}
+                            alt={purchase.title}
+                            className="h-12 w-12 rounded-lg object-cover"
+                          />
+                          <div className="flex-1">
                           <div className="font-semibold text-gray-900 dark:text-gray-100 line-clamp-1">
                             {purchase.title}
                           </div>
@@ -1556,8 +1733,9 @@ export function ProfilePage({ onNavigate, onOpenProductDetail, onOpenToolDetail,
                               {formatDateTime(purchase.completedAt)}
                             </p>
                           ) : null}
+                          </div>
                         </div>
-                        <div className="text-right text-sm text-gray-700 dark:text-gray-300">
+                        <div className="w-full text-left text-sm text-gray-700 dark:text-gray-300 sm:w-auto sm:text-right">
                           <div className="font-semibold text-blue-600 dark:text-blue-300">
                             {formatCurrency((purchase.unitPrice ?? 0) * (purchase.quantity ?? 0))}
                           </div>
@@ -1635,9 +1813,9 @@ export function ProfilePage({ onNavigate, onOpenProductDetail, onOpenToolDetail,
                 {pagedProductPurchases.map((item) => (
                   <div
                     key={`${item.orderNumber}-${item.productId}`}
-                    className="flex flex-col gap-4 rounded-2xl border border-gray-100 bg-white p-5 shadow-sm transition hover:border-blue-300 dark:border-gray-800 dark:bg-gray-900 md:flex-row md:items-center"
+                    className="flex flex-col gap-4 rounded-2xl border border-gray-100 bg-white p-4 shadow-sm transition hover:border-blue-300 dark:border-gray-800 dark:bg-gray-900 sm:p-5 md:flex-row md:items-center"
                   >
-                    <div className="flex flex-1 items-center gap-4">
+                    <div className="flex flex-1 items-start gap-4 sm:items-center">
                       <img
                         src={item.imageUrl || "/Nut Roth Logo.png"}
                         alt={item.title}
@@ -1694,7 +1872,7 @@ export function ProfilePage({ onNavigate, onOpenProductDetail, onOpenToolDetail,
                       ) : null}
                     </div>
 
-                    <div className="text-right">
+                    <div className="text-left md:text-right">
                       <div className="text-lg font-semibold text-blue-600 dark:text-blue-300">
                         {formatCurrency((item.unitPrice ?? 0) * (item.quantity ?? 0))}
                       </div>
@@ -1703,7 +1881,7 @@ export function ProfilePage({ onNavigate, onOpenProductDetail, onOpenToolDetail,
                       </p>
                     </div>
 
-                    <div className="flex w-full justify-end gap-2 md:w-auto">
+                    <div className="flex w-full flex-col gap-2 sm:flex-row sm:justify-end md:w-auto">
                       <Button
                         variant="outline"
                         size="sm"
@@ -1770,9 +1948,9 @@ export function ProfilePage({ onNavigate, onOpenProductDetail, onOpenToolDetail,
                 {pagedToolPurchases.map((item) => (
                   <div
                     key={`${item.orderNumber}-${item.productId}`}
-                    className="flex flex-col gap-4 rounded-2xl border border-gray-100 bg-white p-5 shadow-sm transition hover:border-blue-300 dark:border-gray-800 dark:bg-gray-900 md:flex-row md:items-center"
+                    className="flex flex-col gap-4 rounded-2xl border border-gray-100 bg-white p-4 shadow-sm transition hover:border-blue-300 dark:border-gray-800 dark:bg-gray-900 sm:p-5 md:flex-row md:items-center"
                   >
-                    <div className="flex flex-1 items-center gap-4">
+                    <div className="flex flex-1 items-start gap-4 sm:items-center">
                       <img
                         src={item.imageUrl || "/Nut Roth Logo.png"}
                         alt={item.title}
@@ -1817,7 +1995,7 @@ export function ProfilePage({ onNavigate, onOpenProductDetail, onOpenToolDetail,
                       )}
                     </div>
 
-                    <div className="text-right">
+                    <div className="text-left md:text-right">
                       <div className="text-lg font-semibold text-blue-600 dark:text-blue-300">
                         {formatCurrency((item.unitPrice ?? 0) * (item.quantity ?? 0))}
                       </div>
@@ -1826,7 +2004,7 @@ export function ProfilePage({ onNavigate, onOpenProductDetail, onOpenToolDetail,
                       </p>
                     </div>
 
-                    <div className="flex w-full justify-end gap-2 md:w-auto">
+                    <div className="flex w-full flex-col gap-2 sm:flex-row sm:justify-end md:w-auto">
                       <Button
                         variant="outline"
                         size="sm"
@@ -2226,18 +2404,18 @@ export function ProfilePage({ onNavigate, onOpenProductDetail, onOpenToolDetail,
 
         {activeTab === "settings" && (
           <div className="space-y-6">
-            <div className="bg-white dark:bg-gray-800 rounded-2xl p-6 shadow border border-gray-100 dark:border-gray-700">
-              <div className="flex items-start justify-between gap-4">
-                <div className="flex items-center gap-3">
+            <div className="bg-white dark:bg-gray-800 rounded-2xl p-4 shadow border border-gray-100 dark:border-gray-700 sm:p-6">
+              <div className="flex flex-col gap-4 sm:flex-row sm:items-start sm:justify-between">
+                <div className="flex items-start gap-3">
                   <div className="p-2 rounded-full bg-blue-100 text-blue-600">
                     <Info className="w-5 h-5" />
                   </div>
-                  <div>
+                  <div className="min-w-0">
                     <h3 className="font-semibold text-gray-900 dark:text-white">
-                      {t("profile.about")}
+                      {translate("profile.about", "About me")}
                     </h3>
                     <p className="text-sm text-gray-500">
-                      {t("profile.aboutSubtitle") || "Keep your personal information up to date."}
+                      {translate("profile.aboutSubtitle", "Keep your personal information up to date.")}
                     </p>
                   </div>
                 </div>
@@ -2245,21 +2423,24 @@ export function ProfilePage({ onNavigate, onOpenProductDetail, onOpenToolDetail,
                   size="sm"
                   variant="outline"
                   onClick={() => (isEditing ? cancelEditing() : startEditing())}
+                  className="w-full sm:w-auto"
                 >
                   <Edit2 className="w-4 h-4 mr-2" />
-                  {isEditing ? t("profile.cancel") : t("profile.edit")}
+                  {isEditing
+                    ? translate("profile.cancel", "Cancel")
+                    : translate("profile.edit", "Edit")}
                 </Button>
               </div>
 
               {isEditing ? (
                 <div className="mt-4 space-y-4">
                   <Input
-                    placeholder={t("profile.fullName")}
+                    placeholder={translate("profile.fullName", "Full name")}
                     value={editForm.name}
                     onChange={(e) => setEditForm({ ...editForm, name: e.target.value })}
                   />
                   <Input
-                    placeholder={t("profile.bioPlaceholder")}
+                    placeholder={translate("profile.bioPlaceholder", "Short bio")}
                     value={editForm.bio}
                     onChange={(e) => setEditForm({ ...editForm, bio: e.target.value })}
                   />
@@ -2281,10 +2462,10 @@ export function ProfilePage({ onNavigate, onOpenProductDetail, onOpenToolDetail,
                             <Globe className="h-4 w-4 text-gray-400" />
                           )}
                           <span className="font-medium">
-                            {selectedCountry?.dial || t("profile.country")}
+                            {selectedCountry?.dial || translate("profile.country", "Country")}
                           </span>
                           <span className="text-xs text-gray-500">
-                            {selectedCountry?.name || t("profile.selectCountry")}
+                            {selectedCountry?.name || translate("profile.selectCountry", "Select country")}
                           </span>
                         </span>
                         <span className="text-xs text-gray-400">▾</span>
@@ -2295,14 +2476,14 @@ export function ProfilePage({ onNavigate, onOpenProductDetail, onOpenToolDetail,
                             <input
                               value={countryQuery}
                               onChange={(e) => setCountryQuery(e.target.value)}
-                              placeholder={t("profile.searchCountry")}
+                              placeholder={translate("profile.searchCountry", "Search country")}
                               className="w-full rounded-lg border border-gray-200 bg-white px-3 py-2 text-xs text-gray-700 focus:outline-none focus:ring-2 focus:ring-blue-500 dark:border-gray-700 dark:bg-gray-900 dark:text-gray-200"
                             />
                           </div>
                           <div className="max-h-64 overflow-y-auto">
                             {filteredCountries.length === 0 ? (
                               <div className="px-3 py-2 text-xs text-gray-500">
-                                {t("profile.noCountry")}
+                                {translate("profile.noCountry", "No country found")}
                               </div>
                             ) : (
                               filteredCountries.map((country) => (
@@ -2340,42 +2521,42 @@ export function ProfilePage({ onNavigate, onOpenProductDetail, onOpenToolDetail,
                       )}
                     </div>
                     <Input
-                      placeholder={t("profile.phoneNumber")}
+                      placeholder={translate("profile.phoneNumber", "Phone number")}
                       value={editForm.phone}
                       onChange={(e) => handlePhoneInput(e.target.value)}
                     />
                   </div>
                   <Input
-                    placeholder={t("profile.location")}
+                    placeholder={translate("profile.location", "Location")}
                     value={selectedCountry?.name || editForm.location}
                     disabled
                   />
                   <Button onClick={handleSaveProfile} className="w-full">
-                    {t("profile.saveChanges")}
+                    {translate("profile.saveChanges", "Save changes")}
                   </Button>
                 </div>
               ) : (
                 <div className="mt-4 grid gap-3 text-sm text-gray-600 dark:text-gray-300">
-                  <p>{user.bio || t("profile.passionate")}</p>
-                  <p>{user.phone || t("profile.phone")}</p>
-                  <p>{user.place || t("profile.location")}</p>
+                  <p>{user.bio || translate("profile.passionate", "Passionate about learning and technology")}</p>
+                  <p>{user.phone || translate("profile.phone", "Phone")}</p>
+                  <p>{user.place || translate("profile.location", "Location")}</p>
                 </div>
               )}
             </div>
 
             {/* SECURITY / CHANGE PASSWORD */}
-            <div className="bg-white dark:bg-gray-800 rounded-2xl p-6 shadow border border-gray-100 dark:border-gray-700">
-              <div className="flex items-start justify-between gap-4">
-                <div className="flex items-center gap-3">
+            <div className="bg-white dark:bg-gray-800 rounded-2xl p-4 shadow border border-gray-100 dark:border-gray-700 sm:p-6">
+              <div className="flex flex-col gap-4 sm:flex-row sm:items-start sm:justify-between">
+                <div className="flex items-start gap-3">
                   <div className="p-2 rounded-full bg-emerald-100 text-emerald-600">
                     <Shield className="w-5 h-5" />
                   </div>
-                  <div>
+                  <div className="min-w-0">
                     <h3 className="font-semibold text-gray-900 dark:text-white">
-                      {t("profile.security") || "Security"}
+                      {translate("profile.security", "Security")}
                     </h3>
                     <p className="text-sm text-gray-500">
-                      {t("profile.securityDesc") || "Manage password and account protection."}
+                      {translate("profile.securityDesc", "Manage password and account protection.")}
                     </p>
                   </div>
                 </div>
@@ -2389,10 +2570,11 @@ export function ProfilePage({ onNavigate, onOpenProductDetail, onOpenToolDetail,
                     setPwOpen((v) => !v);
                     if (pwOpen) resetPwUI();
                   }}
+                  className="w-full sm:w-auto"
                 >
                   {pwOpen
-                    ? (t("profile.close") || "Close")
-                    : (t("profile.changePassword") || "Change Password")}
+                    ? translate("profile.close", "Close")
+                    : translate("profile.changePassword", "Change Password")}
                 </Button>
               </div>
 
@@ -2404,17 +2586,17 @@ export function ProfilePage({ onNavigate, onOpenProductDetail, onOpenToolDetail,
                   {[
                     {
                       key: "current",
-                      label: t("profile.currentPassword") || "Current password",
+                      label: translate("profile.currentPassword", "Current password"),
                       value: pwForm.currentPassword,
                     },
                     {
                       key: "next",
-                      label: t("profile.newPassword") || "New password",
+                      label: translate("profile.newPassword", "New password"),
                       value: pwForm.newPassword,
                     },
                     {
                       key: "confirm",
-                      label: t("profile.confirmNewPassword") || "Confirm new password",
+                      label: translate("profile.confirmNewPassword", "Confirm new password"),
                       value: pwForm.confirmPassword,
                     },
                   ].map((field) => (
@@ -2451,35 +2633,36 @@ export function ProfilePage({ onNavigate, onOpenProductDetail, onOpenToolDetail,
                     </div>
                   ))}
 
-                  <div className="flex gap-2">
+                  <div className="flex flex-col gap-2 sm:flex-row">
                     <Button
                       onClick={handleChangePassword}
                       disabled={pwLoading}
                       type="button"
+                      className="w-full sm:w-auto"
                     >
                       {pwLoading
-                        ? (t("profile.saving") || "Saving...")
-                        : (t("profile.savePassword") || "Save Password")}
+                        ? translate("profile.saving", "Saving...")
+                        : translate("profile.savePassword", "Save Password")}
                     </Button>
 
                     <Button
                       variant="outline"
                       type="button"
                       onClick={resetPwUI}
+                      className="w-full sm:w-auto"
                     >
-                      {t("profile.cancel") || "Cancel"}
+                      {translate("profile.cancel", "Cancel")}
                     </Button>
                   </div>
 
                   <p className="text-xs text-gray-500">
-                    {t("profile.passwordTip") ||
-                      "Tip: use 8+ characters with numbers and symbols."}
+                    {translate("profile.passwordTip", "Tip: use 8+ characters with numbers and symbols.")}
                   </p>
                 </div>
               )}
             </div>
 
-            <div className="bg-white dark:bg-gray-800 rounded-2xl p-6 shadow border border-gray-100 dark:border-gray-700 mb-6">
+            <div className="bg-white dark:bg-gray-800 rounded-2xl p-4 shadow border border-gray-100 dark:border-gray-700 mb-6 sm:p-6">
               <div className="flex items-start gap-3">
                 <div className="p-2 rounded-full bg-blue-100 text-blue-600">
                   <Shield className="w-5 h-5" />
@@ -2604,7 +2787,7 @@ export function ProfilePage({ onNavigate, onOpenProductDetail, onOpenToolDetail,
             </div>
 
             <div className="grid gap-6 md:grid-cols-2">
-              <div className="bg-white dark:bg-gray-800 rounded-2xl p-6 shadow border border-gray-100 dark:border-gray-700 space-y-4">
+              <div className="bg-white dark:bg-gray-800 rounded-2xl p-4 shadow border border-gray-100 dark:border-gray-700 space-y-4 sm:p-6">
                 <div className="flex items-center gap-3">
                   <div className="p-2 rounded-full bg-purple-100 text-purple-600">
                     <Languages className="w-5 h-5" />
@@ -2622,8 +2805,9 @@ export function ProfilePage({ onNavigate, onOpenProductDetail, onOpenToolDetail,
                   size="sm"
                   variant="outline"
                   onClick={() => setLanguage(language === "en" ? "km" : "en")}
+                  className="w-full sm:w-auto"
                 >
-                  <Globe className="w-4 h-4 mr-2" /> {t("profile.switch")}
+                  <Globe className="w-4 h-4 mr-2" /> {translate("profile.switch", "Switch")}
                 </Button>
 
                 <div className="h-px bg-gray-100"></div>
@@ -2639,17 +2823,17 @@ export function ProfilePage({ onNavigate, onOpenProductDetail, onOpenToolDetail,
                     <p className="text-sm text-gray-500 capitalize">{theme}</p>
                   </div>
                 </div>
-                <Button size="sm" variant="outline" onClick={toggleTheme}>
+                <Button size="sm" variant="outline" onClick={toggleTheme} className="w-full sm:w-auto">
                   {theme === "light" ? <Sun className="w-4 h-4" /> : <Moon className="w-4 h-4" />}
                 </Button>
               </div>
 
-              <div className="bg-white dark:bg-gray-800 rounded-2xl p-6 shadow border border-gray-100 dark:border-gray-700">
-                <div className="flex justify-between items-center">
-                  <div>
-                    <div className="font-semibold text-red-600">{t("profile.deleteAccount")}</div>
+              <div className="bg-white dark:bg-gray-800 rounded-2xl p-4 shadow border border-gray-100 dark:border-gray-700 sm:p-6">
+                <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
+                  <div className="min-w-0">
+                    <div className="font-semibold text-red-600">{translate("profile.deleteAccount", "Delete account")}</div>
                     <p className="text-sm text-gray-500">
-                      {t("profile.deleteWarnBody")}
+                      {translate("profile.deleteWarnBody", "This will disable your account and sign you out.")}
                     </p>
                   </div>
                   <Button
@@ -2658,24 +2842,25 @@ export function ProfilePage({ onNavigate, onOpenProductDetail, onOpenToolDetail,
                       setDeleteText("");
                       setDeleteOpen(true);
                     }}
+                    className="w-full sm:w-auto"
                   >
                     <Trash2 className="w-4 h-4 mr-2" />
-                    {t("profile.deleteAccount")}
+                    {translate("profile.deleteAccount", "Delete account")}
                   </Button>
                 </div>
 
                 {deleteOpen && (
                   <div className="mt-4 border rounded-xl p-4">
-                    <div className="font-bold mb-1">{t("profile.deleteWarnTitle")}</div>
-                    <p className="text-sm text-gray-500 mb-3">{t("profile.deleteWarnBody")}</p>
+                    <div className="font-bold mb-1">{translate("profile.deleteWarnTitle", "Delete account?")}</div>
+                    <p className="text-sm text-gray-500 mb-3">{translate("profile.deleteWarnBody", "This will disable your account and sign you out.")}</p>
 
                     <Input
-                      placeholder={t("profile.confirmDelete")}
+                      placeholder={translate("profile.confirmDelete", "Type DELETE to confirm")}
                       value={deleteText}
                       onChange={(e) => setDeleteText(e.target.value)}
                     />
 
-                    <div className="flex gap-2 mt-3">
+                    <div className="mt-3 flex flex-col gap-2 sm:flex-row">
                       <Button
                         variant="destructive"
                         disabled={deleteText !== "DELETE"}
@@ -2684,11 +2869,12 @@ export function ProfilePage({ onNavigate, onOpenProductDetail, onOpenToolDetail,
                           await logout();
                           onNavigate("home");
                         }}
+                        className="w-full sm:w-auto"
                       >
-                        {t("profile.confirm")}
+                        {translate("profile.confirm", "Confirm")}
                       </Button>
-                      <Button variant="outline" onClick={() => setDeleteOpen(false)}>
-                        {t("profile.close")}
+                      <Button variant="outline" onClick={() => setDeleteOpen(false)} className="w-full sm:w-auto">
+                        {translate("profile.close", "Close")}
                       </Button>
                     </div>
                   </div>

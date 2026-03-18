@@ -10,6 +10,7 @@ type UserRow = RowDataPacket & {
   first_name: string | null;
   last_name: string | null;
   avatar_url: string | null;
+  avatar_border_url: string | null;
   bio: string | null;
   created_at: string | Date | null;
 };
@@ -55,10 +56,14 @@ export async function GET(req: NextRequest) {
     const sellerIdRaw = Number(url.searchParams.get("sellerId") ?? 0);
     const auth = await getAuthUser(req);
     const sellerId = sellerIdRaw > 0 ? sellerIdRaw : auth?.userId ?? 1;
+    const hasAvatarBorderColumn = await hasColumn("users", "avatar_border_url");
+    const avatarBorderSelect = hasAvatarBorderColumn
+      ? "avatar_border_url"
+      : "NULL AS avatar_border_url";
 
     const [users] = await db.query<UserRow[]>(
       `
-      SELECT id, email, username, first_name, last_name, avatar_url, bio, created_at
+      SELECT id, email, username, first_name, last_name, avatar_url, ${avatarBorderSelect}, bio, created_at
       FROM users
       WHERE id = ? AND is_active = 1 AND deleted_at IS NULL
       LIMIT 1
@@ -171,6 +176,7 @@ export async function GET(req: NextRequest) {
         firstName: seller.first_name,
         lastName: seller.last_name,
         avatarUrl: seller.avatar_url,
+        avatarBorderUrl: seller.avatar_border_url,
         bio: seller.bio,
         memberSince: seller.created_at instanceof Date
           ? seller.created_at.toISOString()

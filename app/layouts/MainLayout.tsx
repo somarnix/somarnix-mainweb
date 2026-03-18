@@ -1,9 +1,16 @@
 "use client";
 
-import type { ReactNode } from "react";
-import { Header } from "../components/Header";
+import { useSyncExternalStore, type ReactNode } from "react";
+import dynamic from "next/dynamic";
 import { Sidebar } from "../components/Sidebar";
 import { Footer } from "../components/Footer";
+
+const Header = dynamic(
+  () => import("../components/Header").then((mod) => mod.Header),
+  { ssr: false }
+);
+
+const subscribe = () => () => {};
 
 type MainLayoutProps = {
   children: ReactNode;
@@ -30,6 +37,12 @@ export function MainLayout({
   onOpenChat,
   isAppShell,
 }: MainLayoutProps) {
+  const footerMounted = useSyncExternalStore(
+    subscribe,
+    () => true,
+    () => false
+  );
+
   return (
     <>
       <Header
@@ -68,7 +81,7 @@ export function MainLayout({
         <div className="content_area flex-1 min-w-0">{children}</div>
       </main>
 
-      <Footer isAppShell={isAppShell} />
+      {footerMounted ? <Footer isAppShell={isAppShell} /> : null}
     </>
   );
 }

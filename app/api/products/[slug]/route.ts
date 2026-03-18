@@ -30,6 +30,7 @@ type ProductDetailRow = RowDataPacket & {
   posted_by_name: string | null;
   posted_by_username: string | null;
   posted_by_avatar: string | null;
+  posted_by_avatar_border: string | null;
 
   avg_rating: number | null;
   rating_count: number;
@@ -62,6 +63,7 @@ type ReviewRow = RowDataPacket & {
   last_name: string | null;
   username: string | null;
   avatar_url: string | null;
+  avatar_border_url: string | null;
 };
 
 async function hasAllDeviceColumns(): Promise<boolean> {
@@ -101,12 +103,19 @@ export async function GET(
 ) {
   try {
     const { slug } = await ctx.params;
+    const hasAvatarBorderColumn = await hasColumn("users", "avatar_border_url");
     const hasProductsMode = await hasColumn("products", "mode");
     const hasVariantUnitsPerQty = await hasColumn("product_variants", "units_per_qty");
     const modeExpr = hasProductsMode
       ? "CASE WHEN p.mode IN ('license','inventory') THEN p.mode ELSE 'inventory' END"
       : "'inventory'";
     const unitsPerQtyExpr = hasVariantUnitsPerQty ? "COALESCE(units_per_qty, 1)" : "1";
+    const postedByAvatarBorderSelect = hasAvatarBorderColumn
+      ? "u.avatar_border_url AS posted_by_avatar_border"
+      : "NULL AS posted_by_avatar_border";
+    const reviewAvatarBorderSelect = hasAvatarBorderColumn
+      ? "u.avatar_border_url"
+      : "NULL AS avatar_border_url";
 
     const [pRows] = await db.query<ProductDetailRow[]>(
       `
@@ -118,6 +127,7 @@ export async function GET(
         CONCAT_WS(' ', NULLIF(TRIM(u.first_name),''), NULLIF(TRIM(u.last_name),'')) AS posted_by_name,
         u.username AS posted_by_username,
         u.avatar_url AS posted_by_avatar,
+        ${postedByAvatarBorderSelect},
         ROUND((SELECT AVG(r.rating) FROM product_reviews r WHERE r.product_id = p.id), 2) AS avg_rating,
         (SELECT COUNT(*) FROM product_reviews r WHERE r.product_id = p.id) AS rating_count,
         (
@@ -235,7 +245,8 @@ export async function GET(
         u.first_name,
         u.last_name,
         u.username,
-        u.avatar_url
+        u.avatar_url,
+        ${reviewAvatarBorderSelect}
       FROM product_reviews r
       JOIN users u ON u.id = r.user_id
       WHERE r.product_id = ?
@@ -259,6 +270,7 @@ export async function GET(
         r.username ||
         "User",
       user_avatar: r.avatar_url,
+      user_avatar_border: r.avatar_border_url,
     }));
 
     return Response.json({

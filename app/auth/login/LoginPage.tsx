@@ -201,11 +201,13 @@ export default function LoginPage({ onNavigate }: LoginPageProps) {
           {/* LOGO */}
           <div className="text-center mb-8">
             <div className="mb-4 inline-flex flex-wrap items-center justify-center gap-2">
-              <div className="flex h-12 w-12 items-center justify-center rounded-lg bg-linear-to-br from-blue-600 to-purple-600">
-                <span className="text-white font-bold text-2xl">E</span>
-              </div>
+              <img
+                src="/khqr-assets/gstechkh-logo.png"
+                alt="GSTECHKH"
+                className="h-12 w-12 rounded-lg object-contain"
+              />
               <span className="text-3xl font-bold bg-linear-to-r from-blue-600 to-purple-600 bg-clip-text text-transparent">
-                Edugroit
+                GSTECHKH
               </span>
             </div>
             <h2 className="text-2xl font-bold text-gray-900 dark:text-white">

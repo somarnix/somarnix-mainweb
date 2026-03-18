@@ -19,6 +19,9 @@ type NotificationRow = RowDataPacket & {
 
 let ensurePromise: Promise<void> | null = null;
 
+const CANCELLED_OR_RESOLUTION_SQL =
+  "LOWER(TRIM(COALESCE(o.state, ''))) IN ('cancelled','canceled','resolution')";
+
 export async function ensureOrderNotificationsSchema(): Promise<void> {
   if (!ensurePromise) {
     ensurePromise = (async () => {
@@ -101,7 +104,8 @@ export async function getOrderNotificationsForUser(userId: number): Promise<{
         LIMIT 1
       ) AS product_title
     FROM orders o
-    WHERE o.user_id = ? AND o.state = 'cancelled'
+    WHERE o.user_id = ?
+      AND ${CANCELLED_OR_RESOLUTION_SQL}
   `;
 
   const purchaseBaseSql = `
@@ -118,6 +122,7 @@ export async function getOrderNotificationsForUser(userId: number): Promise<{
       ) AS product_title
     FROM orders o
     WHERE o.user_id = ?
+      AND NOT (${CANCELLED_OR_RESOLUTION_SQL})
   `;
 
   const soldBaseSql = `
@@ -136,6 +141,7 @@ export async function getOrderNotificationsForUser(userId: number): Promise<{
     JOIN order_items oi2 ON oi2.order_id = o.id
     JOIN products p2 ON p2.id = oi2.product_id
     WHERE p2.posted_by = ?
+      AND NOT (${CANCELLED_OR_RESOLUTION_SQL})
     GROUP BY o.id, o.order_number
   `;
 
@@ -145,12 +151,13 @@ export async function getOrderNotificationsForUser(userId: number): Promise<{
       base.id,
       base.order_number,
       base.product_title,
-      CASE WHEN onr.id IS NULL THEN 0 ELSE 1 END AS is_read
+      0 AS is_read
     FROM (${cancelledBaseSql}) base
     LEFT JOIN order_notification_reads onr
       ON onr.user_id = ?
      AND onr.order_id = base.id
      AND onr.scope_key = 'cancelled'
+    WHERE onr.id IS NULL
     ORDER BY base.id DESC
     LIMIT 2
     `,
@@ -163,12 +170,13 @@ export async function getOrderNotificationsForUser(userId: number): Promise<{
       base.id,
       base.order_number,
       base.product_title,
-      CASE WHEN onr.id IS NULL THEN 0 ELSE 1 END AS is_read
+      0 AS is_read
     FROM (${purchaseBaseSql}) base
     LEFT JOIN order_notification_reads onr
       ON onr.user_id = ?
      AND onr.order_id = base.id
      AND onr.scope_key = 'purchase'
+    WHERE onr.id IS NULL
     ORDER BY base.id DESC
     LIMIT 5
     `,
@@ -181,12 +189,13 @@ export async function getOrderNotificationsForUser(userId: number): Promise<{
       base.id,
       base.order_number,
       base.product_title,
-      CASE WHEN onr.id IS NULL THEN 0 ELSE 1 END AS is_read
+      0 AS is_read
     FROM (${soldBaseSql}) base
     LEFT JOIN order_notification_reads onr
       ON onr.user_id = ?
      AND onr.order_id = base.id
      AND onr.scope_key = 'sold'
+    WHERE onr.id IS NULL
     ORDER BY base.id DESC
     LIMIT 5
     `,
@@ -246,7 +255,8 @@ export async function markAllOrderNotificationsRead(
         INSERT INTO order_notification_reads (user_id, order_id, scope_key, read_at)
         SELECT ?, o.id, 'cancelled', NOW()
         FROM orders o
-        WHERE o.user_id = ? AND o.state = 'cancelled'
+        WHERE o.user_id = ?
+          AND ${CANCELLED_OR_RESOLUTION_SQL}
         ON DUPLICATE KEY UPDATE read_at = NOW()
         `,
         [userId, userId]
@@ -261,6 +271,7 @@ export async function markAllOrderNotificationsRead(
         SELECT ?, o.id, 'purchase', NOW()
         FROM orders o
         WHERE o.user_id = ?
+          AND NOT (${CANCELLED_OR_RESOLUTION_SQL})
         ON DUPLICATE KEY UPDATE read_at = NOW()
         `,
         [userId, userId]
@@ -276,6 +287,7 @@ export async function markAllOrderNotificationsRead(
       JOIN order_items oi ON oi.order_id = o.id
       JOIN products p ON p.id = oi.product_id
       WHERE p.posted_by = ?
+        AND NOT (${CANCELLED_OR_RESOLUTION_SQL})
       ON DUPLICATE KEY UPDATE read_at = NOW()
       `,
       [userId, userId]

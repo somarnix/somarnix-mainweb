@@ -24,6 +24,7 @@ type AuthUser = {
   bio?: string | null;
   phone?: string | null;
   avatarUrl?: string | null;
+  avatarBorderUrl?: string | null;
 
   joinedDate?: string | null;
   updatedAt?: string | null;
@@ -41,6 +42,7 @@ type ProfilePayload = {
   bio: string | null;
   phone: string | null;
   avatarUrl: string | null;
+  avatarBorderUrl: string | null;
   joinedDate: string | null;
   updatedAt: string | null;
 };
@@ -54,6 +56,7 @@ type UpdateProfileInput = {
   bio?: string;
   phone?: string;
   avatarUrl?: string;
+  avatarBorderUrl?: string | null;
   newEmail?: string;
   newPassword?: string;
   currentPassword?: string;
@@ -225,6 +228,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         bio: u.bio,
         phone: u.phone,
         avatarUrl: u.avatarUrl,
+        avatarBorderUrl: u.avatarBorderUrl,
         joinedDate: u.joinedDate,
         updatedAt: u.updatedAt,
       });

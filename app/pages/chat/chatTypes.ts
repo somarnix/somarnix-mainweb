@@ -8,6 +8,7 @@ export type Participant = {
   name: string | null;
   email: string | null;
   avatarUrl: string | null;
+  avatarBorderUrl?: string | null;
   presence?: PresenceInfo;
 };
 
@@ -62,6 +63,7 @@ export type ChatMessage = {
     name: string | null;
     email: string;
     avatarUrl: string | null;
+    avatarBorderUrl?: string | null;
   };
   reactions: MessageReaction[];
 };

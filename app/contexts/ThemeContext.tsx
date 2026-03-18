@@ -1,6 +1,6 @@
 "use client";
 
-import { createContext, useContext, useState, useEffect, ReactNode } from "react";
+import { createContext, useContext, useEffect, useState, type ReactNode } from "react";
 
 type Theme = "light" | "dark";
 
@@ -12,11 +12,14 @@ interface ThemeContextType {
 const ThemeContext = createContext<ThemeContextType | undefined>(undefined);
 
 export function ThemeProvider({ children }: { children: ReactNode }) {
-  const [theme, setTheme] = useState<Theme>(() => {
-    if (typeof window === "undefined") return "light"; // ✅ SSR safety
+  const [theme, setTheme] = useState<Theme>("light");
+
+  useEffect(() => {
     const saved = localStorage.getItem("edugroit-theme");
-    return (saved as Theme) || "light";
-  });
+    if (saved === "light" || saved === "dark") {
+      setTheme(saved);
+    }
+  }, []);
 
   useEffect(() => {
     localStorage.setItem("edugroit-theme", theme);
@@ -32,11 +35,7 @@ export function ThemeProvider({ children }: { children: ReactNode }) {
     setTheme((prev) => (prev === "light" ? "dark" : "light"));
   };
 
-  return (
-    <ThemeContext.Provider value={{ theme, toggleTheme }}>
-      {children}
-    </ThemeContext.Provider>
-  );
+  return <ThemeContext.Provider value={{ theme, toggleTheme }}>{children}</ThemeContext.Provider>;
 }
 
 export function useTheme() {

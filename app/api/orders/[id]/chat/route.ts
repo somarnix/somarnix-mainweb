@@ -17,10 +17,12 @@ type OrderRow = RowDataPacket & {
   buyer_name: string | null;
   buyer_email: string;
   buyer_avatar: string | null;
+  buyer_avatar_border: string | null;
   seller_id: number | null;
   seller_name: string | null;
   seller_email: string | null;
   seller_avatar: string | null;
+  seller_avatar_border: string | null;
   buyer_status: string | null;
   buyer_last_active_at: string | Date | null;
   seller_status: string | null;
@@ -54,6 +56,7 @@ type MessageRow = RowDataPacket & {
   sender_name: string | null;
   sender_email: string;
   sender_avatar: string | null;
+  sender_avatar_border: string | null;
 };
 
 type MessageMetaRow = RowDataPacket & {
@@ -92,6 +95,22 @@ function mapPresence(status?: string | null, lastActive?: string | Date | null) 
     lastActiveAt:
       lastActive instanceof Date ? lastActive.toISOString() : lastActive ?? null,
   };
+}
+
+async function hasColumn(tableName: string, columnName: string) {
+  const [rows] = await db.query<RowDataPacket[]>(
+    `
+    SELECT 1
+    FROM information_schema.columns
+    WHERE table_schema = DATABASE()
+      AND table_name = ?
+      AND column_name = ?
+    LIMIT 1
+    `,
+    [tableName, columnName]
+  );
+
+  return rows.length > 0;
 }
 
 async function loadReactionMap(conversationId: number, userId: number) {
@@ -150,6 +169,13 @@ async function loadReactionsForMessage(messageId: number, userId: number) {
 }
 
 async function fetchOrder(orderId: number) {
+  const hasAvatarBorderColumn = await hasColumn("users", "avatar_border_url");
+  const buyerAvatarBorderSelect = hasAvatarBorderColumn
+    ? "u.avatar_border_url AS buyer_avatar_border"
+    : "NULL AS buyer_avatar_border";
+  const sellerAvatarBorderSelect = hasAvatarBorderColumn
+    ? "seller_user.avatar_border_url AS seller_avatar_border"
+    : "NULL AS seller_avatar_border";
   const [rows] = await db.query<OrderRow[]>(
     `
     SELECT
@@ -166,10 +192,12 @@ async function fetchOrder(orderId: number) {
       u.username AS buyer_name,
       u.email AS buyer_email,
       u.avatar_url AS buyer_avatar,
+      ${buyerAvatarBorderSelect},
       seller_user.id AS seller_id,
       seller_user.username AS seller_name,
       seller_user.email AS seller_email,
       seller_user.avatar_url AS seller_avatar,
+      ${sellerAvatarBorderSelect},
       buyer_presence.status AS buyer_status,
       buyer_presence.last_active_at AS buyer_last_active_at,
       seller_presence.status AS seller_status,
@@ -249,12 +277,17 @@ function mapMessage(row: MessageRow, reactions: ReactionSummary[] = []) {
       name: row.sender_name,
       email: row.sender_email,
       avatarUrl: row.sender_avatar,
+      avatarBorderUrl: row.sender_avatar_border,
     },
     reactions,
   };
 }
 
 async function fetchMessageWithSender(messageId: number) {
+  const hasAvatarBorderColumn = await hasColumn("users", "avatar_border_url");
+  const senderAvatarBorderSelect = hasAvatarBorderColumn
+    ? "u.avatar_border_url AS sender_avatar_border"
+    : "NULL AS sender_avatar_border";
   const [rows] = await db.query<MessageRow[]>(
     `
     SELECT
@@ -276,7 +309,8 @@ async function fetchMessageWithSender(messageId: number) {
       m.edited_by,
       u.username AS sender_name,
       u.email AS sender_email,
-      u.avatar_url AS sender_avatar
+      u.avatar_url AS sender_avatar,
+      ${senderAvatarBorderSelect}
     FROM order_chat_messages m
     JOIN users u ON u.id = m.sender_id
     WHERE m.id = ?
@@ -329,6 +363,10 @@ export async function GET(
 
     const topic = order.order_number ? `Order ${order.order_number}` : "Order chat";
     const conversation = await ensureConversation(order.id, topic);
+    const hasAvatarBorderColumn = await hasColumn("users", "avatar_border_url");
+    const senderAvatarBorderSelect = hasAvatarBorderColumn
+      ? "u.avatar_border_url AS sender_avatar_border"
+      : "NULL AS sender_avatar_border";
 
     const [messageRows] = await db.query<MessageRow[]>(
       `
@@ -351,7 +389,8 @@ export async function GET(
         m.edited_by,
         u.username AS sender_name,
         u.email AS sender_email,
-        u.avatar_url AS sender_avatar
+        u.avatar_url AS sender_avatar,
+        ${senderAvatarBorderSelect}
       FROM order_chat_messages m
       JOIN users u ON u.id = m.sender_id
       WHERE m.conversation_id = ?
@@ -399,6 +438,7 @@ export async function GET(
           name: order.buyer_name,
           email: order.buyer_email,
           avatarUrl: order.buyer_avatar,
+          avatarBorderUrl: order.buyer_avatar_border,
           presence: mapPresence(order.buyer_status, order.buyer_last_active_at),
         },
         seller: {
@@ -406,6 +446,7 @@ export async function GET(
           name: order.seller_name,
           email: order.seller_email,
           avatarUrl: order.seller_avatar,
+          avatarBorderUrl: order.seller_avatar_border,
           presence: mapPresence(order.seller_status, order.seller_last_active_at),
         },
         delivery: {
@@ -511,6 +552,10 @@ export async function POST(
 
     const topic = order.order_number ? `Order ${order.order_number}` : "Order chat";
     const conversation = await ensureConversation(order.id, topic);
+    const hasAvatarBorderColumn = await hasColumn("users", "avatar_border_url");
+    const senderAvatarBorderSelect = hasAvatarBorderColumn
+      ? "u.avatar_border_url AS sender_avatar_border"
+      : "NULL AS sender_avatar_border";
 
     const [insert] = await db.query<ResultSetHeader>(
       `
@@ -567,7 +612,8 @@ export async function POST(
         m.edited_by,
         u.username AS sender_name,
         u.email AS sender_email,
-        u.avatar_url AS sender_avatar
+        u.avatar_url AS sender_avatar,
+        ${senderAvatarBorderSelect}
       FROM order_chat_messages m
       JOIN users u ON u.id = m.sender_id
       WHERE m.id = ?

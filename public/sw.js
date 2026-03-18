@@ -51,7 +51,7 @@ self.addEventListener("fetch", (event) => {
 
 self.addEventListener("push", (event) => {
   const payload = event.data ? event.data.json() : {};
-  const title = payload.title || "Edugroit";
+  const title = payload.title || "GSTECHKH";
   const options = {
     body: payload.body || "You have a new notification.",
     icon: "/icons/icon-800.png",

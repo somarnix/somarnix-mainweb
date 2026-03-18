@@ -3,6 +3,7 @@
 import React from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 import { CourseCard } from "../../components/CourseCard";
+import { ProfileAvatar } from "../../components/ProfileAvatar";
 import { useAuth } from "../../contexts/AuthContext";
 import { useAppShellMode } from "../../lib/app-shell";
 
@@ -45,6 +46,7 @@ type BlogProfileResponse = {
     name: string;
     email: string;
     avatarUrl: string | null;
+    avatarBorderUrl?: string | null;
     bio: string | null;
     memberSince: string | null;
   };
@@ -316,7 +318,7 @@ export function BlogPage({ initialSellerId }: BlogPageProps) {
   const sellerMeta = `${formatCompact(profile?.stats.followers ?? 0)} followers · ${formatCompact(
     profile?.stats.following ?? 0
   )} following`;
-  const sellerBio = profile?.seller.bio?.trim() || "No description yet.";
+  const sellerBio = profile?.seller.bio?.trim() || "";
 
   return (
     <div
@@ -326,58 +328,62 @@ export function BlogPage({ initialSellerId }: BlogPageProps) {
     >
       <div className="mx-auto w-full max-w-7xl px-4 py-6 sm:px-5 sm:py-8 lg:px-8 lg:py-10">
         <section className="mb-6 overflow-hidden rounded-[2rem] border border-slate-200/80 bg-white/95 shadow-[0_24px_60px_-36px_rgba(15,23,42,0.45)] backdrop-blur dark:border-slate-800 dark:bg-slate-900/95 sm:mb-8">
-          <div className="h-24 bg-gradient-to-r from-blue-600 via-indigo-500 to-violet-500 sm:h-28" />
+          <div className="h-20 bg-gradient-to-r from-blue-600 via-indigo-500 to-violet-500 sm:h-24" />
 
           <div className="px-4 pb-5 pt-0 sm:px-6 sm:pb-6">
-            <div className="flex flex-col gap-4 md:flex-row md:items-end md:justify-between">
-              <div className="flex flex-col gap-4 sm:flex-row sm:items-end">
-                <div className="-mt-12 sm:-mt-14">
-                  {profile?.seller.avatarUrl ? (
-                    <img
-                      src={profile.seller.avatarUrl}
+            <div className="flex flex-col gap-4">
+              <div className="flex flex-col gap-4 sm:flex-row sm:items-end sm:justify-between">
+                <div className="flex min-w-0 items-start gap-4">
+                  <div className="-mt-10 shrink-0 rounded-[1.75rem] bg-white p-1.5 shadow-[0_12px_30px_rgba(15,23,42,0.12)] ring-1 ring-slate-200/70 dark:bg-slate-900 dark:ring-slate-700 sm:-mt-12 sm:p-2">
+                    <ProfileAvatar
+                      src={profile?.seller.avatarUrl}
                       alt={sellerName}
-                      className="h-24 w-24 rounded-full border-4 border-white object-cover shadow-lg dark:border-slate-900 sm:h-28 sm:w-28"
+                      fallback={avatarInitials}
+                      borderUrl={profile?.seller.avatarBorderUrl}
+                      className="h-20 w-20 sm:h-24 sm:w-24"
+                      insetClassName={profile?.seller.avatarBorderUrl ? "inset-[14.5%]" : undefined}
+                      contentClassName="border-4 border-white shadow-lg dark:border-slate-900"
+                      fallbackClassName="text-xl sm:text-2xl"
                     />
-                  ) : (
-                    <div className="flex h-24 w-24 items-center justify-center rounded-full border-4 border-white bg-gradient-to-r from-blue-500 to-violet-500 text-2xl font-semibold text-white shadow-lg dark:border-slate-900 sm:h-28 sm:w-28">
-                      {avatarInitials}
+                  </div>
+
+                  <div className="min-w-0 pt-2 sm:pt-0">
+                    <div className="truncate text-2xl font-semibold tracking-tight text-slate-900 dark:text-white sm:text-3xl">
+                      {sellerName}
                     </div>
-                  )}
+                    <div className="mt-1 text-sm text-slate-500 dark:text-slate-300">
+                      {sellerMeta}
+                    </div>
+                  </div>
                 </div>
 
-                <div className="min-w-0">
-                  <div className="text-2xl font-semibold tracking-tight text-slate-900 dark:text-white sm:text-3xl">
-                    {sellerName}
-                  </div>
-                  <div className="mt-1 text-sm text-slate-500 dark:text-slate-300">
-                    {sellerMeta}
-                  </div>
-                  <p className="mt-3 max-w-2xl text-sm leading-6 text-slate-600 dark:text-slate-300">
-                    {sellerBio}
-                  </p>
+                <div className="grid grid-cols-2 gap-2 sm:flex sm:justify-end">
+                  <button
+                    onClick={handleToggleFollow}
+                    disabled={!profile?.viewer.canFollow || followLoading}
+                    className={`min-h-11 rounded-full px-5 py-2 text-sm font-semibold transition ${
+                      profile?.viewer.isFollowing
+                        ? "bg-slate-200 text-slate-700 hover:bg-slate-300 dark:bg-slate-800 dark:text-slate-200"
+                        : "bg-blue-600 text-white hover:bg-blue-700"
+                    } disabled:opacity-60`}
+                  >
+                    {followLoading
+                      ? "Please wait..."
+                      : profile?.viewer.isFollowing
+                        ? "Following"
+                        : "Follow"}
+                  </button>
+                  <button className="min-h-11 rounded-full bg-slate-900 px-5 py-2 text-sm font-semibold text-white transition hover:bg-slate-800 dark:bg-white dark:text-slate-900 dark:hover:bg-slate-100">
+                    Message
+                  </button>
                 </div>
               </div>
 
-              <div className="flex flex-col gap-2 sm:flex-row md:justify-end">
-                <button
-                  onClick={handleToggleFollow}
-                  disabled={!profile?.viewer.canFollow || followLoading}
-                  className={`min-h-11 rounded-full px-5 py-2 text-sm font-semibold transition ${
-                    profile?.viewer.isFollowing
-                      ? "bg-slate-200 text-slate-700 hover:bg-slate-300 dark:bg-slate-800 dark:text-slate-200"
-                      : "bg-blue-600 text-white hover:bg-blue-700"
-                  } disabled:opacity-60`}
-                >
-                  {followLoading
-                    ? "Please wait..."
-                    : profile?.viewer.isFollowing
-                      ? "Following"
-                      : "Follow"}
-                </button>
-                <button className="min-h-11 rounded-full bg-slate-900 px-5 py-2 text-sm font-semibold text-white transition hover:bg-slate-800 dark:bg-white dark:text-slate-900 dark:hover:bg-slate-100">
-                  Message
-                </button>
-              </div>
+              {sellerBio ? (
+                <p className="max-w-3xl text-sm leading-6 text-slate-600 dark:text-slate-300">
+                  {sellerBio}
+                </p>
+              ) : null}
             </div>
           </div>
         </section>

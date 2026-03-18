@@ -5,13 +5,18 @@ import PWARegistration from "./components/PWARegistration";
 import PWAInstallPrompt from "./components/PWAInstallPrompt";
 
 export const metadata: Metadata = {
-  applicationName: "Edugroit",
-  title: "Edugroit",
-  description: "Edugroit marketplace and learning platform.",
+  applicationName: "GSTECHKH",
+  title: "GSTECHKH",
+  description: "GSTECHKH marketplace and learning platform.",
+  icons: {
+    icon: "/khqr-assets/gstechkh-logo.png",
+    shortcut: "/khqr-assets/gstechkh-logo.png",
+    apple: "/khqr-assets/gstechkh-logo.png",
+  },
   appleWebApp: {
     capable: true,
     statusBarStyle: "default",
-    title: "Edugroit",
+    title: "GSTECHKH",
   },
   formatDetection: {
     telephone: false,

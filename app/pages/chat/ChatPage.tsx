@@ -23,6 +23,7 @@ import { Input } from "../../components/ui/input";
 import { Textarea } from "../../components/ui/textarea";
 import { Button } from "../../components/ui/button";
 import { Pagination } from "../../components/Pagination";
+import { ProfileAvatar } from "../../components/ProfileAvatar";
 import { useLanguage } from "../../contexts/LanguageContext";
 import { useAuth } from "../../contexts/AuthContext";
 import { toast } from "sonner";
@@ -37,6 +38,7 @@ type Participant = {
   name: string | null;
   email: string | null;
   avatarUrl: string | null;
+  avatarBorderUrl?: string | null;
   presence?: PresenceInfo;
 };
 
@@ -56,6 +58,68 @@ type ConversationSummary = {
   buyer: Participant & { id: number; email: string };
   seller: Participant;
   unreadCount: number;
+};
+
+type ConversationPayload = {
+  [key: string]: unknown;
+  id?: unknown;
+  conversation_id?: unknown;
+  orderId?: unknown;
+  order_id?: unknown;
+  orderNumber?: unknown;
+  order_number?: unknown;
+  state?: string | null;
+  result?: "none" | "done" | "failed" | null;
+  handlerAdminId?: unknown;
+  handlerAdminName?: string | null;
+  lastMessage?: string | null;
+  last_body?: string | null;
+  lastMessageAt?: string | null;
+  last_created_at?: string | null;
+  lastMessageFromAdmin?: boolean | null;
+  last_is_admin?: boolean | number | null;
+  lastMessageType?: "text" | "sticker" | "emoji" | null;
+  last_message_type?: "text" | "sticker" | "emoji" | null;
+  lastStickerPath?: string | null;
+  last_sticker_path?: string | null;
+  unreadCount?: unknown;
+  unread_count?: unknown;
+  buyer_status?: string | null;
+  buyer_last_active_at?: string | null;
+  seller_status?: string | null;
+  seller_last_active_at?: string | null;
+  user_id?: unknown;
+  buyer_name?: string | null;
+  buyer_email?: string | null;
+  buyer_avatar?: string | null;
+  buyer_avatar_border?: string | null;
+  seller_id?: unknown;
+  seller_name?: string | null;
+  seller_email?: string | null;
+  seller_avatar?: string | null;
+  seller_avatar_border?: string | null;
+  buyer?: {
+    id?: unknown;
+    name?: string | null;
+    email?: string | null;
+    avatarUrl?: string | null;
+    avatarBorderUrl?: string | null;
+    presence?: {
+      status?: string | null;
+      lastActiveAt?: string | null;
+    };
+  };
+  seller?: {
+    id?: unknown;
+    name?: string | null;
+    email?: string | null;
+    avatarUrl?: string | null;
+    avatarBorderUrl?: string | null;
+    presence?: {
+      status?: string | null;
+      lastActiveAt?: string | null;
+    };
+  };
 };
 
 type ChatStateFilter =
@@ -180,6 +244,7 @@ type ChatMessage = {
     name: string | null;
     email: string;
     avatarUrl: string | null;
+    avatarBorderUrl?: string | null;
   };
   reactions: MessageReaction[];
 };
@@ -415,7 +480,7 @@ export function ChatPage({
       )
         ? data.conversations
         : []
-      ).map((raw: any) => {
+      ).map((raw: ConversationPayload) => {
         const buyerPresence = normalizePresence(
           raw.buyer?.presence,
           raw.buyer_status,
@@ -454,6 +519,8 @@ export function ChatPage({
             name: raw.buyer?.name ?? raw.buyer_name ?? raw.buyer?.email ?? null,
             email: raw.buyer?.email ?? raw.buyer_email ?? "",
             avatarUrl: raw.buyer?.avatarUrl ?? raw.buyer_avatar ?? null,
+            avatarBorderUrl:
+              raw.buyer?.avatarBorderUrl ?? raw.buyer_avatar_border ?? null,
             presence: buyerPresence,
           },
           seller: {
@@ -465,6 +532,8 @@ export function ChatPage({
               null,
             email: raw.seller?.email ?? raw.seller_email ?? null,
             avatarUrl: raw.seller?.avatarUrl ?? raw.seller_avatar ?? null,
+            avatarBorderUrl:
+              raw.seller?.avatarBorderUrl ?? raw.seller_avatar_border ?? null,
             presence: sellerPresence,
           },
           unreadCount: Number(raw.unreadCount ?? raw.unread_count ?? 0),
@@ -1071,17 +1140,15 @@ export function ChatPage({
                     >
                       <div className="flex items-center gap-3">
                         <div className="relative">
-                          {counterpart?.avatarUrl ? (
-                            <img
-                              src={counterpart.avatarUrl}
-                              alt={displayName}
-                              className="w-10 h-10 rounded-full object-cover border border-blue-200"
-                            />
-                          ) : (
-                            <div className="w-10 h-10 rounded-full bg-gradient-to-r from-blue-500 to-purple-500 text-white flex items-center justify-center text-sm font-semibold">
-                              {avatarLetter}
-                            </div>
-                          )}
+                          <ProfileAvatar
+                            src={counterpart?.avatarUrl}
+                            alt={displayName}
+                            fallback={avatarLetter}
+                            borderUrl={counterpart?.avatarBorderUrl}
+                            className="h-10 w-10"
+                            contentClassName="border border-blue-200"
+                            fallbackClassName="text-sm"
+                          />
                           {online && (
                             <span className="absolute -right-0.5 -bottom-0.5 w-3 h-3 rounded-full bg-green-500 border-2 border-white dark:border-gray-900" />
                           )}
@@ -1168,17 +1235,15 @@ export function ChatPage({
                     const online = isPresenceOnline(party?.presence);
                     return (
                       <div className="relative">
-                        {party?.avatarUrl ? (
-                          <img
-                            src={party.avatarUrl}
-                            alt={name}
-                            className="w-10 h-10 rounded-full object-cover border border-blue-200"
-                          />
-                        ) : (
-                          <div className="w-10 h-10 rounded-full bg-gradient-to-r from-blue-500 to-purple-500 text-white flex items-center justify-center text-sm font-semibold">
-                            {initials}
-                          </div>
-                        )}
+                        <ProfileAvatar
+                          src={party?.avatarUrl}
+                          alt={name}
+                          fallback={initials}
+                          borderUrl={party?.avatarBorderUrl}
+                          className="h-10 w-10"
+                          contentClassName="border border-blue-200"
+                          fallbackClassName="text-sm"
+                        />
                         {online && (
                           <span className="absolute -right-0.5 -bottom-0.5 w-3 h-3 rounded-full bg-green-500 border-2 border-white dark:border-gray-900" />
                         )}
@@ -1344,16 +1409,15 @@ export function ChatPage({
                         wasSeen;
                       const counterpartInitials =
                         counterpartName.slice(0, 2).toUpperCase() || "👤";
-                      const seenAvatarElement = activeCounterpart?.avatarUrl ? (
-                        <img
-                          src={activeCounterpart.avatarUrl}
+                      const seenAvatarElement = (
+                        <ProfileAvatar
+                          src={activeCounterpart?.avatarUrl}
                           alt={counterpartName}
-                          className="w-full h-full object-cover"
+                          fallback={counterpartInitials}
+                          borderUrl={activeCounterpart?.avatarBorderUrl}
+                          className="h-full w-full"
+                          fallbackClassName="text-[10px]"
                         />
-                      ) : (
-                        <div className="w-full h-full rounded-full bg-gradient-to-r from-blue-500 to-purple-500 text-white flex items-center justify-center text-[10px] font-semibold">
-                          {counterpartInitials}
-                        </div>
                       );
                       const initials =
                         (msg.sender?.name ||
@@ -1367,17 +1431,15 @@ export function ChatPage({
                             : "User"))?.slice(0, 2).toUpperCase() || "👤";
                       const avatarNode = (
                         <div className="relative">
-                          {msg.sender?.avatarUrl ? (
-                            <img
-                              src={msg.sender.avatarUrl}
-                              alt={senderLabel ?? ""}
-                              className="w-9 h-9 rounded-full object-cover border border-blue-100"
-                            />
-                          ) : (
-                            <div className="w-9 h-9 rounded-full bg-gradient-to-r from-blue-500 to-purple-500 text-white flex items-center justify-center text-xs font-semibold">
-                              {initials}
-                            </div>
-                          )}
+                          <ProfileAvatar
+                            src={msg.sender?.avatarUrl}
+                            alt={senderLabel ?? ""}
+                            fallback={initials}
+                            borderUrl={msg.sender?.avatarBorderUrl}
+                            className="h-9 w-9"
+                            contentClassName="border border-blue-100"
+                            fallbackClassName="text-xs"
+                          />
                         </div>
                       );
 

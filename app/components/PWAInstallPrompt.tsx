@@ -90,7 +90,7 @@ export default function PWAInstallPrompt() {
         </div>
         <div className="min-w-0">
           <div className="pr-8 text-sm font-semibold text-gray-900">
-            Install Edugroit App
+            Install GSTECHKH App
           </div>
           <div className="mt-1 text-xs leading-5 text-gray-500">
             {isIos

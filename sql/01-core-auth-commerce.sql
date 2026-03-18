@@ -22,6 +22,7 @@ CREATE TABLE IF NOT EXISTS users (
   bio VARCHAR(255) NULL,
   phone VARCHAR(30) NULL,
   avatar_url VARCHAR(255) NULL,
+  avatar_border_url VARCHAR(255) NULL,
   is_active TINYINT(1) NOT NULL DEFAULT 1,
   deleted_at DATETIME NULL,
   banned_at DATETIME NULL,

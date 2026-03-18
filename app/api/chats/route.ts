@@ -13,12 +13,14 @@ type ConversationListRow = RowDataPacket & {
   buyer_name: string | null;
   buyer_email: string;
   buyer_avatar: string | null;
+  buyer_avatar_border: string | null;
   buyer_status: string | null;
   buyer_last_active_at: string | Date | null;
   seller_id: number | null;
   seller_name: string | null;
   seller_email: string | null;
   seller_avatar: string | null;
+  seller_avatar_border: string | null;
   seller_status: string | null;
   seller_last_active_at: string | Date | null;
   created_at: string | Date | null;
@@ -44,6 +46,22 @@ function formatDate(value: string | Date | null) {
   return value;
 }
 
+async function hasColumn(tableName: string, columnName: string) {
+  const [rows] = await db.query<RowDataPacket[]>(
+    `
+    SELECT 1
+    FROM information_schema.columns
+    WHERE table_schema = DATABASE()
+      AND table_name = ?
+      AND column_name = ?
+    LIMIT 1
+    `,
+    [tableName, columnName]
+  );
+
+  return rows.length > 0;
+}
+
 export async function GET(req: NextRequest) {
   const auth = await getAuthUser(req);
   if (!auth) {
@@ -52,6 +70,13 @@ export async function GET(req: NextRequest) {
 
   try {
     const isAdmin = auth.role === "admin";
+    const hasAvatarBorderColumn = await hasColumn("users", "avatar_border_url");
+    const buyerAvatarBorderSelect = hasAvatarBorderColumn
+      ? "u.avatar_border_url AS buyer_avatar_border"
+      : "NULL AS buyer_avatar_border";
+    const sellerAvatarBorderSelect = hasAvatarBorderColumn
+      ? "seller_user.avatar_border_url AS seller_avatar_border"
+      : "NULL AS seller_avatar_border";
 
     const [rows] = await db.query<ConversationListRow[]>(
       `
@@ -65,12 +90,14 @@ export async function GET(req: NextRequest) {
         u.username AS buyer_name,
         u.email AS buyer_email,
         u.avatar_url AS buyer_avatar,
+        ${buyerAvatarBorderSelect},
         buyer_presence.status AS buyer_status,
         buyer_presence.last_active_at AS buyer_last_active_at,
         seller_user.id AS seller_id,
         seller_user.username AS seller_name,
         seller_user.email AS seller_email,
         seller_user.avatar_url AS seller_avatar,
+        ${sellerAvatarBorderSelect},
         seller_presence.status AS seller_status,
         seller_presence.last_active_at AS seller_last_active_at,
         o.created_at,
@@ -182,6 +209,7 @@ export async function GET(req: NextRequest) {
         name: row.buyer_name,
         email: row.buyer_email,
         avatarUrl: row.buyer_avatar,
+        avatarBorderUrl: row.buyer_avatar_border,
         presence: {
           status: row.buyer_status,
           lastActiveAt:
@@ -195,6 +223,7 @@ export async function GET(req: NextRequest) {
         name: row.seller_name,
         email: row.seller_email,
         avatarUrl: row.seller_avatar,
+        avatarBorderUrl: row.seller_avatar_border,
         presence: {
           status: row.seller_status,
           lastActiveAt:

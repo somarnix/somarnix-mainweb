@@ -256,11 +256,13 @@ export function RegisterPage({ onNavigate }: RegisterPageProps) {
           {/* Logo */}
           <div className="text-center mb-8">
             <div className="inline-flex items-center justify-center space-x-2 mb-4">
-              <div className="w-12 h-12 bg-gradient-to-br from-blue-600 to-purple-600 rounded-lg flex items-center justify-center">
-                <span className="text-white font-bold text-2xl">E</span>
-              </div>
+              <img
+                src="/khqr-assets/gstechkh-logo.png"
+                alt="GSTECHKH"
+                className="h-12 w-12 rounded-lg object-contain"
+              />
               <span className="text-3xl font-bold bg-gradient-to-r from-blue-600 to-purple-600 bg-clip-text text-transparent">
-                Edugroit
+                GSTECHKH
               </span>
             </div>
 

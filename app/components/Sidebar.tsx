@@ -21,8 +21,8 @@ import {
   LifeBuoy,
   Sparkles,
 } from "lucide-react";
-import Image from "next/image";
 import { Button } from "./ui/button";
+import { ProfileAvatar } from "./ProfileAvatar";
 import { useLanguage } from "../contexts/LanguageContext";
 import { useAuth } from "../contexts/AuthContext";
 
@@ -205,12 +205,13 @@ export function Sidebar({
             </div>
 
             <div className="mt-2 flex flex-col items-center text-center">
-              <Image
+              <ProfileAvatar
                 src={user.avatarUrl || "/avatar-default.png"}
                 alt={user.email}
-                width={isAppShell ? 92 : 80}
-                height={isAppShell ? 92 : 80}
-                className={`rounded-full border-4 border-white object-cover shadow-lg ${
+                fallback={user.username || user.email}
+                borderUrl={user.avatarBorderUrl}
+                className={isAppShell ? "h-[92px] w-[92px]" : "h-20 w-20"}
+                contentClassName={`border-4 border-white shadow-lg ${
                   isAppShell ? "ring-4 ring-white/15" : ""
                 }`}
               />

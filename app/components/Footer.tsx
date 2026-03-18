@@ -1,3 +1,5 @@
+"use client";
+
 import {
   Facebook,
   Twitter,
@@ -59,12 +61,14 @@ export function Footer({ isAppShell = false }: FooterProps) {
         <div className="grid grid-cols-1 gap-8 md:grid-cols-2 xl:grid-cols-4">
           <div className="space-y-5">
             <div className="flex items-center gap-3">
-              <div className="flex h-11 w-11 items-center justify-center rounded-xl bg-gradient-to-br from-blue-500 to-indigo-600 shadow-lg shadow-blue-900/40">
-                <span className="text-lg font-bold text-white">E</span>
-              </div>
+              <img
+                src="/khqr-assets/gstechkh-logo.png"
+                alt="GSTECHKH"
+                className="h-11 w-11 rounded-xl object-contain shadow-lg shadow-blue-900/40"
+              />
               <div>
                 <p className="text-2xl font-semibold tracking-tight text-white">
-                  Edugroit
+                  GSTECHKH
                 </p>
                 <p className="text-[11px] uppercase tracking-[0.18em] text-sky-300">
                   Learn Faster
@@ -164,7 +168,7 @@ export function Footer({ isAppShell = false }: FooterProps) {
       <div className="relative border-t border-slate-800">
         <div className="mx-auto flex max-w-7xl flex-col items-center justify-between gap-4 px-4 py-6 sm:px-6 md:flex-row lg:px-8">
           <p className="text-sm text-slate-400">
-            &copy; {currentYear} Edugroit. {t("footer.rights")}
+            &copy; {currentYear} GSTECHKH. {t("footer.rights")}
           </p>
           <div className="flex flex-wrap items-center gap-5 text-sm text-slate-400">
             <a href="#" className="transition-colors hover:text-sky-300">

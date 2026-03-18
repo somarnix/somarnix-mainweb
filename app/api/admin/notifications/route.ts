@@ -180,7 +180,13 @@ export async function POST(req: Request) {
       }
 
       const [userRows] = await db.query<UserOptionRow[]>(
-        `SELECT id, email FROM users WHERE email = ? LIMIT 1`,
+        `
+        SELECT id, email
+        FROM users
+        WHERE LOWER(email) = LOWER(?)
+          AND deleted_at IS NULL
+        LIMIT 1
+        `,
         [recipientEmail]
       );
       if (userRows.length === 0) {

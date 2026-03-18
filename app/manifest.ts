@@ -2,9 +2,9 @@ import type { MetadataRoute } from "next";
 
 export default function manifest(): MetadataRoute.Manifest {
   return {
-    name: "Edugroit",
-    short_name: "Edugroit",
-    description: "Edugroit marketplace and learning platform.",
+    name: "GSTECHKH",
+    short_name: "GSTECHKH",
+    description: "GSTECHKH marketplace and learning platform.",
     start_url: "/",
     scope: "/",
     display: "standalone",

@@ -105,6 +105,7 @@ export default function AdminNotificationsPage() {
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [formError, setFormError] = useState<string | null>(null);
+  const [formSuccess, setFormSuccess] = useState<string | null>(null);
   const [search, setSearch] = useState("");
   const [scopeFilter, setScopeFilter] = useState<"all" | NotificationScope>("all");
   const [iconFilter, setIconFilter] = useState<"all" | NotificationIcon>("all");
@@ -165,13 +166,18 @@ export default function AdminNotificationsPage() {
   }, [notifications, search, scopeFilter, iconFilter]);
 
   const onChangeForm = <K extends keyof FormState>(key: K, value: FormState[K]) => {
+    setFormError(null);
+    setFormSuccess(null);
     setForm((prev) => ({ ...prev, [key]: value }));
   };
 
-  const resetComposer = () => {
+  const resetComposer = (clearSuccess = true) => {
     setEditingId(null);
     setForm(EMPTY_FORM);
     setFormError(null);
+    if (clearSuccess) {
+      setFormSuccess(null);
+    }
   };
 
   const handleEdit = (item: AdminNotificationItem) => {
@@ -191,8 +197,34 @@ export default function AdminNotificationsPage() {
 
   const handleSubmit = async (event: React.FormEvent<HTMLFormElement>) => {
     event.preventDefault();
+    const payload: FormState = {
+      scope: form.scope,
+      recipientEmail: form.recipientEmail.trim(),
+      category: form.category.trim(),
+      icon: form.icon,
+      title: form.title.trim(),
+      description: form.description.trim(),
+      linkUrl: form.linkUrl.trim(),
+    };
+
+    if (!payload.title) {
+      setFormError("Title is required.");
+      return;
+    }
+
+    if (!payload.description) {
+      setFormError("Description is required.");
+      return;
+    }
+
+    if (payload.scope === "user" && !payload.recipientEmail) {
+      setFormError("Recipient email is required for user notifications.");
+      return;
+    }
+
     setSaving(true);
     setFormError(null);
+    setFormSuccess(null);
     try {
       const endpoint = editingId
         ? `/api/admin/notifications/${editingId}`
@@ -202,7 +234,7 @@ export default function AdminNotificationsPage() {
         method,
         credentials: "include",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify(form),
+        body: JSON.stringify(payload),
       });
       const data = await res.json().catch(() => ({}));
       if (!res.ok) {
@@ -210,8 +242,11 @@ export default function AdminNotificationsPage() {
           typeof data?.error === "string" ? data.error : "Failed to save notification"
         );
       }
-      resetComposer();
+      const successMessage = editingId ? "Notification updated." : "Notification created.";
+      resetComposer(false);
       await load();
+      setFormSuccess(successMessage);
+      window.dispatchEvent(new CustomEvent("edugroit-system-notifications-changed"));
     } catch (err) {
       setFormError(err instanceof Error ? err.message : "Failed to save notification");
     } finally {
@@ -237,6 +272,7 @@ export default function AdminNotificationsPage() {
       }
       if (editingId === item.id) resetComposer();
       await load();
+      window.dispatchEvent(new CustomEvent("edugroit-system-notifications-changed"));
     } catch (err) {
       setFormError(err instanceof Error ? err.message : "Failed to delete notification");
     } finally {
@@ -303,7 +339,7 @@ export default function AdminNotificationsPage() {
                 {editingId ? (
                   <button
                     type="button"
-                    onClick={resetComposer}
+                    onClick={() => resetComposer()}
                     className="rounded-lg border border-gray-200 px-3 py-1.5 text-xs font-medium text-gray-600 hover:bg-gray-50"
                   >
                     Cancel
@@ -425,12 +461,12 @@ export default function AdminNotificationsPage() {
 
               <div>
                 <label className="mb-1 block text-sm font-medium text-gray-700">Title</label>
-                <input
-                  value={form.title}
-                  onChange={(e) => onChangeForm("title", e.target.value)}
-                  placeholder="App version update"
-                  className="w-full rounded-xl border border-gray-200 px-4 py-3 text-sm outline-none transition focus:border-gray-400"
-                />
+                  <input
+                    value={form.title}
+                    onChange={(e) => onChangeForm("title", e.target.value)}
+                    placeholder="App version update"
+                    className="w-full rounded-xl border border-gray-200 px-4 py-3 text-sm outline-none transition focus:border-gray-400"
+                  />
               </div>
 
               <div>
@@ -452,6 +488,12 @@ export default function AdminNotificationsPage() {
                 </div>
               ) : null}
 
+              {formSuccess ? (
+                <div className="rounded-xl border border-emerald-200 bg-emerald-50 px-4 py-3 text-sm text-emerald-700">
+                  {formSuccess}
+                </div>
+              ) : null}
+
               <div className="flex flex-col gap-2 sm:flex-row">
                 <button
                   type="submit"
@@ -464,7 +506,7 @@ export default function AdminNotificationsPage() {
                 {editingId ? (
                   <button
                     type="button"
-                    onClick={resetComposer}
+                    onClick={() => resetComposer()}
                     className="w-full rounded-xl border border-gray-200 bg-white px-4 py-3 text-sm font-medium text-gray-700 hover:bg-gray-50 sm:w-auto"
                   >
                     Reset
