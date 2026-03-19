@@ -1,0 +1,112 @@
+/* Admin Pages Dark Mode Support */
+/* This file adds dark mode support to all admin pages automatically */
+
+.dark {
+  /* Admin page backgrounds */
+  --admin-bg: #0f172a;
+  --admin-card-bg: #1e293b;
+  --admin-border: #334155;
+  
+  /* Admin text colors */
+  --admin-text-primary: #f8fafc;
+  --admin-text-secondary: #94a3b8;
+  --admin-text-muted: #64748b;
+}
+
+/* Admin Dashboard & All Admin Pages - Dark Mode Overrides */
+.dark .max-w-7xl {
+  color: var(--admin-text-primary);
+}
+
+/* Cards and Panels */
+.dark .rounded-2xl.border,
+.dark .rounded-xl.border,
+.dark .border-gray-100,
+.dark .border-gray-200,
+.dark .border-dashed {
+  border-color: var(--admin-border) !important;
+}
+
+.dark .bg-white,
+.dark .bg-gray-50,
+.dark .bg-gradient-to-r,
+.dark .bg-gradient-to-br {
+  background-color: var(--admin-card-bg) !important;
+}
+
+/* Text Colors */
+.dark .text-gray-900,
+.dark .text-gray-800,
+.dark .text-gray-700 {
+  color: var(--admin-text-primary) !important;
+}
+
+.dark .text-gray-600,
+.dark .text-gray-500 {
+  color: var(--admin-text-secondary) !important;
+}
+
+/* Specific Admin Components */
+.dark .bg-blue-50,
+.dark .bg-sky-50,
+.dark .bg-emerald-50,
+.dark .bg-violet-50,
+.dark .bg-amber-50,
+.dark .bg-cyan-50,
+.dark .bg-teal-50,
+.dark .bg-rose-50,
+.dark .bg-green-50 {
+  background-color: rgba(30, 41, 59, 0.5) !important;
+}
+
+/* Progress bars and charts */
+.dark .bg-gray-100 {
+  background-color: rgba(51, 65, 85, 0.5) !important;
+}
+
+/* Buttons */
+.dark button:hover.bg-gray-50 {
+  background-color: rgba(51, 65, 85, 0.8) !important;
+}
+
+.dark .text-gray-600.hover\:bg-gray-50,
+.dark .text-gray-700.hover\:bg-gray-50 {
+  color: var(--admin-text-secondary) !important;
+}
+
+/* Inputs and Forms */
+.dark input,
+.dark textarea,
+.dark select {
+  background-color: var(--admin-card-bg) !important;
+  border-color: var(--admin-border) !important;
+  color: var(--admin-text-primary) !important;
+}
+
+/* Tables */
+.dark table {
+  color: var(--admin-text-primary);
+}
+
+.dark thead {
+  background-color: var(--admin-card-bg);
+}
+
+.dark tbody tr {
+  border-color: var(--admin-border);
+}
+
+/* Stats and Metrics */
+.dark .font-bold,
+.dark .font-semibold {
+  color: var(--admin-text-primary);
+}
+
+/* Links */
+.dark a {
+  color: #60a5fa;
+}
+
+.dark a:hover {
+  color: #93c5fd;
+}

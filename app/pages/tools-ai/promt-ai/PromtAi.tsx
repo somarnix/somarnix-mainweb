@@ -8,12 +8,6 @@ import TextToStoryPage from "./texttostory/page";
 import StoryToScenePage from "./texttoscene/page";
 import FlowWorkerPage from "./generateflow-ai/FlowWorkerPage";
 import KeyLicence, { type KeyLicenceState } from "@/app/components/KeyLicence";
-import ThemeLightAndDark, {
-  themeContentFrameClass,
-  themePageDescriptionClass,
-  themePageEyebrowClass,
-  themeTabButtonClasses,
-} from "@/app/components/ThemeLightAndDark";
 import type { PromtAiTab } from "@/app/components/promt/types";
 
 const STORAGE_KEY = "promt-ai-tab";
@@ -47,7 +41,7 @@ export default function PromtAiPage({ toolSlug }: { toolSlug?: string }) {
   }, [tab]);
 
   return (
-    <ThemeLightAndDark>
+    <div className="page-bg min-h-screen">
       <div className="prompt-ai-studio mx-auto flex w-full max-w-6xl flex-col gap-6 px-4 py-8">
         <div className="grid gap-6 lg:grid-cols-[minmax(0,1fr)_360px]">
           <header className="relative overflow-hidden rounded-3xl border border-slate-200 bg-white shadow-xl dark:border-gray-800 dark:bg-gray-900">
@@ -68,11 +62,13 @@ export default function PromtAiPage({ toolSlug }: { toolSlug?: string }) {
                   {promptAiLicenseState.status === "ready" ? "License active" : "License required"}
                 </span>
               </div>
-              <p className={themePageEyebrowClass}>Prompt AI Tools</p>
+              <p className="text-xs font-semibold uppercase tracking-[0.2em] text-blue-600 dark:text-blue-400">
+                Prompt AI Tools
+              </p>
               <h1 className="mt-3 text-3xl font-semibold text-slate-900 dark:text-white md:text-4xl">
                 Image to Text • Text to Image • Text to Story • Story to Scene • Flow Queue
               </h1>
-              <p className={`${themePageDescriptionClass} max-w-3xl`}>
+              <p className="max-w-3xl text-sm text-slate-500 dark:text-slate-400">
                 Switch between tools without leaving this page. The Flow Queue now uses the same Prompt AI
                 license automatically.
               </p>
@@ -109,31 +105,51 @@ export default function PromtAiPage({ toolSlug }: { toolSlug?: string }) {
         <div className="flex flex-wrap items-center gap-3">
           <button
             onClick={() => setTab("imgtotext")}
-            className={themeTabButtonClasses(tab === "imgtotext", "bg-emerald-500 text-slate-950")}
+            className={`rounded-full px-4 py-2 text-sm font-semibold transition ${
+              tab === "imgtotext"
+                ? "bg-emerald-500 text-slate-950"
+                : "border border-gray-300 bg-white text-gray-700 hover:bg-gray-50 dark:border-gray-700 dark:bg-gray-800 dark:text-gray-200"
+            }`}
           >
             Image to Text
           </button>
           <button
             onClick={() => setTab("texttoimg")}
-            className={themeTabButtonClasses(tab === "texttoimg", "bg-cyan-500 text-slate-950")}
+            className={`rounded-full px-4 py-2 text-sm font-semibold transition ${
+              tab === "texttoimg"
+                ? "bg-cyan-500 text-slate-950"
+                : "border border-gray-300 bg-white text-gray-700 hover:bg-gray-50 dark:border-gray-700 dark:bg-gray-800 dark:text-gray-200"
+            }`}
           >
             Text to Image
           </button>
           <button
             onClick={() => setTab("texttostory")}
-            className={themeTabButtonClasses(tab === "texttostory", "bg-purple-500 text-slate-950")}
+            className={`rounded-full px-4 py-2 text-sm font-semibold transition ${
+              tab === "texttostory"
+                ? "bg-purple-500 text-slate-950"
+                : "border border-gray-300 bg-white text-gray-700 hover:bg-gray-50 dark:border-gray-700 dark:bg-gray-800 dark:text-gray-200"
+            }`}
           >
             Text to Story
           </button>
           <button
             onClick={() => setTab("texttoscene")}
-            className={themeTabButtonClasses(tab === "texttoscene", "bg-indigo-500 text-slate-950")}
+            className={`rounded-full px-4 py-2 text-sm font-semibold transition ${
+              tab === "texttoscene"
+                ? "bg-indigo-500 text-slate-950"
+                : "border border-gray-300 bg-white text-gray-700 hover:bg-gray-50 dark:border-gray-700 dark:bg-gray-800 dark:text-gray-200"
+            }`}
           >
             Story to Scene
           </button>
           <button
             onClick={() => setTab("generateflow")}
-            className={themeTabButtonClasses(tab === "generateflow", "bg-amber-400 text-slate-950")}
+            className={`rounded-full px-4 py-2 text-sm font-semibold transition ${
+              tab === "generateflow"
+                ? "bg-amber-400 text-slate-950"
+                : "border border-gray-300 bg-white text-gray-700 hover:bg-gray-50 dark:border-gray-700 dark:bg-gray-800 dark:text-gray-200"
+            }`}
           >
             Flow Queue
           </button>
@@ -148,7 +164,7 @@ export default function PromtAiPage({ toolSlug }: { toolSlug?: string }) {
           </span>
         </div>
 
-        <div className={`${themeContentFrameClass} relative overflow-hidden`}>
+        <div className="relative overflow-hidden rounded-2xl border border-gray-200 bg-white p-5 shadow-sm dark:border-gray-800 dark:bg-gray-900">
           <div
             className={`transition ${
               promptAiUnlocked ? "" : "pointer-events-none select-none blur-[3px] opacity-40"
@@ -195,6 +211,6 @@ export default function PromtAiPage({ toolSlug }: { toolSlug?: string }) {
           ) : null}
         </div>
       </div>
-    </ThemeLightAndDark>
+    </div>
   );
 }

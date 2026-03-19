@@ -1,10 +1,11 @@
-"use client";
+﻿"use client";
 
 import React from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 import { CourseCard } from "../../components/CourseCard";
 import { ProfileAvatar } from "../../components/ProfileAvatar";
 import { useAuth } from "../../contexts/AuthContext";
+import { useLanguage } from "../../contexts/LanguageContext";
 import { useAppShellMode } from "../../lib/app-shell";
 
 type ServiceCard = {
@@ -63,22 +64,22 @@ type BlogProfileResponse = {
   };
 };
 
-const serviceTabs = ["AI", "Programs", "Games", "Tools", "Courses"] as const;
+const serviceTabs = ["ai", "programs", "games", "tools", "courses"] as const;
 type ServiceTab = (typeof serviceTabs)[number];
 
 const categoryMap: Record<ServiceTab, string> = {
-  AI: "ai",
-  Programs: "program",
-  Games: "game",
-  Tools: "tools",
-  Courses: "course",
+  ai: "ai",
+  programs: "program",
+  games: "game",
+  tools: "tools",
+  courses: "course",
 };
 
-function formatMemberSince(value: string | null) {
+function formatMemberSince(value: string | null, language: "en" | "km") {
   if (!value) return "-";
   const d = new Date(value);
   if (Number.isNaN(d.getTime())) return "-";
-  return d.toLocaleDateString("en-US", {
+  return d.toLocaleDateString(language === "km" ? "km-KH" : "en-US", {
     day: "numeric",
     month: "short",
     year: "numeric",
@@ -97,12 +98,13 @@ type BlogPageProps = {
 
 export function BlogPage({ initialSellerId }: BlogPageProps) {
   const { user } = useAuth();
+  const { language, t } = useLanguage();
   const router = useRouter();
   const searchParams = useSearchParams();
   const isAppShell = useAppShellMode();
 
   const [sellerId, setSellerId] = React.useState<number>(1);
-  const [activeServiceTab, setActiveServiceTab] = React.useState<ServiceTab>("AI");
+  const [activeServiceTab, setActiveServiceTab] = React.useState<ServiceTab>("ai");
   const [serviceCards, setServiceCards] = React.useState<ServiceCard[]>([]);
   const [serviceLoading, setServiceLoading] = React.useState(false);
   const [searchProduct, setSearchProduct] = React.useState("");
@@ -172,7 +174,7 @@ export function BlogPage({ initialSellerId }: BlogPageProps) {
         setServiceLoading(true);
         const category = categoryMap[activeServiceTab];
 
-        if (activeServiceTab === "Courses") {
+        if (activeServiceTab === "courses") {
           const params = new URLSearchParams({
             category,
             limit: "100",
@@ -314,11 +316,31 @@ export function BlogPage({ initialSellerId }: BlogPageProps) {
     return base.trim().slice(0, 2).toUpperCase();
   }, [profile?.seller.email, profile?.seller.name]);
 
-  const sellerName = profileLoading ? "Loading..." : profile?.seller.name || "Seller";
-  const sellerMeta = `${formatCompact(profile?.stats.followers ?? 0)} followers · ${formatCompact(
-    profile?.stats.following ?? 0
-  )} following`;
+  const getServiceTabLabel = (tab: ServiceTab) => {
+    switch (tab) {
+      case "programs":
+        return t("blog.tab.programs");
+      case "games":
+        return t("blog.tab.games");
+      case "tools":
+        return t("blog.tab.tools");
+      case "courses":
+        return t("blog.tab.courses");
+      case "ai":
+      default:
+        return t("blog.tab.ai");
+    }
+  };
+
+  const sellerName = profileLoading
+    ? t("common.loading")
+    : profile?.seller.name || t("blog.sellerFallback");
+  const sellerMeta = t("blog.sellerMeta", {
+    followers: formatCompact(profile?.stats.followers ?? 0),
+    following: formatCompact(profile?.stats.following ?? 0),
+  });
   const sellerBio = profile?.seller.bio?.trim() || "";
+  const activeServiceTabLabel = getServiceTabLabel(activeServiceTab);
 
   return (
     <div
@@ -341,8 +363,11 @@ export function BlogPage({ initialSellerId }: BlogPageProps) {
                       fallback={avatarInitials}
                       borderUrl={profile?.seller.avatarBorderUrl}
                       className="h-20 w-20 sm:h-24 sm:w-24"
-                      insetClassName={profile?.seller.avatarBorderUrl ? "inset-[14.5%]" : undefined}
-                      contentClassName="border-4 border-white shadow-lg dark:border-slate-900"
+                      contentClassName={
+                        profile?.seller.avatarBorderUrl
+                          ? "shadow-lg"
+                          : "border-4 border-white shadow-lg dark:border-slate-900"
+                      }
                       fallbackClassName="text-xl sm:text-2xl"
                     />
                   </div>
@@ -368,20 +393,20 @@ export function BlogPage({ initialSellerId }: BlogPageProps) {
                     } disabled:opacity-60`}
                   >
                     {followLoading
-                      ? "Please wait..."
+                      ? t("blog.pleaseWait")
                       : profile?.viewer.isFollowing
-                        ? "Following"
-                        : "Follow"}
+                        ? t("blog.following")
+                        : t("blog.follow")}
                   </button>
                   <button className="min-h-11 rounded-full bg-slate-900 px-5 py-2 text-sm font-semibold text-white transition hover:bg-slate-800 dark:bg-white dark:text-slate-900 dark:hover:bg-slate-100">
-                    Message
+                    {t("blog.message")}
                   </button>
                 </div>
               </div>
 
               {sellerBio ? (
                 <p className="max-w-3xl text-sm leading-6 text-slate-600 dark:text-slate-300">
-                  {sellerBio}
+                  {sellerBio || t("blog.noDescription")}
                 </p>
               ) : null}
             </div>
@@ -396,37 +421,37 @@ export function BlogPage({ initialSellerId }: BlogPageProps) {
                   <div className="text-xl font-bold text-slate-900 dark:text-white">
                     {formatCompact(profile?.stats.followers ?? 0)}
                   </div>
-                  <div className="mt-1 text-xs text-slate-500">Followers</div>
+                  <div className="mt-1 text-xs text-slate-500">{t("blog.followersLabel")}</div>
                 </div>
                 <div className="rounded-2xl border border-slate-100 bg-slate-50/60 px-3 py-4 dark:border-slate-800 dark:bg-slate-950/40">
                   <div className="text-xl font-bold text-slate-900 dark:text-white">
                     {formatCompact(profile?.stats.following ?? 0)}
                   </div>
-                  <div className="mt-1 text-xs text-slate-500">Following</div>
+                  <div className="mt-1 text-xs text-slate-500">{t("blog.followingLabel")}</div>
                 </div>
               </div>
 
               <div className="mt-5 space-y-3 text-sm text-slate-600 dark:text-slate-300">
                 <div className="flex items-center justify-between border-b border-slate-100 pb-2 dark:border-slate-800">
-                  <span>Member since</span>
+                  <span>{t("blog.memberSince")}</span>
                   <span className="font-semibold text-slate-900 dark:text-white">
-                    {formatMemberSince(profile?.seller.memberSince ?? null)}
+                    {formatMemberSince(profile?.seller.memberSince ?? null, language)}
                   </span>
                 </div>
                 <div className="flex items-center justify-between border-b border-slate-100 pb-2 dark:border-slate-800">
-                  <span>Successful delivery</span>
+                  <span>{t("blog.successfulDelivery")}</span>
                   <span className="font-semibold text-emerald-600">
                     {(profile?.stats.successfulDelivery ?? 0).toFixed(2)}%
                   </span>
                 </div>
                 <div className="flex items-center justify-between border-b border-slate-100 pb-2 dark:border-slate-800">
-                  <span>Total lifetime orders</span>
+                  <span>{t("blog.totalLifetimeOrders")}</span>
                   <span className="font-semibold text-slate-900 dark:text-white">
                     {formatCompact(profile?.stats.totalLifetimeOrders ?? 0)}
                   </span>
                 </div>
                 <div className="flex items-center justify-between">
-                  <span>All time rating</span>
+                  <span>{t("blog.allTimeRating")}</span>
                   <span className="font-semibold text-emerald-600">
                     {(profile?.stats.allTimeRating ?? 0).toFixed(2)}
                   </span>
@@ -436,10 +461,10 @@ export function BlogPage({ initialSellerId }: BlogPageProps) {
 
             <section className="rounded-[1.75rem] border border-slate-200 bg-white p-5 shadow-[0_18px_45px_-36px_rgba(15,23,42,0.55)] dark:border-slate-800 dark:bg-slate-900">
               <div className="text-base font-semibold text-slate-900 dark:text-white">
-                Description
+                {t("blog.description")}
               </div>
               <p className="mt-3 text-sm leading-6 text-slate-600 dark:text-slate-300">
-                {sellerBio}
+                {sellerBio || t("blog.noDescription")}
               </p>
             </section>
           </aside>
@@ -448,10 +473,10 @@ export function BlogPage({ initialSellerId }: BlogPageProps) {
             <div className="rounded-[1.75rem] border border-slate-200 bg-white p-4 shadow-[0_18px_45px_-36px_rgba(15,23,42,0.55)] dark:border-slate-800 dark:bg-slate-900 sm:p-6">
               <div className="flex flex-col gap-1">
                 <div className="text-base font-semibold text-slate-900 dark:text-white">
-                  All services
+                  {t("blog.allServices")}
                 </div>
                 <div className="text-sm text-slate-500 dark:text-slate-400">
-                  Browse everything this seller has published across products and courses.
+                  {t("blog.allServicesDesc")}
                 </div>
               </div>
 
@@ -470,7 +495,7 @@ export function BlogPage({ initialSellerId }: BlogPageProps) {
                             : "rounded-full px-4 py-2 text-slate-500 transition hover:bg-slate-100 dark:hover:bg-slate-800"
                         }
                       >
-                        {tab}
+                        {getServiceTabLabel(tab)}
                       </button>
                     );
                   })}
@@ -480,12 +505,12 @@ export function BlogPage({ initialSellerId }: BlogPageProps) {
               <div className="mt-5 grid gap-3 lg:grid-cols-[minmax(0,1fr)_220px]">
                 <div className="flex min-h-12 items-center gap-3 rounded-2xl border border-slate-200 bg-slate-50 px-4 py-2 text-sm text-slate-500 shadow-inner dark:border-slate-700 dark:bg-slate-950/50">
                   <span className="inline-flex h-8 w-8 items-center justify-center rounded-full bg-white text-[10px] font-semibold text-slate-500 dark:bg-slate-900 dark:text-slate-300">
-                    Find
+                    {t("blog.find")}
                   </span>
                   <input
                     value={searchProduct}
                     onChange={(event) => setSearchProduct(event.target.value)}
-                    placeholder={`Find all brands in ${activeServiceTab}`}
+                    placeholder={t("blog.findAllBrandsIn", { category: activeServiceTabLabel })}
                     className="w-full bg-transparent text-sm text-slate-600 placeholder:text-slate-400 focus:outline-none dark:text-slate-200"
                   />
                 </div>
@@ -505,33 +530,33 @@ export function BlogPage({ initialSellerId }: BlogPageProps) {
                     }
                     className="w-full bg-transparent text-sm text-slate-600 focus:outline-none dark:text-slate-200"
                   >
-                    <option value="all">All</option>
-                    <option value="free">Free</option>
-                    <option value="paid">Paid</option>
-                    <option value="instock">In stock</option>
-                    <option value="outstock">Out stock</option>
+                    <option value="all">{t("blog.filter.all")}</option>
+                    <option value="free">{t("blog.filter.free")}</option>
+                    <option value="paid">{t("blog.filter.paid")}</option>
+                    <option value="instock">{t("blog.filter.inStock")}</option>
+                    <option value="outstock">{t("blog.filter.outOfStock")}</option>
                   </select>
                 </div>
               </div>
 
-              {activeServiceTab === "Courses" && (
+              {activeServiceTab === "courses" && (
                 <div className="mt-3 grid gap-3 md:grid-cols-2">
                   <div className="flex min-h-12 items-center gap-2 rounded-2xl border border-slate-200 bg-slate-50 px-4 py-2 text-sm text-slate-500 dark:border-slate-700 dark:bg-slate-950/50">
-                    <span className="font-semibold text-slate-500">Product</span>
+                    <span className="font-semibold text-slate-500">{t("blog.product")}</span>
                     <input
                       value={searchProduct}
                       onChange={(event) => setSearchProduct(event.target.value)}
-                      placeholder="Search product slug..."
+                      placeholder={t("blog.searchProductSlug")}
                       className="w-full bg-transparent text-sm text-slate-600 placeholder:text-slate-400 focus:outline-none dark:text-slate-200"
                     />
                   </div>
 
                   <div className="flex min-h-12 items-center gap-2 rounded-2xl border border-slate-200 bg-slate-50 px-4 py-2 text-sm text-slate-500 dark:border-slate-700 dark:bg-slate-950/50">
-                    <span className="font-semibold text-slate-500">Video</span>
+                    <span className="font-semibold text-slate-500">{t("blog.video")}</span>
                     <input
                       value={searchVideo}
                       onChange={(event) => setSearchVideo(event.target.value)}
-                      placeholder="Search video title..."
+                      placeholder={t("blog.searchVideoTitle")}
                       className="w-full bg-transparent text-sm text-slate-600 placeholder:text-slate-400 focus:outline-none dark:text-slate-200"
                     />
                   </div>
@@ -541,13 +566,13 @@ export function BlogPage({ initialSellerId }: BlogPageProps) {
               <div className="mt-6 grid grid-cols-1 gap-4 sm:grid-cols-2 xl:grid-cols-3 2xl:grid-cols-4">
                 {serviceLoading && (
                   <div className="col-span-full rounded-2xl border border-dashed border-slate-200 bg-slate-50 px-4 py-10 text-center text-sm text-slate-500 dark:border-slate-700 dark:bg-slate-950/40">
-                    Loading services...
+                    {t("blog.loadingServices")}
                   </div>
                 )}
 
                 {!serviceLoading && filteredCards.length === 0 && (
                   <div className="col-span-full rounded-2xl border border-dashed border-slate-200 bg-slate-50 px-4 py-10 text-center text-sm text-slate-500 dark:border-slate-700 dark:bg-slate-950/40">
-                    No services found.
+                    {t("blog.noServicesFound")}
                   </div>
                 )}
 
@@ -576,3 +601,4 @@ export function BlogPage({ initialSellerId }: BlogPageProps) {
     </div>
   );
 }
+

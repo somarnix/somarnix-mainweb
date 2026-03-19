@@ -885,6 +885,7 @@ export default function App() {
 const showHeaderFooter =
   activePage !== "login" &&
   activePage !== "register" &&
+  activePage !== "forgot-password" &&
   activePage !== "reset-password";
 
   return (
@@ -898,6 +899,7 @@ const showHeaderFooter =
               className={`min-h-screen flex flex-col bg-white dark:bg-gray-900 ${
                 isAppShell ? "app-shell-root" : ""
               }`}
+              suppressHydrationWarning
             >
               <Toaster position="top-right" richColors />
 
@@ -962,6 +964,8 @@ function PresenceWatcher() {
       fetch("/api/presence", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
+        credentials: "include",
+        cache: "no-store",
         body,
         keepalive: status === "offline",
       }).catch(() => {});

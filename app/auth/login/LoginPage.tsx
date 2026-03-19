@@ -8,6 +8,8 @@ import { Button } from "../../components/ui/button";
 import { Input } from "../../components/ui/input";
 import { Label } from "../../components/ui/label";
 import { Checkbox } from "../../components/ui/checkbox";
+import { AuthBrand } from "../../components/AuthBrand";
+import { AuthPageControls } from "../../components/AuthPageControls";
 import { Mail, Lock, Eye, EyeOff } from "lucide-react";
 import { useLanguage } from "../../contexts/LanguageContext";
 
@@ -19,6 +21,7 @@ export default function LoginPage({ onNavigate }: LoginPageProps) {
   const { login, loginWithGoogle, isAuthenticated } = useAuth();
   const { t } = useLanguage();
 
+  const [hasMounted, setHasMounted] = useState(false);
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [showPassword, setShowPassword] = useState(false);
@@ -26,8 +29,13 @@ export default function LoginPage({ onNavigate }: LoginPageProps) {
   const [twoFactorRequired, setTwoFactorRequired] = useState(false);
   const [verificationCode, setVerificationCode] = useState("");
   const [submitting, setSubmitting] = useState(false);
+  const [resendingCode, setResendingCode] = useState(false);
   const [googleReady, setGoogleReady] = useState(false);
   const googleButtonRef = useRef<HTMLDivElement | null>(null);
+
+  useEffect(() => {
+    setHasMounted(true);
+  }, []);
 
   // Redirect after login
   useEffect(() => {
@@ -38,19 +46,45 @@ export default function LoginPage({ onNavigate }: LoginPageProps) {
 
   useEffect(() => {
     if (typeof window === "undefined") return;
-    const existing = document.getElementById("google-gsi-script") as HTMLScriptElement | null;
-    if (existing) {
+    if (window.google?.accounts?.id) {
       setGoogleReady(true);
       return;
     }
+
+    const existing = document.getElementById("google-gsi-script") as HTMLScriptElement | null;
+    if (existing) {
+      const handleLoad = () => setGoogleReady(true);
+      existing.addEventListener("load", handleLoad);
+      return () => {
+        existing.removeEventListener("load", handleLoad);
+      };
+    }
+
+    let active = true;
     const script = document.createElement("script");
     script.id = "google-gsi-script";
     script.src = "https://accounts.google.com/gsi/client";
     script.async = true;
     script.defer = true;
-    script.onload = () => setGoogleReady(true);
+    script.onload = () => {
+      if (active) setGoogleReady(true);
+    };
     document.head.appendChild(script);
+
+    return () => {
+      active = false;
+    };
   }, []);
+
+  useEffect(() => {
+    if (
+      googleReady &&
+      typeof window !== "undefined" &&
+      !window.google?.accounts?.id
+    ) {
+      setGoogleReady(false);
+    }
+  }, [googleReady]);
 
   useEffect(() => {
     const clientId = process.env.NEXT_PUBLIC_GOOGLE_CLIENT_ID;
@@ -73,12 +107,12 @@ export default function LoginPage({ onNavigate }: LoginPageProps) {
       callback: async (response: { credential?: string }) => {
         const credential = typeof response?.credential === "string" ? response.credential : "";
         if (!credential) {
-          toast.error("Google login failed.");
+          toast.error(t("login.errors.googleFailed"));
           return;
         }
         const result = await loginWithGoogle(credential);
         if (!result.success) {
-          toast.error(result.message || "Google login failed.");
+          toast.error(result.message || t("login.errors.googleFailed"));
           return;
         }
         toast.success(t("login.success"));
@@ -132,8 +166,8 @@ export default function LoginPage({ onNavigate }: LoginPageProps) {
           const toastFn = isVerifyingExistingCode ? toast.error : toast.success;
           toastFn(
             isVerifyingExistingCode
-              ? result.message || "Invalid or expired verification code. Please try again."
-              : `We sent a 6-digit verification code to ${email.trim()}.`
+              ? result.message || t("login.errors.invalidVerificationCode")
+              : t("login.twoFactorSent", { email: email.trim() })
           );
         } else if (result.reason === "deleted") {
           toast.error(
@@ -148,7 +182,12 @@ export default function LoginPage({ onNavigate }: LoginPageProps) {
             : null;
           toast.error(
             daysLeft
-              ? `This account is banned for ${daysLeft} day${daysLeft > 1 ? "s" : ""}${whenLabel ? ` (until ${whenLabel})` : ""}. Please try again later. If you believe this is a mistake, contact support in Telegram.`
+              ? t("login.errors.bannedForDays", {
+                  days: daysLeft,
+                  until: whenLabel
+                    ? t("login.errors.untilSuffix", { when: whenLabel })
+                    : "",
+                })
               : whenLabel
                 ? `${t("login.errors.bannedUntil") || "This account is banned until"} ${whenLabel}.`
                 : (t("login.errors.banned") || "This account is banned.")
@@ -166,24 +205,24 @@ export default function LoginPage({ onNavigate }: LoginPageProps) {
           toast.error(
             result.message ||
               (minutesLeft
-                ? `Too many login attempts. Try again in ${minutesLeft} minute(s).`
-                : "Too many login attempts. Please try again later.")
+                ? t("login.errors.rateLimitedMinutes", { minutes: minutesLeft })
+                : t("login.errors.rateLimited"))
           );
         } else if (result.reason === "device_limit") {
           toast.error(
             result.maxDevices
-              ? `You reached the login device limit (${result.maxDevices}).`
-              : "You reached the login device limit."
+              ? t("login.errors.deviceLimitWithCount", { count: result.maxDevices })
+              : t("login.errors.deviceLimit")
           );
         } else if (result.reason === "email_not_verified") {
           toast.error(
             result.email
-              ? `Email not verified for ${result.email}. Please verify your email code first.`
-              : "Email not verified. Please verify your email code first."
+              ? t("login.errors.emailNotVerifiedWithEmail", { email: result.email })
+              : t("login.errors.emailNotVerified")
           );
         } else if (result.reason === "password_not_set") {
           toast.error(
-            result.message || "This account uses Google login. Please continue with Google."
+            result.message || t("login.errors.passwordNotSet")
           );
         } else {
           toast.error(t("login.errors.invalid"));
@@ -194,22 +233,55 @@ export default function LoginPage({ onNavigate }: LoginPageProps) {
     }
   };
 
+  const handleResendCode = async () => {
+    if (resendingCode || submitting) return;
+
+    if (!email.trim() || !password) {
+      toast.error(t("login.errors.required"));
+      return;
+    }
+
+    setResendingCode(true);
+    try {
+      const result = await login(email.trim(), password, {
+        trustDevice,
+      });
+
+      if (result.reason === "two_factor_required") {
+        setTwoFactorRequired(true);
+        setVerificationCode("");
+        toast.success(result.message || t("login.twoFactorResent", { email: email.trim() }));
+        return;
+      }
+
+      if (!result.success) {
+        toast.error(result.message || t("login.errors.invalid"));
+      }
+    } finally {
+      setResendingCode(false);
+    }
+  };
+
+  if (!hasMounted) {
+    return (
+      <div className="min-h-screen bg-linear-to-br from-blue-50 via-purple-50 to-pink-50 dark:from-gray-900 dark:via-gray-900 dark:to-gray-900 flex items-center justify-center px-3 py-6 sm:px-6 sm:py-12 lg:px-8">
+        <div className="w-full max-w-md">
+          <div className="rounded-2xl bg-white p-5 shadow-xl sm:p-8 dark:bg-gray-800">
+            <div className="h-96 animate-pulse rounded-xl bg-gray-100 dark:bg-gray-700" />
+          </div>
+        </div>
+      </div>
+    );
+  }
+
   return (
     <div className="min-h-screen bg-linear-to-br from-blue-50 via-purple-50 to-pink-50 dark:from-gray-900 dark:via-gray-900 dark:to-gray-900 flex items-center justify-center px-3 py-6 sm:px-6 sm:py-12 lg:px-8">
       <div className="w-full max-w-md">
+        <AuthPageControls />
         <div className="rounded-2xl bg-white p-5 shadow-xl sm:p-8 dark:bg-gray-800">
           {/* LOGO */}
           <div className="text-center mb-8">
-            <div className="mb-4 inline-flex flex-wrap items-center justify-center gap-2">
-              <img
-                src="/khqr-assets/gstechkh-logo.png"
-                alt="GSTECHKH"
-                className="h-12 w-12 rounded-lg object-contain"
-              />
-              <span className="text-3xl font-bold bg-linear-to-r from-blue-600 to-purple-600 bg-clip-text text-transparent">
-                GSTECHKH
-              </span>
-            </div>
+            <AuthBrand />
             <h2 className="text-2xl font-bold text-gray-900 dark:text-white">
               {t("login.title")}
             </h2>
@@ -222,7 +294,16 @@ export default function LoginPage({ onNavigate }: LoginPageProps) {
           <div className="mb-5">
             <div className="overflow-hidden rounded-xl border-2 border-gray-200 bg-white p-1 dark:border-gray-700 dark:bg-gray-900">
               {process.env.NEXT_PUBLIC_GOOGLE_CLIENT_ID ? (
-                <div ref={googleButtonRef} className="flex min-h-11 w-full items-center justify-center" />
+                <div
+                  ref={googleButtonRef}
+                  className="flex min-h-11 w-full items-center justify-center"
+                >
+                  {!googleReady ? (
+                    <span className="text-sm text-gray-500 dark:text-gray-400">
+                      {t("login.googleLoading")}
+                    </span>
+                  ) : null}
+                </div>
               ) : (
                 <Button type="button" variant="outline" className="w-full border-0" disabled>
                   {t("login.google")}
@@ -230,7 +311,7 @@ export default function LoginPage({ onNavigate }: LoginPageProps) {
               )}
             </div>
           </div>
-          <form onSubmit={handleLogin} className="space-y-6" aria-busy={submitting}>
+          <form onSubmit={handleLogin} className="space-y-6" aria-busy={submitting} autoComplete="off">
             {/* EMAIL */}
             <div>
               <Label htmlFor="email">{t("login.emailLabel")}</Label>
@@ -239,13 +320,18 @@ export default function LoginPage({ onNavigate }: LoginPageProps) {
                 <Input
                   id="email"
                   type="email"
-                  autoComplete="email"
+                  name="edugroit_login_email"
+                  autoComplete="off"
+                  autoCapitalize="none"
+                  autoCorrect="off"
+                  spellCheck={false}
                   value={email}
                   onChange={(e) => {
                     setEmail(e.target.value);
                     setTwoFactorRequired(false);
                     setVerificationCode("");
                   }}
+                  placeholder={t("login.emailPlaceholder")}
                   className="pl-10"
                   required
                 />
@@ -260,19 +346,21 @@ export default function LoginPage({ onNavigate }: LoginPageProps) {
                 <Input
                   id="password"
                   type={showPassword ? "text" : "password"}
-                  autoComplete="current-password"
+                  name="edugroit_login_password"
+                  autoComplete="new-password"
                   value={password}
                   onChange={(e) => {
                     setPassword(e.target.value);
                     setTwoFactorRequired(false);
                     setVerificationCode("");
                   }}
+                  placeholder={t("login.passwordPlaceholder")}
                   className="pl-10 pr-10"
                   required
                 />
                 <button
                   type="button"
-                  aria-label={showPassword ? "Hide password" : "Show password"}
+                  aria-label={showPassword ? t("login.hidePassword") : t("login.showPassword")}
                   onClick={() => setShowPassword((v) => !v)}
                   className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-500 hover:text-gray-700"
                 >
@@ -295,7 +383,7 @@ export default function LoginPage({ onNavigate }: LoginPageProps) {
                   className="mt-0.5 shrink-0"
                 />
                 <Label htmlFor="trust-device" className="text-sm leading-5">
-                  Trust this device for 30 days
+                  {t("login.trustDevice")}
                 </Label>
               </div>
 
@@ -310,7 +398,7 @@ export default function LoginPage({ onNavigate }: LoginPageProps) {
 
             {twoFactorRequired ? (
               <div>
-                <Label htmlFor="verification-code">Verification code</Label>
+                <Label htmlFor="verification-code">{t("login.twoFactorLabel")}</Label>
                 <div className="mt-1 space-y-2">
                   <Input
                     id="verification-code"
@@ -320,13 +408,22 @@ export default function LoginPage({ onNavigate }: LoginPageProps) {
                     onChange={(e) =>
                       setVerificationCode(e.target.value.replace(/\D/g, "").slice(0, 6))
                     }
-                    placeholder="Enter 6-digit code"
+                    placeholder={t("login.twoFactorPlaceholder")}
                     maxLength={6}
                     required={twoFactorRequired}
                   />
                   <p className="text-xs text-gray-500 dark:text-gray-400">
-                    This device is not trusted yet. Enter the 6-digit code we sent to your email.
+                    {t("login.twoFactorHint")}
                   </p>
+                  <Button
+                    type="button"
+                    variant="outline"
+                    onClick={handleResendCode}
+                    disabled={resendingCode || submitting}
+                    className="w-full"
+                  >
+                    {resendingCode ? t("login.sendingCode") : t("login.resendCode")}
+                  </Button>
                 </div>
               </div>
             ) : null}
@@ -336,7 +433,7 @@ export default function LoginPage({ onNavigate }: LoginPageProps) {
               {submitting
                 ? t("login.loading")
                 : twoFactorRequired
-                  ? "Verify and sign in"
+                  ? t("login.verifyAndSignIn")
                   : t("login.signin")}
             </Button>
           </form>

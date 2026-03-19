@@ -16,8 +16,10 @@ export default function PWAInstallPrompt() {
   const [installing, setInstalling] = useState(false);
   const [isStandalone, setIsStandalone] = useState(false);
   const [isIos, setIsIos] = useState(false);
+  const [hydrated, setHydrated] = useState(false);
 
   useEffect(() => {
+    setHydrated(true);
     if (typeof window === "undefined") return;
     const stored = window.localStorage.getItem(STORAGE_KEY);
     setDismissed(stored === "1");
@@ -48,9 +50,9 @@ export default function PWAInstallPrompt() {
   }, []);
 
   const canShow = useMemo(() => {
-    if (dismissed || isStandalone) return false;
+    if (!hydrated || dismissed || isStandalone) return false;
     return Boolean(promptEvent) || isIos;
-  }, [dismissed, isStandalone, promptEvent, isIos]);
+  }, [dismissed, isStandalone, promptEvent, isIos, hydrated]);
 
   const dismiss = () => {
     setDismissed(true);

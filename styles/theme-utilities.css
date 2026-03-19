@@ -1,0 +1,330 @@
+/* =======================
+   PROFESSIONAL THEME SYSTEM
+   Centralized color palette and utilities for consistent light/dark themes
+======================= */
+
+/* =======================
+   COLOR PALETTE DEFINITIONS
+======================= */
+
+@theme inline {
+  /* Brand Colors */
+  --color-brand-primary: oklch(0.55 0.25 262);
+  --color-brand-secondary: oklch(0.65 0.2 290);
+  --color-brand-accent: oklch(0.7 0.18 320);
+  
+  /* Semantic Colors */
+  --color-success: oklch(0.7 0.18 150);
+  --color-warning: oklch(0.75 0.18 80);
+  --color-error: oklch(0.6 0.25 25);
+  --color-info: oklch(0.65 0.2 240);
+}
+
+/* =======================
+   LIGHT THEME OVERRIDES
+======================= */
+
+:root {
+  /* Surface Colors - Light */
+  --surface-base: #ffffff;
+  --surface-elevated: #f8fafc;
+  --surface-overlay: rgba(255, 255, 255, 0.95);
+  --surface-backdrop: rgba(255, 255, 255, 0.7);
+  
+  /* Text Colors - Light */
+  --text-primary: #0f172a;
+  --text-secondary: #475569;
+  --text-tertiary: #94a3b8;
+  --text-inverse: #ffffff;
+  
+  /* Border Colors - Light */
+  --border-subtle: #e2e8f0;
+  --border-default: #cbd5e1;
+  --border-strong: #94a3b8;
+  
+  /* Shadow Colors - Light */
+  --shadow-color: rgba(0, 0, 0, 0.1);
+  --shadow-glow: rgba(59, 130, 246, 0.15);
+  
+  /* Gradient Backgrounds - Light */
+  --gradient-primary: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+  --gradient-secondary: linear-gradient(135deg, #f093fb 0%, #f5576c 100%);
+  --gradient-accent: linear-gradient(135deg, #4facfe 0%, #00f2fe 100%);
+  --gradient-surface: linear-gradient(180deg, #ffffff 0%, #f8fafc 100%);
+}
+
+/* =======================
+   DARK THEME OVERRIDES
+======================= */
+
+.dark {
+  /* Surface Colors - Dark */
+  --surface-base: #0f172a;
+  --surface-elevated: #1e293b;
+  --surface-overlay: rgba(15, 23, 42, 0.95);
+  --surface-backdrop: rgba(15, 23, 42, 0.7);
+  
+  /* Text Colors - Dark */
+  --text-primary: #f8fafc;
+  --text-secondary: #cbd5e1;
+  --text-tertiary: #64748b;
+  --text-inverse: #0f172a;
+  
+  /* Border Colors - Dark */
+  --border-subtle: #1e293b;
+  --border-default: #334155;
+  --border-strong: #475569;
+  
+  /* Shadow Colors - Dark */
+  --shadow-color: rgba(0, 0, 0, 0.4);
+  --shadow-glow: rgba(139, 92, 246, 0.2);
+  
+  /* Gradient Backgrounds - Dark */
+  --gradient-primary: linear-gradient(135deg, #4c1d95 0%, #581c87 100%);
+  --gradient-secondary: linear-gradient(135deg, #be185d 0%, #9d174d 100%);
+  --gradient-accent: linear-gradient(135deg, #0e7490 0%, #155e75 100%);
+  --gradient-surface: linear-gradient(180deg, #0f172a 0%, #1e293b 100%);
+}
+
+/* =======================
+   UTILITY CLASSES
+======================= */
+
+@layer utilities {
+  /* Surface Utilities */
+  .surface-base {
+    background-color: var(--surface-base);
+  }
+  
+  .surface-elevated {
+    background-color: var(--surface-elevated);
+  }
+  
+  .surface-overlay {
+    background-color: var(--surface-overlay);
+    backdrop-filter: blur(12px);
+  }
+  
+  .surface-backdrop {
+    background-color: var(--surface-backdrop);
+    backdrop-filter: blur(8px);
+  }
+  
+  /* Text Utilities */
+  .text-primary {
+    color: var(--text-primary);
+  }
+  
+  .text-secondary {
+    color: var(--text-secondary);
+  }
+  
+  .text-tertiary {
+    color: var(--text-tertiary);
+  }
+  
+  .text-inverse {
+    color: var(--text-inverse);
+  }
+  
+  /* Border Utilities */
+  .border-subtle {
+    border-color: var(--border-subtle);
+  }
+  
+  .border-default {
+    border-color: var(--border-default);
+  }
+  
+  .border-strong {
+    border-color: var(--border-strong);
+  }
+  
+  /* Shadow Utilities */
+  .shadow-themed {
+    box-shadow: 0 4px 6px -1px var(--shadow-color), 0 2px 4px -2px var(--shadow-color);
+  }
+  
+  .shadow-glow {
+    box-shadow: 0 0 20px var(--shadow-glow);
+  }
+  
+  /* Gradient Utilities */
+  .gradient-primary {
+    background: var(--gradient-primary);
+  }
+  
+  .gradient-secondary {
+    background: var(--gradient-secondary);
+  }
+  
+  .gradient-accent {
+    background: var(--gradient-accent);
+  }
+  
+  .gradient-surface {
+    background: var(--gradient-surface);
+  }
+  
+  .gradient-text {
+    background: var(--gradient-primary);
+    -webkit-background-clip: text;
+    -webkit-text-fill-color: transparent;
+    background-clip: text;
+  }
+  
+  /* Card Styles */
+  .card-themed {
+    @apply rounded-2xl border border-default p-6 shadow-themed transition-all duration-300;
+    background-color: var(--surface-base);
+  }
+  
+  .card-elevated {
+    @apply rounded-2xl border border-subtle p-6 shadow-glow transition-all duration-300;
+    background-color: var(--surface-elevated);
+  }
+  
+  .card-interactive {
+    @apply card-themed hover:shadow-glow hover:scale-[1.02] cursor-pointer;
+  }
+  
+  /* Page Layout */
+  .page-container {
+    @apply min-h-screen transition-colors duration-300;
+    background: var(--gradient-surface);
+  }
+  
+  /* Glass Effect */
+  .glass {
+    @apply backdrop-blur-xl border border-subtle;
+    background-color: var(--surface-backdrop);
+  }
+  
+  .glass-dark {
+    @apply backdrop-blur-xl border border-default;
+    background-color: rgba(15, 23, 42, 0.6);
+  }
+  
+  /* Button Variants */
+  .btn-primary {
+    @apply px-6 py-2.5 rounded-xl font-semibold transition-all duration-300;
+    background: var(--gradient-primary);
+    color: var(--text-inverse);
+  }
+  
+  .btn-primary:hover {
+    @apply shadow-glow scale-105;
+  }
+  
+  .btn-secondary {
+    @apply px-6 py-2.5 rounded-xl font-semibold border border-default transition-all duration-300;
+    background-color: var(--surface-elevated);
+    color: var(--text-primary);
+  }
+  
+  .btn-secondary:hover {
+    @apply border-strong shadow-themed;
+  }
+  
+  /* Input Styles */
+  .input-themed {
+    @apply w-full px-4 py-2.5 rounded-xl border border-subtle transition-all duration-300 outline-none;
+    background-color: var(--surface-elevated);
+    color: var(--text-primary);
+  }
+  
+  .input-themed:focus {
+    @apply border-primary ring-2 ring-brand-primary/20;
+  }
+  
+  /* Badge Styles */
+  .badge-primary {
+    @apply inline-flex items-center px-3 py-1 rounded-full text-xs font-semibold;
+    background: var(--gradient-primary);
+    color: var(--text-inverse);
+  }
+  
+  .badge-secondary {
+    @apply inline-flex items-center px-3 py-1 rounded-full text-xs font-semibold border border-subtle;
+    background-color: var(--surface-elevated);
+    color: var(--text-primary);
+  }
+  
+  /* Section Dividers */
+  .divider-themed {
+    @apply h-px w-full;
+    background: linear-gradient(90deg, 
+      transparent 0%, 
+      var(--border-subtle) 20%, 
+      var(--border-subtle) 80%, 
+      transparent 100%);
+  }
+  
+  /* Animation Utilities */
+  .transition-themed {
+    @apply transition-all duration-300 ease-in-out;
+  }
+  
+  .hover-lift {
+    @apply transition-transform duration-300 hover:-translate-y-1;
+  }
+  
+  .hover-glow {
+    @apply transition-shadow duration-300 hover:shadow-glow;
+  }
+}
+
+/* =======================
+   COMPONENT-SPECIFIC THEMES
+======================= */
+
+@layer components {
+  /* Header Theme */
+  .header-themed {
+    @apply sticky top-0 z-50 border-b border-subtle transition-colors duration-300;
+    background-color: var(--surface-overlay);
+    backdrop-filter: blur(12px);
+  }
+  
+  /* Sidebar Theme */
+  .sidebar-themed {
+    @apply h-full border-r border-subtle transition-colors duration-300;
+    background: var(--gradient-surface);
+  }
+  
+  /* Footer Theme */
+  .footer-themed {
+    @apply border-t border-subtle py-8 transition-colors duration-300;
+    background-color: var(--surface-elevated);
+  }
+  
+  /* Modal Theme */
+  .modal-themed {
+    @apply fixed inset-0 z-50 flex items-center justify-center p-4;
+    background-color: rgba(0, 0, 0, 0.5);
+    backdrop-filter: blur(4px);
+  }
+  
+  .modal-content {
+    @apply rounded-3xl p-6 max-w-lg w-full shadow-2xl;
+    background-color: var(--surface-base);
+    border: 1px solid var(--border-default);
+  }
+  
+  /* Navigation Theme */
+  .nav-item {
+    @apply px-4 py-2 rounded-xl font-medium transition-all duration-300;
+    color: var(--text-secondary);
+  }
+  
+  .nav-item:hover {
+    @apply text-primary;
+    background-color: var(--surface-elevated);
+  }
+  
+  .nav-item-active {
+    @apply text-primary font-semibold;
+    background: var(--gradient-primary);
+    color: var(--text-inverse);
+  }
+}

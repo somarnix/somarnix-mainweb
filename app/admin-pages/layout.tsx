@@ -7,7 +7,7 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
   return (
     <div className="flex min-h-screen">
       <Sidebar isOpen={true} onNavigate={() => {}} />
-      <main className="flex-1 p-6 bg-gray-50">
+      <main className="flex-1 p-6 bg-gray-50 dark:bg-gray-900 transition-colors duration-300">
         {children}
       </main>
     </div>

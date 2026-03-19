@@ -1,0 +1,324 @@
+@custom-variant dark (&:is(.dark *));
+
+/* =======================
+   PROFESSIONAL THEME SYSTEM
+   Simplified, consistent colors for light/dark modes
+======================= */
+
+:root {
+  /* Font Settings */
+  --font-size: 16px;
+  
+  /* Light Theme Colors */
+  --background: #ffffff;
+  --foreground: #0f172a;
+  --card: #ffffff;
+  --card-foreground: #0f172a;
+  --popover: #ffffff;
+  --popover-foreground: #0f172a;
+  --primary: #4f46e5;
+  --primary-foreground: #ffffff;
+  --secondary: #f1f5f9;
+  --secondary-foreground: #0f172a;
+  --muted: #f8fafc;
+  --muted-foreground: #64748b;
+  --accent: #f1f5f9;
+  --accent-foreground: #0f172a;
+  --destructive: #ef4444;
+  --destructive-foreground: #ffffff;
+  --border: #e2e8f0;
+  --input: #e2e8f0;
+  --input-background: #f8fafc;
+  --ring: #4f46e5;
+  --sidebar: #f8fafc;
+  --sidebar-foreground: #0f172a;
+  --sidebar-primary: #4f46e5;
+  --sidebar-primary-foreground: #ffffff;
+  --sidebar-accent: #f1f5f9;
+  --sidebar-accent-foreground: #0f172a;
+  --sidebar-border: #e2e8f0;
+  --sidebar-ring: #4f46e5;
+  --chart-1: #3b82f6;
+  --chart-2: #10b981;
+  --chart-3: #f59e0b;
+  --chart-4: #ef4444;
+  --chart-5: #8b5cf6;
+  --radius: 0.75rem;
+  --font-weight-normal: 400;
+  --font-weight-medium: 500;
+  --font-weight-semibold: 600;
+  --font-weight-bold: 700;
+}
+
+.dark {
+  /* Dark Theme Colors */
+  --background: #0f172a;
+  --foreground: #f8fafc;
+  --card: #0f172a;
+  --card-foreground: #f8fafc;
+  --popover: #0f172a;
+  --popover-foreground: #f8fafc;
+  --primary: #6366f1;
+  --primary-foreground: #ffffff;
+  --secondary: #1e293b;
+  --secondary-foreground: #f8fafc;
+  --muted: #1e293b;
+  --muted-foreground: #94a3b8;
+  --accent: #1e293b;
+  --accent-foreground: #f8fafc;
+  --destructive: #dc2626;
+  --destructive-foreground: #f8fafc;
+  --border: #1e293b;
+  --input: #334155;
+  --input-background: #1e293b;
+  --ring: #6366f1;
+  --sidebar: #0f172a;
+  --sidebar-foreground: #f8fafc;
+  --sidebar-primary: #6366f1;
+  --sidebar-primary-foreground: #ffffff;
+  --sidebar-accent: #1e293b;
+  --sidebar-accent-foreground: #f8fafc;
+  --sidebar-border: #1e293b;
+  --sidebar-ring: #6366f1;
+  --chart-1: #60a5fa;
+  --chart-2: #34d399;
+  --chart-3: #fbbf24;
+  --chart-4: #f87171;
+  --chart-5: #a78bfa;
+}
+
+@theme inline {
+  --color-background: var(--background);
+  --color-foreground: var(--foreground);
+  --color-card: var(--card);
+  --color-card-foreground: var(--card-foreground);
+  --color-popover: var(--popover);
+  --color-popover-foreground: var(--popover-foreground);
+  --color-primary: var(--primary);
+  --color-primary-foreground: var(--primary-foreground);
+  --color-secondary: var(--secondary);
+  --color-secondary-foreground: var(--secondary-foreground);
+  --color-muted: var(--muted);
+  --color-muted-foreground: var(--muted-foreground);
+  --color-accent: var(--accent);
+  --color-accent-foreground: var(--accent-foreground);
+  --color-destructive: var(--destructive);
+  --color-destructive-foreground: var(--destructive-foreground);
+  --color-border: var(--border);
+  --color-input: var(--input);
+  --color-input-background: var(--input-background);
+  --color-ring: var(--ring);
+  --color-chart-1: var(--chart-1);
+  --color-chart-2: var(--chart-2);
+  --color-chart-3: var(--chart-3);
+  --color-chart-4: var(--chart-4);
+  --color-chart-5: var(--chart-5);
+  --color-sidebar: var(--sidebar);
+  --color-sidebar-foreground: var(--sidebar-foreground);
+  --color-sidebar-primary: var(--sidebar-primary);
+  --color-sidebar-primary-foreground: var(--sidebar-primary-foreground);
+  --color-sidebar-accent: var(--sidebar-accent);
+  --color-sidebar-accent-foreground: var(--sidebar-accent-foreground);
+  --color-sidebar-border: var(--sidebar-border);
+  --color-sidebar-ring: var(--sidebar-ring);
+  --radius-sm: calc(var(--radius) - 4px);
+  --radius-md: calc(var(--radius) - 2px);
+  --radius-lg: var(--radius);
+  --radius-xl: calc(var(--radius) + 4px);
+}
+
+@layer base {
+  * {
+    @apply border-border outline-ring/50;
+  }
+
+  body {
+    @apply bg-background text-foreground;
+  }
+
+  /* Global Button Animations */
+  button, [role="button"] {
+    @apply transition-all duration-300 ease-in-out cursor-pointer;
+  }
+
+  button:hover, [role="button"]:hover {
+    @apply shadow-md;
+  }
+
+  button:active, [role="button"]:active {
+    @apply scale-95;
+    transition-duration: 100ms;
+  }
+
+  html {
+    font-size: var(--font-size);
+  }
+
+  h1 { font-size: var(--text-2xl); font-weight: var(--font-weight-bold); line-height: 1.5; }
+  h2 { font-size: var(--text-xl); font-weight: var(--font-weight-semibold); line-height: 1.5; }
+  h3 { font-size: var(--text-lg); font-weight: var(--font-weight-semibold); line-height: 1.5; }
+  h4 { font-size: var(--text-base); font-weight: var(--font-weight-medium); line-height: 1.5; }
+  label { font-size: var(--text-base); font-weight: var(--font-weight-medium); line-height: 1.5; }
+  button { font-size: var(--text-base); font-weight: var(--font-weight-medium); line-height: 1.5; }
+  input { font-size: var(--text-base); font-weight: var(--font-weight-normal); line-height: 1.5; }
+}
+
+@layer utilities {
+  .page-bg {
+    @apply min-h-screen transition-colors duration-300;
+    background: linear-gradient(180deg, var(--background) 0%, var(--secondary) 100%);
+  }
+  
+  .card {
+    @apply rounded-2xl border border-border bg-card p-6 shadow-sm transition-all duration-300;
+  }
+  
+  .card-hover {
+    @apply card hover:shadow-lg hover:scale-[1.02];
+  }
+  
+  .glass {
+    @apply backdrop-blur-xl border border-border/50;
+    background-color: var(--background);
+  }
+  
+  .text-gradient {
+    @apply bg-clip-text text-transparent;
+    background-image: linear-gradient(135deg, var(--primary), var(--chart-5));
+  }
+  
+  .btn-primary {
+    @apply px-6 py-2.5 rounded-xl font-semibold text-white transition-all duration-300 ease-in-out;
+    background: linear-gradient(135deg, var(--primary), var(--chart-5));
+  }
+
+  .btn-primary:hover {
+    @apply shadow-lg scale-105;
+    filter: brightness(1.1);
+  }
+
+  .btn-primary:active {
+    @apply scale-95;
+    transition-duration: 100ms;
+  }
+
+  .btn-secondary {
+    @apply px-6 py-2.5 rounded-xl font-semibold border border-border transition-all duration-300 ease-in-out;
+    background-color: var(--secondary);
+    color: var(--foreground);
+  }
+
+  .btn-secondary:hover {
+    @apply bg-muted;
+    transform: translateY(-2px);
+    box-shadow: 0 4px 12px rgba(0, 0, 0, 0.1);
+  }
+
+  .btn-secondary:active {
+    @apply scale-95;
+    transition-duration: 100ms;
+  }
+  
+  .input {
+    @apply w-full px-4 py-2.5 rounded-xl border border-border transition-all duration-300 outline-none;
+    background-color: var(--input-background);
+    color: var(--foreground);
+  }
+  
+  .input:focus {
+    @apply border-primary ring-2 ring-primary/20;
+  }
+  
+  /* Fix select dropdowns for dark mode */
+  select.input {
+    @apply cursor-pointer;
+    background-color: var(--input-background);
+    color: var(--foreground);
+  }
+  
+  select.input option {
+    background-color: var(--background);
+    color: var(--foreground);
+  }
+  
+  .badge {
+    @apply inline-flex items-center px-3 py-1 rounded-full text-xs font-semibold;
+  }
+  
+  .badge-primary {
+    @apply badge text-white;
+    background: linear-gradient(135deg, var(--primary), var(--chart-5));
+  }
+  
+  .badge-secondary {
+    @apply badge border border-border;
+    background-color: var(--secondary);
+    color: var(--foreground);
+  }
+  
+  .transition-themed {
+    @apply transition-all duration-300 ease-in-out;
+  }
+
+  .hover-lift {
+    @apply transition-transform duration-300 hover:-translate-y-1;
+  }
+
+  .hover-glow {
+    @apply transition-shadow duration-300 hover:shadow-lg;
+  }
+
+  /* Button Ripple Effect */
+  .btn-ripple {
+    position: relative;
+    overflow: hidden;
+  }
+
+  .btn-ripple::after {
+    content: "";
+    position: absolute;
+    top: 50%;
+    left: 50%;
+    width: 0;
+    height: 0;
+    border-radius: 50%;
+    background: rgba(255, 255, 255, 0.5);
+    transform: translate(-50%, -50%);
+    transition: width 0.6s, height 0.6s;
+  }
+
+  .btn-ripple:active::after {
+    width: 300px;
+    height: 300px;
+  }
+}
+
+@layer components {
+  .header {
+    @apply sticky top-0 z-50 border-b border-border backdrop-blur-xl;
+    background-color: var(--background);
+  }
+
+  .sidebar {
+    @apply h-full border-r border-border transition-colors duration-300;
+    background: linear-gradient(180deg, var(--sidebar) 0%, var(--secondary) 100%);
+  }
+  
+  .sidebar-themed {
+    @apply h-full transition-colors duration-300;
+    background: linear-gradient(180deg, var(--sidebar) 0%, var(--secondary) 100%);
+  }
+
+  .nav-item {
+    @apply px-4 py-2 rounded-xl font-medium transition-all duration-300 text-muted-foreground;
+  }
+
+  .nav-item:hover {
+    @apply text-foreground bg-accent;
+  }
+
+  .nav-item-active {
+    @apply text-white font-semibold;
+    background: linear-gradient(135deg, var(--primary), var(--chart-5));
+  }
+}

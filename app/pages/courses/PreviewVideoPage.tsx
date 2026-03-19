@@ -16,6 +16,7 @@ import {
   X,
 } from "lucide-react";
 import { useAppShellMode } from "../../lib/app-shell";
+import { useLanguage } from "../../contexts/LanguageContext";
 
 export type PreviewLesson = {
   id: string;
@@ -119,6 +120,7 @@ export function PreviewVideoPage({
   onBack,
 }: PreviewVideoPageProps) {
   const isAppShell = useAppShellMode();
+  const { t } = useLanguage();
   const [activeId, setActiveId] = useState<string>(() => {
     if (initialLessonId && lessons.some((lesson) => lesson.id === initialLessonId)) {
       return initialLessonId;
@@ -227,10 +229,12 @@ export function PreviewVideoPage({
     if (nameText) return nameText;
     if (track.languageName) return track.languageName;
     if (track.languageCode) {
-      return track.kind === "asr" ? `${track.languageCode} (Auto)` : track.languageCode;
+      return track.kind === "asr"
+        ? `${track.languageCode} (${t("preview.auto")})`
+        : track.languageCode;
     }
-    return "Caption";
-  }, []);
+    return t("preview.caption", { count: 1 });
+  }, [t]);
 
   const syncPlayerState = useCallback(() => {
     if (!playerRef.current) return;
@@ -388,9 +392,9 @@ export function PreviewVideoPage({
     const levels = [...ordered, ...extras];
     return [
       ...levels.map((level) => ({ id: level, label: formatQualityLevel(level) })),
-      { id: "auto", label: "Auto" },
+      { id: "auto", label: t("preview.auto") },
     ];
-  }, [availableQualities, formatQualityLevel]);
+  }, [availableQualities, formatQualityLevel, t]);
 
   const handleCaptionMenuChange = useCallback(
     (value: string) => {
@@ -595,7 +599,7 @@ export function PreviewVideoPage({
         {/* Header */}
         <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between sm:gap-4">
           <div className="min-w-0">
-            <div className="text-sm font-semibold text-slate-300">Course Preview</div>
+            <div className="text-sm font-semibold text-slate-300">{t("preview.title")}</div>
             <div className="mt-1 text-lg font-bold leading-tight sm:text-xl md:text-2xl">
               {courseTitle}
             </div>
@@ -606,7 +610,7 @@ export function PreviewVideoPage({
             className="inline-flex items-center justify-center gap-2 self-start rounded-xl bg-white/10 px-3 py-2 text-sm hover:bg-white/15 sm:self-auto"
           >
             <X className="w-4 h-4" />
-            Close
+            {t("preview.close")}
           </button>
         </div>
 
@@ -631,12 +635,12 @@ export function PreviewVideoPage({
           onClick={handleVideoClick}
           onContextMenu={(event) => event.preventDefault()}
           className="absolute inset-0 z-10 cursor-pointer bg-transparent"
-          aria-label={isPlaying ? "Pause video" : "Play video"}
+          aria-label={isPlaying ? t("preview.pauseVideo") : t("preview.playVideo")}
         />
       </>
             ) : (
               <div className="h-full w-full flex items-center justify-center text-slate-400">
-                Invalid video link
+                {t("preview.invalidVideoLink")}
               </div>
             )}
             </div>
@@ -663,14 +667,14 @@ export function PreviewVideoPage({
                     className="inline-flex min-h-10 items-center gap-2 rounded-xl bg-white/10 px-3 py-2 text-xs font-semibold text-white hover:bg-white/20 disabled:opacity-50"
                   >
                     {isPlaying ? <Pause className="h-4 w-4" /> : <Play className="h-4 w-4" />}
-                    <span>{isPlaying ? "Pause" : "Play"}</span>
+                    <span>{isPlaying ? t("preview.pause") : t("preview.play")}</span>
                   </button>
                   <button
                     type="button"
                     onClick={goPrev}
                     disabled={!hasPrev}
                     className="inline-flex min-h-10 min-w-10 items-center justify-center rounded-xl bg-white/10 px-3 py-2 text-xs font-semibold text-white hover:bg-white/20 disabled:opacity-50"
-                    aria-label="Previous"
+                    aria-label={t("preview.previous")}
                   >
                     <SkipBack className="h-4 w-4" />
                   </button>
@@ -679,7 +683,7 @@ export function PreviewVideoPage({
                     onClick={goNext}
                     disabled={!hasNext}
                     className="inline-flex min-h-10 min-w-10 items-center justify-center rounded-xl bg-white/10 px-3 py-2 text-xs font-semibold text-white hover:bg-white/20 disabled:opacity-50"
-                    aria-label="Next"
+                    aria-label={t("preview.next")}
                   >
                     <SkipForward className="h-4 w-4" />
                   </button>
@@ -747,19 +751,21 @@ export function PreviewVideoPage({
                     className="min-h-10 w-full rounded-xl border border-white/10 bg-black/40 px-3 py-2 text-xs text-white sm:w-32 sm:rounded-lg sm:px-2 sm:py-1"
                     disabled={!isReady || captionsLoading}
                   >
-                    <option value="off">Off</option>
+                    <option value="off">{t("preview.off")}</option>
                     {captionsLoading ? (
                       <option value="loading" disabled>
-                        Loading...
+                        {t("preview.loading")}
                       </option>
                     ) : null}
                     {!captionsLoading && captionTracks.length === 0 ? (
                       <option value="none" disabled>
-                        No captions
+                        {t("preview.noCaptions")}
                       </option>
                     ) : null}
                     {captionTracks.map((track, index) => {
-                      const label = formatCaptionLabel(track) || `Caption ${index + 1}`;
+                      const label =
+                        formatCaptionLabel(track) ||
+                        t("preview.caption", { count: index + 1 });
                       return (
                         <option key={track.languageCode || label} value={track.languageCode}>
                           {label}
@@ -797,7 +803,7 @@ export function PreviewVideoPage({
                     disabled={!isReady}
                   >
                     <Maximize2 className="h-4 w-4" />
-                    <span>{isFullscreen ? "Exit fullscreen" : "Fullscreen"}</span>
+                    <span>{isFullscreen ? t("preview.exitFullscreen") : t("preview.fullscreen")}</span>
                   </button>
                 </div>
               </div>
@@ -808,7 +814,7 @@ export function PreviewVideoPage({
 
         {/* List */}
         <div className="mt-5 sm:mt-6">
-          <div className="text-sm font-semibold text-slate-200">Free Sample Videos:</div>
+          <div className="text-sm font-semibold text-slate-200">{t("preview.freeSampleVideos")}</div>
 
           <div className="mt-3 rounded-2xl border border-white/10 overflow-hidden">
             {lessons.map((l) => {
@@ -829,7 +835,7 @@ export function PreviewVideoPage({
                     <div className="min-w-0">
                       <div className="truncate font-semibold">{l.title}</div>
                       {/* ✅ no URL displayed */}
-                      <div className="text-xs text-slate-400">Preview lesson</div>
+                      <div className="text-xs text-slate-400">{t("preview.lesson")}</div>
                     </div>
                   </div>
 
@@ -844,7 +850,7 @@ export function PreviewVideoPage({
             className="mt-5 inline-flex items-center gap-2 text-sm text-slate-300 hover:text-white"
           >
             <ArrowLeft className="w-4 h-4" />
-            Back
+            {t("preview.back")}
           </button>
         </div>
       </div>

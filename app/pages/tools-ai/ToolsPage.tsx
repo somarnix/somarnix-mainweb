@@ -25,12 +25,12 @@ type DbTool = {
 
 export function ToolsPage({ onOpenProductDetail }: { onOpenProductDetail: (slug: string) => void }) {
   const { t } = useLanguage();
+  const ALL_SLUG = "__all_tools__";
 
   const [tools, setTools] = useState<DbTool[]>([]);
   const [loading, setLoading] = useState(true);
 
-  const allLabel = "All Tools";
-  const [selectedSlug, setSelectedSlug] = useState<string>(allLabel);
+  const [selectedSlug, setSelectedSlug] = useState<string>(ALL_SLUG);
   const [slugQuery, setSlugQuery] = useState("");
   const [slugLimit, setSlugLimit] = useState(10);
 
@@ -68,7 +68,7 @@ export function ToolsPage({ onOpenProductDetail }: { onOpenProductDetail: (slug:
 
   /* ================= FILTER ================= */
   const filteredTools =
-    selectedSlug === allLabel
+    selectedSlug === ALL_SLUG
       ? tools
       : tools.filter((t) => t.slug === selectedSlug);
   const normalizedSlugQuery = slugQuery.trim().toLowerCase();
@@ -121,6 +121,10 @@ export function ToolsPage({ onOpenProductDetail }: { onOpenProductDetail: (slug:
   const visibleSlugs = normalizedSlugQuery
     ? filteredSlugs
     : filteredSlugs.slice(0, slugLimit);
+  const slugOptions = [
+    { value: ALL_SLUG, label: t("tools.all") },
+    ...visibleSlugs.map((slug) => ({ value: slug, label: slug })),
+  ];
 
   /* ================= NAVIGATION ================= */
   const handleViewDetails = (slug: string) => {
@@ -153,7 +157,7 @@ export function ToolsPage({ onOpenProductDetail }: { onOpenProductDetail: (slug:
               filterTitle={t("courses.filters")}
               slugLabel={t("filters.slugs")}
               sortLabel={t("courses.sortBy")}
-              slugs={[allLabel, ...visibleSlugs]}
+              slugOptions={slugOptions}
               selectedSlug={selectedSlug}
               onSelectSlug={setSelectedSlug}
               sortBy={sortBy}
@@ -171,13 +175,13 @@ export function ToolsPage({ onOpenProductDetail }: { onOpenProductDetail: (slug:
           {/* ================= MAIN GRID ================= */}
           <main className="lg:col-span-3">
             {loading ? (
-              <div className="text-center text-gray-500">Loading...</div>
+              <div className="text-center text-gray-500">{t("common.loading")}</div>
             ) : (
               <>
                 <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4 mb-6">
                   <div>
                     <h2 className="text-2xl font-bold">
-                      {selectedSlug}
+                      {selectedSlug === ALL_SLUG ? t("tools.all") : selectedSlug}
                     </h2>
                     <p className="text-gray-600 mt-1">
                       {sortedTools.length} {t("labels.tools")} {t("common.available")}
@@ -191,10 +195,10 @@ export function ToolsPage({ onOpenProductDetail }: { onOpenProductDetail: (slug:
                       className="w-full sm:w-64"
                       inputClassName="rounded-lg shadow-sm focus:ring-green-500"
                     />
-                    {selectedSlug !== allLabel && (
+                    {selectedSlug !== ALL_SLUG && (
                       <button
                         className="px-3 py-2 rounded-lg border border-gray-200 text-sm hover:bg-gray-100 dark:border-gray-700"
-                        onClick={() => setSelectedSlug(allLabel)}
+                        onClick={() => setSelectedSlug(ALL_SLUG)}
                       >
                         {t("courses.clearFilter")}
                       </button>

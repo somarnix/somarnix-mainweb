@@ -24,12 +24,12 @@ type DbGame = {
 
 export function GamesPage({ onOpenProductDetail }: { onOpenProductDetail: (slug: string) => void }) {
   const { t } = useLanguage();
+  const ALL_SLUG = "__all_games__";
 
   const [games, setGames] = useState<DbGame[]>([]);
   const [loading, setLoading] = useState(true);
 
-  const allLabel = "All Games";
-  const [selectedSlug, setSelectedSlug] = useState(allLabel);
+  const [selectedSlug, setSelectedSlug] = useState(ALL_SLUG);
   const [slugQuery, setSlugQuery] = useState("");
   const [slugLimit, setSlugLimit] = useState(10);
 
@@ -67,7 +67,7 @@ export function GamesPage({ onOpenProductDetail }: { onOpenProductDetail: (slug:
 
   /* ================= FILTER ================= */
   const filteredGames =
-    selectedSlug === allLabel
+    selectedSlug === ALL_SLUG
       ? games
       : games.filter((g) => g.slug === selectedSlug);
   const normalizedSlugQuery = slugQuery.trim().toLowerCase();
@@ -120,6 +120,10 @@ export function GamesPage({ onOpenProductDetail }: { onOpenProductDetail: (slug:
   const visibleSlugs = normalizedSlugQuery
     ? filteredSlugs
     : filteredSlugs.slice(0, slugLimit);
+  const slugOptions = [
+    { value: ALL_SLUG, label: t("games.all") },
+    ...visibleSlugs.map((slug) => ({ value: slug, label: slug })),
+  ];
 
   function handleViewDetails(slug: string): void {
     onOpenProductDetail(slug);
@@ -151,7 +155,7 @@ export function GamesPage({ onOpenProductDetail }: { onOpenProductDetail: (slug:
               filterTitle={t("courses.filters")}
               slugLabel={t("filters.slugs")}
               sortLabel={t("courses.sortBy")}
-              slugs={[allLabel, ...visibleSlugs]}
+              slugOptions={slugOptions}
               selectedSlug={selectedSlug}
               onSelectSlug={setSelectedSlug}
               sortBy={sortBy}
@@ -170,14 +174,14 @@ export function GamesPage({ onOpenProductDetail }: { onOpenProductDetail: (slug:
           <main className="lg:col-span-3">
             {loading ? (
               <div className="text-center text-gray-500">
-                Loading...
+                {t("common.loading")}
               </div>
             ) : (
               <>
                 <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4 mb-6">
                   <div>
                     <h2 className="text-2xl font-bold">
-                      {selectedSlug}
+                      {selectedSlug === ALL_SLUG ? t("games.all") : selectedSlug}
                     </h2>
                     <p className="text-gray-600 mt-1">
                       {sortedGames.length} {t("labels.games")} {t("common.available")}
@@ -191,10 +195,10 @@ export function GamesPage({ onOpenProductDetail }: { onOpenProductDetail: (slug:
                       className="w-full sm:w-64"
                       inputClassName="rounded-lg shadow-sm focus:ring-purple-500"
                     />
-                    {selectedSlug !== allLabel && (
+                    {selectedSlug !== ALL_SLUG && (
                       <button
                         className="px-3 py-2 rounded-lg border border-gray-200 text-sm hover:bg-gray-100 dark:border-gray-700"
-                        onClick={() => setSelectedSlug(allLabel)}
+                        onClick={() => setSelectedSlug(ALL_SLUG)}
                       >
                         {t("courses.clearFilter")}
                       </button>

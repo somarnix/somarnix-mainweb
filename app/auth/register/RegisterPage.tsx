@@ -5,6 +5,8 @@ import { Button } from "../../components/ui/button";
 import { Input } from "../../components/ui/input";
 import { Label } from "../../components/ui/label";
 import { Checkbox } from "../../components/ui/checkbox";
+import { AuthBrand } from "../../components/AuthBrand";
+import { AuthPageControls } from "../../components/AuthPageControls";
 import { Eye, EyeOff, Lock, Mail, User } from "lucide-react";
 import { useAuth } from "../../contexts/AuthContext";
 import { useLanguage } from "../../contexts/LanguageContext";
@@ -51,6 +53,7 @@ export function RegisterPage({ onNavigate }: RegisterPageProps) {
   const { register, loginWithGoogle } = useAuth();
   const { t } = useLanguage();
 
+  const [hasMounted, setHasMounted] = useState(false);
   const [showPassword, setShowPassword] = useState(false);
   const [showConfirmPassword, setShowConfirmPassword] = useState(false);
   const [isLoading, setIsLoading] = useState(false);
@@ -59,6 +62,10 @@ export function RegisterPage({ onNavigate }: RegisterPageProps) {
   const [verifyingCode, setVerifyingCode] = useState(false);
   const [resendingCode, setResendingCode] = useState(false);
   const [googleReady, setGoogleReady] = useState(false);
+
+  useEffect(() => {
+    setHasMounted(true);
+  }, []);
 
   const [formData, setFormData] = useState({
     firstName: "",
@@ -125,7 +132,7 @@ export function RegisterPage({ onNavigate }: RegisterPageProps) {
       if (result.requiresVerification) {
         const targetEmail = result.email || formData.email.trim().toLowerCase();
         setVerificationEmail(targetEmail);
-        toast.success(`Verification code sent to ${targetEmail}`);
+        toast.success(t("register.verificationSent", { email: targetEmail }));
       } else {
         toast.success(t("register.success"));
         onNavigate("login");
@@ -143,11 +150,11 @@ export function RegisterPage({ onNavigate }: RegisterPageProps) {
     const email = verificationEmail.trim().toLowerCase();
     const code = verificationCode.replace(/\s+/g, "");
     if (!email) {
-      toast.error("Verification email is missing.");
+      toast.error(t("register.verificationEmailMissing"));
       return;
     }
     if (!/^\d{6}$/.test(code)) {
-      toast.error("Please enter a valid 6-digit code.");
+      toast.error(t("register.verificationInvalidCode"));
       return;
     }
 
@@ -160,13 +167,15 @@ export function RegisterPage({ onNavigate }: RegisterPageProps) {
       });
       const data = await res.json().catch(() => ({}));
       if (!res.ok) {
-        throw new Error(typeof data?.error === "string" ? data.error : "Failed to verify email");
+        throw new Error(
+          typeof data?.error === "string" ? data.error : t("register.verificationApiFailed")
+        );
       }
-      toast.success("Email verified successfully. You can login now.");
+      toast.success(t("register.verificationSuccess"));
       onNavigate("login");
     } catch (error) {
-      toast.error("Verification failed", {
-        description: error instanceof Error ? error.message : "Please try again.",
+      toast.error(t("register.verificationFailed"), {
+        description: error instanceof Error ? error.message : t("register.tryAgain"),
       });
     } finally {
       setVerifyingCode(false);
@@ -176,7 +185,7 @@ export function RegisterPage({ onNavigate }: RegisterPageProps) {
   const handleResendCode = async () => {
     const email = verificationEmail.trim().toLowerCase();
     if (!email) {
-      toast.error("Verification email is missing.");
+      toast.error(t("register.verificationEmailMissing"));
       return;
     }
     try {
@@ -188,12 +197,14 @@ export function RegisterPage({ onNavigate }: RegisterPageProps) {
       });
       const data = await res.json().catch(() => ({}));
       if (!res.ok) {
-        throw new Error(typeof data?.error === "string" ? data.error : "Failed to resend code");
+        throw new Error(
+          typeof data?.error === "string" ? data.error : t("register.resendApiFailed")
+        );
       }
-      toast.success(`Verification code re-sent to ${email}`);
+      toast.success(t("register.verificationResent", { email }));
     } catch (error) {
-      toast.error("Resend failed", {
-        description: error instanceof Error ? error.message : "Please try again.",
+      toast.error(t("register.resendFailed"), {
+        description: error instanceof Error ? error.message : t("register.tryAgain"),
       });
     } finally {
       setResendingCode(false);
@@ -204,28 +215,44 @@ export function RegisterPage({ onNavigate }: RegisterPageProps) {
 
   useEffect(() => {
     if (typeof window === "undefined") return;
-    const existing = document.getElementById("google-gsi-script") as HTMLScriptElement | null;
-    if (existing) {
+    if (window.google?.accounts?.id) {
       setGoogleReady(true);
       return;
     }
+
+    const existing = document.getElementById("google-gsi-script") as HTMLScriptElement | null;
+    if (existing) {
+      const handleLoad = () => setGoogleReady(true);
+      existing.addEventListener("load", handleLoad);
+      return () => {
+        existing.removeEventListener("load", handleLoad);
+      };
+    }
+
+    let active = true;
     const script = document.createElement("script");
     script.id = "google-gsi-script";
     script.src = "https://accounts.google.com/gsi/client";
     script.async = true;
     script.defer = true;
-    script.onload = () => setGoogleReady(true);
+    script.onload = () => {
+      if (active) setGoogleReady(true);
+    };
     document.head.appendChild(script);
+
+    return () => {
+      active = false;
+    };
   }, []);
 
   const handleGoogleAuth = () => {
     const clientId = process.env.NEXT_PUBLIC_GOOGLE_CLIENT_ID;
     if (!clientId) {
-      toast.error("Google login is not configured.");
+      toast.error(t("register.googleNotConfigured"));
       return;
     }
     if (!googleReady || typeof window === "undefined" || !window.google?.accounts?.id) {
-      toast.error("Google login is loading. Please try again.");
+      toast.error(t("register.googleLoading"));
       return;
     }
     window.google.accounts.id.initialize({
@@ -234,40 +261,45 @@ export function RegisterPage({ onNavigate }: RegisterPageProps) {
       callback: async (response: { credential?: string }) => {
         const credential = typeof response?.credential === "string" ? response.credential : "";
         if (!credential) {
-          toast.error("Google login failed.");
+          toast.error(t("register.googleFailed"));
           return;
         }
         const result = await loginWithGoogle(credential);
         if (!result.success) {
-          toast.error(result.message || "Google login failed.");
+          toast.error(result.message || t("register.googleFailed"));
           return;
         }
-        toast.success("Google login successful.");
+        toast.success(t("register.googleSuccess"));
         onNavigate("home");
       },
     });
     window.google.accounts.id.prompt();
   };
 
+  if (!hasMounted) {
+    return (
+      <div className="min-h-screen bg-gradient-to-br from-blue-50 via-purple-50 to-pink-50 dark:from-gray-900 dark:via-gray-900 dark:to-gray-900 flex items-center justify-center py-12 px-4 sm:px-6 lg:px-8">
+        <div className="max-w-md w-full">
+          <AuthPageControls />
+          <div className="bg-white dark:bg-gray-800 rounded-2xl shadow-xl p-8">
+            <div className="h-96 animate-pulse rounded-xl bg-gray-100" />
+          </div>
+        </div>
+      </div>
+    );
+  }
+
   return (
-    <div className="min-h-screen bg-gradient-to-br from-blue-50 via-purple-50 to-pink-50 flex items-center justify-center py-12 px-4 sm:px-6 lg:px-8">
+    <div className="min-h-screen bg-gradient-to-br from-blue-50 via-purple-50 to-pink-50 dark:from-gray-900 dark:via-gray-900 dark:to-gray-900 flex items-center justify-center py-12 px-4 sm:px-6 lg:px-8">
       <div className="max-w-md w-full">
-        <div className="bg-white rounded-2xl shadow-xl p-8">
+        <AuthPageControls />
+        <div className="bg-white dark:bg-gray-800 rounded-2xl shadow-xl p-8">
           {/* Logo */}
           <div className="text-center mb-8">
-            <div className="inline-flex items-center justify-center space-x-2 mb-4">
-              <img
-                src="/khqr-assets/gstechkh-logo.png"
-                alt="GSTECHKH"
-                className="h-12 w-12 rounded-lg object-contain"
-              />
-              <span className="text-3xl font-bold bg-gradient-to-r from-blue-600 to-purple-600 bg-clip-text text-transparent">
-                GSTECHKH
-              </span>
-            </div>
+            <AuthBrand wrapperClassName="mb-4 inline-flex items-center justify-center space-x-2" />
 
-            <h2 className="text-2xl font-bold text-gray-900">{t("register.title")}</h2>
-            <p className="text-gray-600 mt-2">{t("register.description")}</p>
+            <h2 className="text-2xl font-bold text-gray-900 dark:text-white">{t("register.title")}</h2>
+            <p className="text-gray-600 dark:text-gray-300 mt-2">{t("register.description")}</p>
           </div>
 
           {/* Social Registration Buttons */}
@@ -289,7 +321,7 @@ export function RegisterPage({ onNavigate }: RegisterPageProps) {
               <div className="w-full border-t border-gray-300"></div>
             </div>
             <div className="relative flex justify-center text-sm">
-              <span className="px-4 bg-white text-gray-500">{t("register.email")}</span>
+              <span className="px-4 bg-white dark:bg-gray-800 text-gray-500 dark:text-gray-400">{t("register.email")}</span>
             </div>
           </div>
 
@@ -367,7 +399,7 @@ export function RegisterPage({ onNavigate }: RegisterPageProps) {
                 id="place"
                 value={formData.place}
                 onChange={(e) => handleChange("place", e.target.value)}
-                className="w-full mt-1 rounded-md border border-gray-300 px-3 py-2 bg-white"
+                className="w-full mt-1 rounded-md border border-gray-300 bg-white px-3 py-2 text-gray-900 dark:border-gray-700 dark:bg-gray-900 dark:text-white"
               >
                 {COUNTRIES.map((c) => (
                   <option key={c} value={c}>
@@ -473,16 +505,16 @@ export function RegisterPage({ onNavigate }: RegisterPageProps) {
           ) : (
             <div className="space-y-5">
               <div className="rounded-xl border border-blue-200 bg-blue-50 p-3 text-sm text-blue-700">
-                We sent a 6-digit verification code to <strong>{verificationEmail}</strong>.
+                {t("register.verificationBanner", { email: verificationEmail })}
               </div>
               <div>
-                <Label htmlFor="verifyCode">Verification code</Label>
+                <Label htmlFor="verifyCode">{t("register.verifyCodeLabel")}</Label>
                 <Input
                   id="verifyCode"
                   type="text"
                   value={verificationCode}
                   onChange={(e) => setVerificationCode(e.target.value.replace(/\D/g, "").slice(0, 6))}
-                  placeholder="Enter 6-digit code"
+                  placeholder={t("register.verifyCodePlaceholder")}
                 />
               </div>
               <Button
@@ -491,7 +523,7 @@ export function RegisterPage({ onNavigate }: RegisterPageProps) {
                 onClick={handleVerifyCode}
                 disabled={verifyingCode || verificationCode.trim().length !== 6}
               >
-                {verifyingCode ? "Verifying..." : "Verify email"}
+                {verifyingCode ? t("register.verifying") : t("register.verifyEmail")}
               </Button>
               <Button
                 type="button"
@@ -500,7 +532,7 @@ export function RegisterPage({ onNavigate }: RegisterPageProps) {
                 onClick={handleResendCode}
                 disabled={resendingCode}
               >
-                {resendingCode ? "Sending..." : "Resend code"}
+                {resendingCode ? t("register.sendingCode") : t("register.resendCode")}
               </Button>
               <Button
                 type="button"
@@ -511,13 +543,13 @@ export function RegisterPage({ onNavigate }: RegisterPageProps) {
                   setVerificationCode("");
                 }}
               >
-                Change email
+                {t("register.changeEmail")}
               </Button>
             </div>
           )}
 
           {/* Login Link */}
-          <p className="mt-6 text-center text-sm text-gray-600">
+          <p className="mt-6 text-center text-sm text-gray-600 dark:text-gray-300">
             {t("register.haveAccount")}{" "}
             <button
               type="button"
@@ -534,7 +566,7 @@ export function RegisterPage({ onNavigate }: RegisterPageProps) {
           <button
             type="button"
             onClick={() => onNavigate("home")}
-            className="text-sm text-gray-600 hover:text-gray-900"
+            className="text-sm text-gray-600 hover:text-gray-900 dark:text-gray-300 dark:hover:text-white"
           >
             {t("register.backHome")}
           </button>

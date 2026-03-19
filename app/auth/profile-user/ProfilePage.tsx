@@ -1,5 +1,6 @@
 "use client";
 
+import Image from "next/image";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import {
   User,
@@ -165,6 +166,14 @@ type ApiKeysResponse = {
   apiKeys?: Partial<ApiKeysState>;
 };
 
+function sanitizeProfilePhone(value: string | null | undefined): string {
+  const trimmed = (value ?? "").trim();
+  if (!trimmed || trimmed.includes("@")) return "";
+  const cleaned = trimmed.replace(/[^\d+]/g, "");
+  if (!cleaned) return "";
+  return cleaned.startsWith("+") ? cleaned : `+${cleaned}`;
+}
+
 const ITEMS_PER_PAGE = 5;
 const AVATARS: string[] = ["/Job Jik.jpg", "/Mrrecaps.png", "/Nut Roth Logo.png", "/Nut Roth.jpg"];
 
@@ -229,6 +238,7 @@ export function ProfilePage({ onNavigate, onOpenProductDetail, onOpenToolDetail,
   const [activeTab, setActiveTab] = useState<TabId>("overview");
   const [isEditing, setIsEditing] = useState(false);
   const [avatarOpen, setAvatarOpen] = useState(false);
+  const [profileUpdateError, setProfileUpdateError] = useState<string | null>(null);
 
   const [deleteOpen, setDeleteOpen] = useState(false);
   const [deleteText, setDeleteText] = useState("");
@@ -341,16 +351,17 @@ export function ProfilePage({ onNavigate, onOpenProductDetail, onOpenToolDetail,
     const fn = (user.firstName ?? "").trim();
     const ln = (user.lastName ?? "").trim();
     const full = `${fn} ${ln}`.trim();
-    return full || user.username || user.email || "";
+    return user.username || full || user.email || "";
   }, [user]);
 
   useEffect(() => {
-    if (!user?.phone || countries.length === 0) return;
-    const match = findCountryFromPhone(user.phone);
+    const userPhone = sanitizeProfilePhone(user?.phone);
+    if (!userPhone || countries.length === 0) return;
+    const match = findCountryFromPhone(userPhone);
     if (!match) return;
     setSelectedCountry(match.country);
     saveCountryToStorage(match.country);
-    const number = user.phone.replace(/[^\d+]/g, "").slice(match.dial.length);
+    const number = userPhone.replace(/[^\d+]/g, "").slice(match.dial.length);
     setEditForm((prev) => ({
       ...prev,
       phone: number,
@@ -574,8 +585,9 @@ export function ProfilePage({ onNavigate, onOpenProductDetail, onOpenToolDetail,
 
   const startEditing = () => {
     if (!user) return;
+    setProfileUpdateError(null);
     const full = `${user.firstName ?? ""} ${user.lastName ?? ""}`.trim();
-    const userPhone = user.phone || "";
+    const userPhone = sanitizeProfilePhone(user.phone);
     const match = userPhone ? findCountryFromPhone(userPhone) : null;
     if (match) {
       setSelectedCountry(match.country);
@@ -585,7 +597,7 @@ export function ProfilePage({ onNavigate, onOpenProductDetail, onOpenToolDetail,
       ? userPhone.replace(/[^\d+]/g, "").slice(match.dial.length)
       : userPhone;
     setEditForm({
-      name: full || user.username || "",
+      name: user.username || full || "",
       bio: user.bio || "",
       phone: phoneNumber,
       location: match?.country.name || user.place || "",
@@ -593,10 +605,22 @@ export function ProfilePage({ onNavigate, onOpenProductDetail, onOpenToolDetail,
     setIsEditing(true);
   };
 
-  const cancelEditing = () => setIsEditing(false);
+  const cancelEditing = () => {
+    setProfileUpdateError(null);
+    setIsEditing(false);
+  };
+
+  const getProfileUpdateErrorMessage = useCallback(
+    (error: unknown) =>
+      error instanceof Error && error.message.trim()
+        ? error.message
+        : translate("profile.updateFailed", "Profile update failed. Please try again."),
+    [translate]
+  );
 
   const handleSaveProfile = async () => {
     if (!user) return;
+    setProfileUpdateError(null);
 
     const parts = editForm.name.trim().split(/\s+/).filter(Boolean);
     const firstName = parts.length > 1 ? parts.slice(0, -1).join(" ") : parts[0] ?? "";
@@ -614,15 +638,39 @@ export function ProfilePage({ onNavigate, onOpenProductDetail, onOpenToolDetail,
         : undefined;
     const placeValue = selectedCountry?.name || editForm.location || undefined;
 
-    await updateProfile({
-      firstName: firstName || undefined,
-      lastName: lastName || undefined,
-      bio: editForm.bio || undefined,
-      phone: phoneValue || undefined,
-      place: placeValue,
-    });
+    try {
+      await updateProfile({
+        firstName: firstName || undefined,
+        lastName: lastName || undefined,
+        bio: editForm.bio || undefined,
+        phone: phoneValue || undefined,
+        place: placeValue,
+      });
 
-    setIsEditing(false);
+      setIsEditing(false);
+    } catch (error) {
+      setProfileUpdateError(getProfileUpdateErrorMessage(error));
+    }
+  };
+
+  const handleSelectAvatar = async (avatarUrl: string) => {
+    setProfileUpdateError(null);
+    try {
+      await updateProfile({ avatarUrl });
+      setAvatarOpen(false);
+    } catch (error) {
+      setProfileUpdateError(getProfileUpdateErrorMessage(error));
+    }
+  };
+
+  const handleSelectAvatarBorder = async (avatarBorderUrl: string | null) => {
+    setProfileUpdateError(null);
+    try {
+      await updateProfile({ avatarBorderUrl });
+      setAvatarOpen(false);
+    } catch (error) {
+      setProfileUpdateError(getProfileUpdateErrorMessage(error));
+    }
   };
 
   const filteredCountries = useMemo(() => {
@@ -1315,6 +1363,7 @@ export function ProfilePage({ onNavigate, onOpenProductDetail, onOpenToolDetail,
       setPwLoading(false);
     }
   };
+  const verifiedBadgeSrc = "/border/blue%20verify.svg";
   if (!user) return null;
   
   return (
@@ -1330,8 +1379,7 @@ export function ProfilePage({ onNavigate, onOpenProductDetail, onOpenToolDetail,
                   fallback={displayName}
                   borderUrl={user.avatarBorderUrl}
                   className="h-24 w-24 sm:h-28 sm:w-28 lg:h-32 lg:w-32"
-                  insetClassName={user.avatarBorderUrl ? "inset-[14.5%]" : undefined}
-                  contentClassName="border-4 border-white/90 shadow-xl"
+                  contentClassName={user.avatarBorderUrl ? "shadow-xl" : "border-4 border-white/90 shadow-xl"}
                   fallbackClassName="text-xl sm:text-2xl lg:text-3xl"
                 />
               </div>
@@ -1353,7 +1401,7 @@ export function ProfilePage({ onNavigate, onOpenProductDetail, onOpenToolDetail,
                     className="fixed inset-0 z-40 bg-slate-950/30 backdrop-blur-[2px]"
                   />
 
-                  <div className="fixed inset-x-3 bottom-4 top-[5.5rem] z-50 overflow-hidden rounded-[1.5rem] border border-slate-200/80 bg-white/95 shadow-[0_24px_60px_rgba(15,23,42,0.22)] backdrop-blur dark:border-gray-700 dark:bg-gray-900/95 sm:absolute sm:inset-x-auto sm:bottom-auto sm:left-1/2 sm:top-full sm:mt-4 sm:h-auto sm:max-h-[min(80vh,42rem)] sm:w-[26rem] sm:max-w-[calc(100vw-2rem)] sm:-translate-x-1/2">
+                  <div className="fixed inset-x-3 bottom-4 top-[5.5rem] z-50 overflow-hidden rounded-[1.5rem] border border-slate-200/80 bg-white/95 shadow-[0_24px_60px_rgba(15,23,42,0.22)] backdrop-blur dark:border-gray-700 dark:bg-gray-900/95 sm:absolute sm:inset-x-auto sm:bottom-auto sm:left-1/2 sm:top-full sm:mt-4 sm:h-[min(80vh,42rem)] sm:w-[26rem] sm:max-w-[calc(100vw-2rem)] sm:-translate-x-1/2">
                     <div className="flex h-full flex-col overflow-hidden">
                       <div className="flex items-start justify-between gap-3 border-b border-slate-200/70 px-4 pb-3 pt-4 dark:border-gray-700 sm:border-b-0 sm:pb-0">
                         <div>
@@ -1373,7 +1421,12 @@ export function ProfilePage({ onNavigate, onOpenProductDetail, onOpenToolDetail,
                         </button>
                       </div>
 
-                      <div className="flex-1 overflow-y-auto px-4 pb-4 pt-4">
+                      <div className="flex-1 overflow-y-auto overscroll-contain px-4 pb-4 pt-4">
+                        {profileUpdateError ? (
+                          <div className="mb-4 rounded-xl border border-red-200 bg-red-50 px-3 py-2 text-sm text-red-700 dark:border-red-900/60 dark:bg-red-950/40 dark:text-red-200">
+                            {profileUpdateError}
+                          </div>
+                        ) : null}
                         <div className="flex items-center gap-4 rounded-[1.25rem] bg-gradient-to-br from-slate-100 via-white to-blue-50 p-4 dark:from-gray-800 dark:via-gray-900 dark:to-slate-800">
                           <ProfileAvatar
                             src={user.avatarUrl || "/Job Jik.jpg"}
@@ -1381,8 +1434,7 @@ export function ProfilePage({ onNavigate, onOpenProductDetail, onOpenToolDetail,
                             fallback={displayName}
                             borderUrl={user.avatarBorderUrl}
                             className="h-20 w-20 sm:h-24 sm:w-24"
-                            insetClassName={user.avatarBorderUrl ? "inset-[14.5%]" : undefined}
-                            contentClassName="border-4 border-white/90 shadow-lg"
+                            contentClassName={user.avatarBorderUrl ? "shadow-lg" : "border-4 border-white/90 shadow-lg"}
                           />
                           <div className="min-w-0">
                             <div className="text-xs font-semibold uppercase tracking-[0.18em] text-blue-600 dark:text-blue-300">
@@ -1404,10 +1456,7 @@ export function ProfilePage({ onNavigate, onOpenProductDetail, onOpenToolDetail,
                           {AVATARS.map((src) => (
                             <button
                               key={src}
-                              onClick={async () => {
-                                await updateProfile({ avatarUrl: src });
-                                setAvatarOpen(false);
-                              }}
+                              onClick={() => void handleSelectAvatar(src)}
                               className={`overflow-hidden rounded-[1rem] border transition hover:-translate-y-0.5 hover:shadow-md ${
                                 user.avatarUrl === src
                                   ? "border-blue-500 ring-2 ring-blue-100 dark:ring-blue-900/60"
@@ -1435,10 +1484,7 @@ export function ProfilePage({ onNavigate, onOpenProductDetail, onOpenToolDetail,
                         <div className="mt-3 grid grid-cols-3 gap-3">
                           <button
                             type="button"
-                            onClick={async () => {
-                              await updateProfile({ avatarBorderUrl: null });
-                              setAvatarOpen(false);
-                            }}
+                            onClick={() => void handleSelectAvatarBorder(null)}
                             className={`group flex aspect-square flex-col items-center justify-center rounded-[1.1rem] border p-3 text-center transition hover:-translate-y-0.5 hover:shadow-md ${
                               user.avatarBorderUrl
                                 ? "border-slate-200 bg-slate-50 text-slate-600 dark:border-gray-700 dark:bg-gray-800/80 dark:text-gray-300"
@@ -1456,10 +1502,7 @@ export function ProfilePage({ onNavigate, onOpenProductDetail, onOpenToolDetail,
                             <button
                               key={borderUrl}
                               type="button"
-                              onClick={async () => {
-                                await updateProfile({ avatarBorderUrl: borderUrl });
-                                setAvatarOpen(false);
-                              }}
+                              onClick={() => void handleSelectAvatarBorder(borderUrl)}
                               className={`group relative aspect-square rounded-[1.1rem] border p-3 transition hover:-translate-y-0.5 hover:shadow-md ${
                                 user.avatarBorderUrl === borderUrl
                                   ? "border-blue-500 bg-blue-50 ring-2 ring-blue-100 dark:border-blue-400 dark:bg-blue-500/10 dark:ring-blue-900/60"
@@ -1473,7 +1516,6 @@ export function ProfilePage({ onNavigate, onOpenProductDetail, onOpenToolDetail,
                                   fallback={displayName}
                                   borderUrl={borderUrl}
                                   className="h-full w-full max-h-[5.5rem] max-w-[5.5rem]"
-                                  insetClassName="inset-[14.5%]"
                                   contentClassName="shadow-md"
                                 />
                               </div>
@@ -1493,7 +1535,16 @@ export function ProfilePage({ onNavigate, onOpenProductDetail, onOpenToolDetail,
             </div>
 
             <div className="flex-1 text-center md:text-left">
-              <h1 className="text-2xl font-bold text-white sm:text-3xl">{displayName}</h1>
+              <div className="inline-flex items-center justify-center gap-2 align-middle md:justify-start">
+                <h1 className="text-2xl font-bold text-white sm:text-3xl">{displayName}</h1>
+                <Image
+                  src={verifiedBadgeSrc}
+                  alt="Verified"
+                  width={40}
+                  height={40}
+                  className="mt-0.5 h-8 w-8 shrink-0 object-contain drop-shadow-[0_4px_10px_rgba(14,165,233,0.45)] sm:h-9 sm:w-9"
+                />
+              </div>
               <p className="mt-1 break-all text-sm text-blue-100 sm:text-base">{user.email}</p>
 
               <div className="mt-3 flex flex-col items-center gap-2 text-sm sm:flex-row sm:flex-wrap sm:gap-4 md:items-start md:justify-start">
@@ -2434,6 +2485,11 @@ export function ProfilePage({ onNavigate, onOpenProductDetail, onOpenToolDetail,
 
               {isEditing ? (
                 <div className="mt-4 space-y-4">
+                  {profileUpdateError ? (
+                    <div className="rounded-xl border border-red-200 bg-red-50 px-3 py-2 text-sm text-red-700 dark:border-red-900/60 dark:bg-red-950/40 dark:text-red-200">
+                      {profileUpdateError}
+                    </div>
+                  ) : null}
                   <Input
                     placeholder={translate("profile.fullName", "Full name")}
                     value={editForm.name}
@@ -2538,7 +2594,7 @@ export function ProfilePage({ onNavigate, onOpenProductDetail, onOpenToolDetail,
               ) : (
                 <div className="mt-4 grid gap-3 text-sm text-gray-600 dark:text-gray-300">
                   <p>{user.bio || translate("profile.passionate", "Passionate about learning and technology")}</p>
-                  <p>{user.phone || translate("profile.phone", "Phone")}</p>
+                  <p>{sanitizeProfilePhone(user.phone) || translate("profile.phone", "Phone")}</p>
                   <p>{user.place || translate("profile.location", "Location")}</p>
                 </div>
               )}

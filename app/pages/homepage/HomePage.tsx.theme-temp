@@ -1,0 +1,152 @@
+// app\pages\homepage\HomePage.tsx
+// MIGRATED TO PROFESSIONAL THEME SYSTEM v2.0
+"use client";
+
+import { useEffect, useState } from "react";
+import { Hero } from "../../components/Hero";
+import { CourseCard } from "../../components/CourseCard";
+import {
+  TrendingUp,
+  Award,
+  Users,
+  BookOpen,
+  Play,
+} from "lucide-react";
+import { Button } from "../../components/ui/button";
+import { Countdown } from "../../components/Countdown";
+import { useLanguage } from "../../contexts/LanguageContext";
+import { useAuth } from "../../contexts/AuthContext";
+import { toast } from "sonner";
+import { normalizeProductListResponse } from "../../../lib/products";
+
+/* ================= TYPES ================= */
+
+type DbProduct = {
+  id: number;
+  title: string;
+  slug: string;
+  image_url: string | null;
+  min_price: number | null;
+  min_original_price: number | null;
+  stock_qty: number | null;
+  is_unlimited_stock: 0 | 1 | null;
+};
+
+type PromotionItem = {
+  item_type: "course" | "tool" | "product";
+  item_id: number;
+  variant_id: number | null;
+  qty: number;
+  item_title?: string | null;
+  variant_title?: string | null;
+  item_image?: string | null;
+  variant_price?: number | null;
+};
+
+type PromotionCombo = {
+  id: number;
+  title: string;
+  description: string | null;
+  price: number;
+  original_price: number | null;
+  thumbnail_url: string | null;
+  khqr: string | null;
+  usdqr: string | null;
+  start_at: string | null;
+  end_at: string | null;
+  items: PromotionItem[];
+};
+
+interface HomePageProps {
+  onNavigate: (page: string) => void;
+  onOpenProductDetail: (slug: string) => void;
+}
+
+/* ================= PAGE ================= */
+
+export default function HomePage({ onNavigate, onOpenProductDetail }: HomePageProps) {
+  const { t } = useLanguage();
+  const { user } = useAuth();
+
+  const [featured, setFeatured] = useState<DbProduct[]>([]);
+  const [promotions, setPromotions] = useState<PromotionCombo[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [promotionLoading, setPromotionLoading] = useState(true);
+  const [nowMs, setNowMs] = useState<number | null>(null);
+  const [promotionSubmitting, setPromotionSubmitting] = useState<Record<number, boolean>>({});
+
+  /* ---------- Load featured products ---------- */
+  useEffect(() => {
+    let mounted = true;
+
+    const load = async () => {
+      try {
+        const res = await fetch("/api/products?limit=6", { cache: "no-store" });
+        const data = await res.json();
+
+        if (mounted) {
+          setFeatured(normalizeProductListResponse(data) as DbProduct[]);
+        }
+      } catch (err) {
+        console.error("Failed to load products", err);
+      } finally {
+        if (mounted) setLoading(false);
+      }
+    };
+
+    load();
+    return () => {
+      mounted = false;
+    };
+  }, []);
+
+  useEffect(() => {
+    let mounted = true;
+    const loadPromotions = async () => {
+      try {
+        const res = await fetch("/api/promotions?limit=6", { cache: "no-store" });
+        const data = await res.json();
+        const list =
+          data && typeof data === "object" && Array.isArray((data as { promotions?: unknown }).promotions)
+            ? ((data as { promotions: PromotionCombo[] }).promotions ?? [])
+            : [];
+        if (mounted) setPromotions(list);
+      } catch (err) {
+        console.error("Failed to load promotions", err);
+      } finally {
+        if (mounted) setPromotionLoading(false);
+      }
+    };
+    void loadPromotions();
+    return () => {
+      mounted = false;
+    };
+  }, []);
+
+  const addPromotionToCart = async (promo: PromotionCombo, goCheckout: boolean) => {
+    if (!user) {
+      toast.error("Please login first");
+      onNavigate("login");
+      return;
+    }
+
+    const productLikeItems = promo.items.filter((it) => it.item_type !== "course");
+    const courseItems = promo.items
+      .filter((it) => it.item_type === "course")
+      .map((it) => ({
+        course_id: Number(it.item_id),
+        plan_id: it.variant_id === null ? null : Number(it.variant_id),
+        qty: Math.max(1, Number(it.qty ?? 1)),
+        course_title: (it.item_title ?? "").trim() || null,
+        plan_name: (it.variant_title ?? "").trim() || null,
+        course_thumbnail: (it.item_image ?? "").trim() || null,
+        plan_price: Number.isFinite(Number(it.variant_price)) ? Number(it.variant_price) : null,
+      }));
+    if (productLikeItems.length === 0) {
+      toast.error("This promotion has no cart-compatible items.");
+      return;
+    }
+
+    setPromotionSubmitting((prev) => ({ ...prev, [promo.id]: true }));
+    try {
+

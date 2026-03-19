@@ -11,7 +11,10 @@ type UserRow = RowDataPacket & {
 export async function GET(req: Request): Promise<Response> {
   const auth = await getAuthUser(req);
   if (!auth) {
-    return Response.json({ loggedIn: false }, { status: 401 });
+    return Response.json(
+      { loggedIn: false },
+      { status: 401, headers: { "Cache-Control": "no-store" } }
+    );
   }
 
   const [rows] = await db.query<UserRow[]>(
@@ -25,13 +28,18 @@ export async function GET(req: Request): Promise<Response> {
   );
 
   if (rows.length === 0) {
-    return Response.json({ loggedIn: false }, { status: 401 });
+    return Response.json(
+      { loggedIn: false },
+      { status: 401, headers: { "Cache-Control": "no-store" } }
+    );
   }
 
   const u = rows[0];
-  return Response.json({
-    loggedIn: true,
-    user: { id: u.id, email: u.email, role: u.role },
-  });
+  return Response.json(
+    {
+      loggedIn: true,
+      user: { id: u.id, email: u.email, role: u.role },
+    },
+    { headers: { "Cache-Control": "no-store" } }
+  );
 }
-

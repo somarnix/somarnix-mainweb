@@ -348,7 +348,6 @@ export async function POST(req: Request): Promise<Response> {
         status: 200,
         headers: {
           "Content-Type": "application/json",
-          // httpOnly cookie (safe)
           "Set-Cookie": buildSessionCookie(token),
         },
       }

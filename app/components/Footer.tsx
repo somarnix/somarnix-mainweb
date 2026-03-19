@@ -54,8 +54,8 @@ export function Footer({ isAppShell = false }: FooterProps) {
   ];
 
   return (
-    <footer className="relative overflow-hidden border-t border-slate-800 bg-slate-950 text-slate-300">
-      <div className="pointer-events-none absolute inset-0 bg-[radial-gradient(ellipse_at_top_left,_rgba(14,165,233,0.14),_transparent_45%),radial-gradient(ellipse_at_top_right,_rgba(59,130,246,0.12),_transparent_42%)]" />
+    <footer className="relative overflow-hidden border-t border-gray-200 dark:border-slate-800 bg-gradient-to-br from-blue-50 via-purple-50 to-white dark:from-slate-950 dark:via-slate-900 dark:to-slate-950 text-gray-600 dark:text-slate-300">
+      <div className="pointer-events-none absolute inset-0 bg-[radial-gradient(ellipse_at_top_left,_rgba(59,130,246,0.12),_transparent_45%),radial-gradient(ellipse_at_top_right,_rgba(147,51,234,0.08),_transparent_42%)] dark:bg-[radial-gradient(ellipse_at_top_left,_rgba(14,165,233,0.14),_transparent_45%),radial-gradient(ellipse_at_top_right,_rgba(59,130,246,0.12),_transparent_42%)]" />
 
       <div className="relative mx-auto max-w-7xl px-4 py-14 sm:px-6 lg:px-8">
         <div className="grid grid-cols-1 gap-8 md:grid-cols-2 xl:grid-cols-4">
@@ -64,18 +64,18 @@ export function Footer({ isAppShell = false }: FooterProps) {
               <img
                 src="/khqr-assets/gstechkh-logo.png"
                 alt="GSTECHKH"
-                className="h-11 w-11 rounded-xl object-contain shadow-lg shadow-blue-900/40"
+                className="h-11 w-11 rounded-xl object-contain shadow-lg shadow-blue-900/20 dark:shadow-blue-900/40"
               />
               <div>
-                <p className="text-2xl font-semibold tracking-tight text-white">
+                <p className="text-2xl font-semibold tracking-tight text-gray-900 dark:text-white">
                   GSTECHKH
                 </p>
-                <p className="text-[11px] uppercase tracking-[0.18em] text-sky-300">
+                <p className="text-[11px] uppercase tracking-[0.18em] text-sky-600 dark:text-sky-300">
                   Learn Faster
                 </p>
               </div>
             </div>
-            <p className="max-w-sm text-sm leading-6 text-slate-400">
+            <p className="max-w-sm text-sm leading-6 text-gray-500 dark:text-slate-400">
               {t("footer.description")}
             </p>
             <div className="flex flex-wrap gap-2">
@@ -83,7 +83,7 @@ export function Footer({ isAppShell = false }: FooterProps) {
                 <a
                   key={index}
                   href="#"
-                  className={`flex h-9 w-9 items-center justify-center rounded-full border border-slate-700 bg-slate-900/70 text-slate-400 transition-all duration-200 hover:-translate-y-0.5 hover:border-slate-500 ${item.color}`}
+                  className={`flex h-9 w-9 items-center justify-center rounded-full border border-gray-200 dark:border-slate-700 bg-gray-50 dark:bg-slate-900/70 text-gray-400 transition-all duration-200 hover:-translate-y-0.5 hover:border-gray-300 dark:hover:border-slate-500 ${item.color}`}
                 >
                   <item.icon className="h-4 w-4" />
                 </a>
@@ -92,7 +92,7 @@ export function Footer({ isAppShell = false }: FooterProps) {
           </div>
 
           <div>
-            <h3 className="mb-4 text-sm font-semibold uppercase tracking-[0.14em] text-white">
+            <h3 className="mb-4 text-sm font-semibold uppercase tracking-[0.14em] text-gray-900 dark:text-white">
               {t("footer.quickLinks")}
             </h3>
             <ul className="space-y-2.5">
@@ -100,7 +100,7 @@ export function Footer({ isAppShell = false }: FooterProps) {
                 <li key={label}>
                   <a
                     href="#"
-                    className="group inline-flex items-center gap-1 text-sm text-slate-400 transition-colors hover:text-sky-300"
+                    className="group inline-flex items-center gap-1 text-sm text-gray-500 dark:text-slate-400 transition-colors hover:text-sky-600 dark:hover:text-sky-300"
                   >
                     <ArrowRight className="h-3.5 w-3.5 opacity-0 transition-opacity group-hover:opacity-100" />
                     <span>{label}</span>
@@ -111,7 +111,7 @@ export function Footer({ isAppShell = false }: FooterProps) {
           </div>
 
           <div>
-            <h3 className="mb-4 text-sm font-semibold uppercase tracking-[0.14em] text-white">
+            <h3 className="mb-4 text-sm font-semibold uppercase tracking-[0.14em] text-gray-900 dark:text-white">
               {t("footer.support")}
             </h3>
             <ul className="space-y-2.5">
@@ -119,7 +119,7 @@ export function Footer({ isAppShell = false }: FooterProps) {
                 <li key={label}>
                   <a
                     href="#"
-                    className="text-sm text-slate-400 transition-colors hover:text-sky-300"
+                    className="text-sm text-gray-500 dark:text-slate-400 transition-colors hover:text-sky-600 dark:hover:text-sky-300"
                   >
                     {label}
                   </a>
@@ -129,34 +129,34 @@ export function Footer({ isAppShell = false }: FooterProps) {
           </div>
 
           <div>
-            <div className="rounded-2xl border border-slate-800 bg-slate-900/80 p-5 shadow-lg shadow-black/20 backdrop-blur-sm">
-              <h3 className="mb-3 text-sm font-semibold uppercase tracking-[0.14em] text-white">
+            <div className="rounded-2xl border border-gray-200 dark:border-slate-800 bg-gray-50 dark:bg-slate-900/80 p-5 shadow-lg shadow-black/5 dark:shadow-black/20 backdrop-blur-sm">
+              <h3 className="mb-3 text-sm font-semibold uppercase tracking-[0.14em] text-gray-900 dark:text-white">
                 {t("footer.newsletter")}
               </h3>
-              <p className="mb-4 text-sm text-slate-400">
+              <p className="mb-4 text-sm text-gray-500 dark:text-slate-400">
                 {t("footer.newsletterDesc")}
               </p>
               <div className="space-y-3">
                 <Input
                   type="email"
                   placeholder={t("footer.emailPlaceholder")}
-                  className="border-slate-700 bg-slate-950 text-white placeholder:text-slate-500"
+                  className="border-gray-200 dark:border-slate-700 bg-white dark:bg-slate-950 text-gray-900 dark:text-white placeholder:text-gray-400 dark:placeholder:text-slate-500"
                 />
                 <Button className="w-full bg-gradient-to-r from-blue-600 to-indigo-600 text-white hover:from-blue-500 hover:to-indigo-500">
                   {t("footer.subscribe")}
                 </Button>
               </div>
-              <div className="mt-5 space-y-2.5 border-t border-slate-800 pt-4">
-                <div className="flex items-center gap-2 text-sm text-slate-300">
-                  <Mail className="h-4 w-4 text-sky-400" />
+              <div className="mt-5 space-y-2.5 border-t border-gray-200 dark:border-slate-800 pt-4">
+                <div className="flex items-center gap-2 text-sm text-gray-600 dark:text-slate-300">
+                  <Mail className="h-4 w-4 text-sky-600 dark:text-sky-400" />
                   <span>support@edugroit.com</span>
                 </div>
-                <div className="flex items-center gap-2 text-sm text-slate-300">
-                  <Phone className="h-4 w-4 text-sky-400" />
+                <div className="flex items-center gap-2 text-sm text-gray-600 dark:text-slate-300">
+                  <Phone className="h-4 w-4 text-sky-600 dark:text-sky-400" />
                   <span>+1 (555) 123-4567</span>
                 </div>
-                <div className="flex items-start gap-2 text-sm text-slate-300">
-                  <MapPin className="mt-0.5 h-4 w-4 text-sky-400" />
+                <div className="flex items-start gap-2 text-sm text-gray-600 dark:text-slate-300">
+                  <MapPin className="mt-0.5 h-4 w-4 text-sky-600 dark:text-sky-400" />
                   <span>123 Learning St, Education City, EC 12345</span>
                 </div>
               </div>
@@ -165,22 +165,27 @@ export function Footer({ isAppShell = false }: FooterProps) {
         </div>
       </div>
 
-      <div className="relative border-t border-slate-800">
+      <div className="relative border-t border-gray-200 dark:border-slate-800">
         <div className="mx-auto flex max-w-7xl flex-col items-center justify-between gap-4 px-4 py-6 sm:px-6 md:flex-row lg:px-8">
-          <p className="text-sm text-slate-400">
-            &copy; {currentYear} GSTECHKH. {t("footer.rights")}
-          </p>
-          <div className="flex flex-wrap items-center gap-5 text-sm text-slate-400">
-            <a href="#" className="transition-colors hover:text-sky-300">
+          <div className="text-center sm:text-left">
+            <p className="text-sm text-gray-500 dark:text-slate-400">
+              &copy; {currentYear} GSTECHKH. {t("footer.rights")}
+            </p>
+            <p className="text-xs text-gray-400 dark:text-slate-500 mt-1">
+              Unauthorized copying, scraping, or reproduction is strictly prohibited.
+            </p>
+          </div>
+          <div className="flex flex-wrap items-center gap-5 text-sm text-gray-500 dark:text-slate-400">
+            <a href="#" className="transition-colors hover:text-sky-600 dark:hover:text-sky-300">
               {t("footer.terms")}
             </a>
-            <a href="#" className="transition-colors hover:text-sky-300">
+            <a href="#" className="transition-colors hover:text-sky-600 dark:hover:text-sky-300">
               {t("footer.privacy")}
             </a>
-            <a href="#" className="transition-colors hover:text-sky-300">
+            <a href="#" className="transition-colors hover:text-sky-600 dark:hover:text-sky-300">
               {t("footer.cookies")}
             </a>
-            <a href="#" className="transition-colors hover:text-sky-300">
+            <a href="#" className="transition-colors hover:text-sky-600 dark:hover:text-sky-300">
               Sitemap
             </a>
           </div>

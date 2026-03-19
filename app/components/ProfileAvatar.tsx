@@ -1,5 +1,6 @@
 "use client";
 
+import { getAvatarBorderFit } from "../lib/avatar-borders";
 import { cn } from "./ui/utils";
 
 type ProfileAvatarProps = {
@@ -38,7 +39,13 @@ export function ProfileAvatar({
   borderClassName,
 }: ProfileAvatarProps) {
   const hasBorder = typeof borderUrl === "string" && borderUrl.trim().length > 0;
-  const contentInsetClass = hasBorder ? "absolute inset-[13%]" : "absolute inset-0";
+  const borderFit = getAvatarBorderFit(borderUrl);
+  const contentInsetClass = hasBorder
+    ? cn("absolute", borderFit?.insetClassName ?? "inset-[13%]", insetClassName)
+    : "absolute inset-0";
+  const contentShapeClass = hasBorder
+    ? borderFit?.contentShapeClassName ?? "rounded-full"
+    : "rounded-full";
   const fallbackText = getFallbackText(fallback ?? alt);
 
   return (
@@ -46,8 +53,9 @@ export function ProfileAvatar({
       <div
         className={cn(
           contentInsetClass,
-          insetClassName,
-          "overflow-hidden rounded-full",
+          "overflow-hidden",
+          contentShapeClass,
+          borderFit?.contentClassName,
           contentClassName
         )}
       >
@@ -55,13 +63,14 @@ export function ProfileAvatar({
           <img
             src={src}
             alt={alt}
-            className={cn("h-full w-full object-cover", imageClassName)}
+            className={cn("h-full w-full object-cover", borderFit?.imageClassName, imageClassName)}
           />
         ) : (
           <div
             aria-label={alt}
             className={cn(
-              "flex h-full w-full items-center justify-center rounded-full bg-gradient-to-r from-blue-500 to-purple-500 text-white font-semibold",
+              "flex h-full w-full items-center justify-center bg-gradient-to-r from-blue-500 to-purple-500 text-white font-semibold",
+              contentShapeClass,
               fallbackClassName
             )}
           >
@@ -77,6 +86,7 @@ export function ProfileAvatar({
           aria-hidden="true"
           className={cn(
             "pointer-events-none absolute inset-0 h-full w-full object-contain drop-shadow-[0_10px_18px_rgba(15,23,42,0.18)]",
+            borderFit?.borderClassName,
             borderClassName
           )}
         />

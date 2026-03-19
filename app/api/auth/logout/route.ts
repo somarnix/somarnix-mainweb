@@ -1,6 +1,6 @@
 import { db } from "@/lib/db";
 import { getAuthUser } from "@/lib/auth";
-import { clearSessionCookie } from "@/lib/security";
+import { clearSessionCookies } from "@/lib/security";
 import type { RowDataPacket } from "mysql2";
 
 type LogoutBody = {
@@ -50,11 +50,17 @@ export async function POST(req: Request) {
     // Always continue logout flow even if device cleanup fails.
   }
 
-  return new Response(JSON.stringify({ success: true }), {
+  const response = new Response(JSON.stringify({ success: true }), {
     status: 200,
     headers: {
       "Content-Type": "application/json",
-      "Set-Cookie": clearSessionCookie(),
+      "Cache-Control": "no-store",
     },
   });
+
+  for (const cookie of clearSessionCookies()) {
+    response.headers.append("Set-Cookie", cookie);
+  }
+
+  return response;
 }

@@ -6,6 +6,8 @@
 @import '../styles/fonts.css';
 @import '../styles/tailwind.css';
 @import '../styles/theme.css';
+@import '../styles/admin-dark-mode.css';
+@import '../styles/complete-dark-mode.css';
 
 /* =======================
    GLOBAL OVERRIDES
@@ -66,4 +68,75 @@
 
 .app-mobile-scroll::-webkit-scrollbar {
   display: none;
+}
+
+/* =======================
+   ANTI-COPY PROTECTION (FREE)
+======================= */
+
+/* Disable text selection on sensitive content */
+.no-copy {
+  -webkit-user-select: none;
+  -moz-user-select: none;
+  -ms-user-select: none;
+  user-select: none;
+}
+
+/* Disable image drag and save */
+img {
+  -webkit-user-drag: none;
+  -khtml-user-drag: none;
+  -moz-user-drag: none;
+  -o-user-drag: none;
+  user-drag: none;
+  pointer-events: none;
+}
+
+/* Allow text selection on normal content */
+.prose,
+.prose *,
+article,
+article * {
+  -webkit-user-select: text;
+  -moz-user-select: text;
+  -ms-user-select: text;
+  user-select: text;
+}
+
+/* Protect images with overlay */
+.protected-image {
+  position: relative;
+}
+
+.protected-image::after {
+  content: '';
+  position: absolute;
+  top: 0;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  background: transparent;
+  pointer-events: auto;
+}
+
+/* Watermark effect */
+.watermark {
+  position: relative;
+}
+
+.watermark::before {
+  content: '© GSTECHKH';
+  position: absolute;
+  bottom: 10px;
+  right: 10px;
+  color: rgba(255, 255, 255, 0.5);
+  font-size: 12px;
+  font-weight: bold;
+  z-index: 10;
+  pointer-events: none;
+  text-shadow: 1px 1px 2px rgba(0, 0, 0, 0.5);
+}
+
+.dark .watermark::before {
+  color: rgba(255, 255, 255, 0.3);
 }

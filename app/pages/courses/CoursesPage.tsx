@@ -38,7 +38,7 @@ export function CoursesPage({ onOpenVideoDetail }: CoursesPageProps) {
         const res = await fetch("/api/video-courses", { cache: "no-store" });
         const data = await res.json();
         if (!res.ok) {
-          throw new Error(data?.error || "Failed to load video courses");
+          throw new Error(data?.error || t("courses.loadError"));
         }
         setCourses(Array.isArray(data.courses) ? data.courses : []);
         setCoursesError(null);
@@ -51,7 +51,7 @@ export function CoursesPage({ onOpenVideoDetail }: CoursesPageProps) {
     };
 
     load();
-  }, []);
+  }, [t]);
 
   useEffect(() => {
     const updateItemsPerPage = () => {

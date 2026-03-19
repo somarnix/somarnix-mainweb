@@ -123,7 +123,7 @@ type AuthContextType = {
   ) => Promise<RegisterResult>;
 
   logout: () => Promise<void>;
-  refreshMe: () => Promise<void>;
+  refreshMe: () => Promise<boolean>;
 
   fetchProfile: () => Promise<void>;
   updateProfile: (updates: UpdateProfileInput) => Promise<void>;
@@ -170,6 +170,20 @@ function getLoginDeviceName(): string {
   return ua.slice(0, 120);
 }
 
+function clearClientAuthArtifacts() {
+  if (typeof window === "undefined") return;
+
+  window.sessionStorage.clear();
+  window.localStorage.removeItem("gstech_login_device_id");
+  window.localStorage.removeItem("edugroit-country");
+
+  // Disable Google auto-select (type assertion to bypass TypeScript)
+  const googleAccounts = window.google?.accounts as any;
+  if (googleAccounts?.id?.disableAutoSelect) {
+    googleAccounts.id.disableAutoSelect();
+  }
+}
+
 /* ================= PROVIDER ================= */
 
 export function AuthProvider({ children }: { children: ReactNode }) {
@@ -177,19 +191,22 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const [loading, setLoading] = useState(true);
 
   /* 🔑 BASIC SESSION */
-  const refreshMe = async () => {
+  const refreshMe = async (): Promise<boolean> => {
     try {
-      const res = await fetch("/api/me", { credentials: "include" });
+      const res = await fetch("/api/me", {
+        credentials: "include",
+        cache: "no-store",
+      });
       if (!res.ok) {
         setUser(null);
-        return;
+        return false;
       }
 
       const data: unknown = await res.json();
 
       if (!isObject(data) || data.loggedIn !== true || !isObject(data.user)) {
         setUser(null);
-        return;
+        return false;
       }
 
       const u = data.user;
@@ -199,8 +216,10 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         email: String(u.email ?? ""),
         role: u.role === "admin" ? "admin" : "user",
       });
+      return true;
     } catch {
       setUser(null);
+      return false;
     }
   };
 
@@ -208,10 +227,16 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const fetchProfile = async () => {
     const res = await fetch("/api/auth/profile", {
       credentials: "include",
+      cache: "no-store",
     });
 
     const data: unknown = await res.json().catch(() => null);
-    if (!res.ok || !isObject(data)) return;
+    if (!res.ok || !isObject(data)) {
+      if (res.status === 401) {
+        setUser(null);
+      }
+      return;
+    }
 
     if (data.success === true && isObject(data.user)) {
       const u = data.user as ProfilePayload;
@@ -238,8 +263,10 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   useEffect(() => {
     (async () => {
       setLoading(true);
-      await refreshMe();
-      await fetchProfile();
+      const loggedIn = await refreshMe();
+      if (loggedIn) {
+        await fetchProfile();
+      }
       setLoading(false);
     })();
   }, []);
@@ -468,6 +495,12 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
     if (!res.ok) {
       const msg = getErrorMessage(data) ?? "Update failed";
+      if (res.status === 401) {
+        if (/^unauthorized$/i.test(msg)) {
+          setUser(null);
+        }
+        throw new Error(msg);
+      }
       throw new Error(msg);
     }
 
@@ -500,6 +533,8 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         fetch("/api/presence", {
           method: "POST",
           headers: { "Content-Type": "application/json" },
+          credentials: "include",
+          cache: "no-store",
           body: JSON.stringify({
             status: "offline",
             deviceId,
@@ -512,10 +547,13 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         credentials: "include",
+        cache: "no-store",
         body: JSON.stringify({ deviceId }),
       });
     } finally {
       setUser(null);
+      clearClientAuthArtifacts();
+      window.location.href = "/";
     }
   };
 

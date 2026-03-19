@@ -16,6 +16,17 @@ function cleanStr(v: unknown, max = 255): string | null {
   return s.length > max ? s.slice(0, max) : s;
 }
 
+function sanitizeStoredPhone(v: unknown, max = 40): string | null {
+  if (typeof v !== "string") return null;
+  const trimmed = v.trim();
+  if (!trimmed) return null;
+  if (trimmed.includes("@")) return null;
+  const cleaned = trimmed.replace(/[^\d+]/g, "");
+  if (!cleaned) return null;
+  const normalized = cleaned.startsWith("+") ? cleaned : `+${cleaned}`;
+  return normalized.length > max ? normalized.slice(0, max) : normalized;
+}
+
 function normalizePhone(v: unknown, max = 40): string | null {
   if (typeof v !== "string") return null;
   const trimmed = v.trim();
@@ -94,7 +105,12 @@ interface UserRow extends RowDataPacket {
 
 export async function GET(req: Request): Promise<Response> {
   const auth = await getAuthUser(req);
-  if (!auth) return Response.json({ error: "Unauthorized" }, { status: 401 });
+  if (!auth) {
+    return Response.json(
+      { error: "Unauthorized" },
+      { status: 401, headers: { "Cache-Control": "no-store" } }
+    );
+  }
   const hasAvatarBorderColumn = await hasColumn("users", "avatar_border_url");
   const avatarBorderSelect = hasAvatarBorderColumn
     ? "avatar_border_url"
@@ -113,57 +129,76 @@ export async function GET(req: Request): Promise<Response> {
   );
 
   if (rows.length === 0) {
-    return Response.json({ error: "User not found" }, { status: 404 });
+    return Response.json(
+      { error: "User not found" },
+      { status: 404, headers: { "Cache-Control": "no-store" } }
+    );
   }
 
   const u = rows[0];
 
-  if (u.deleted_at) return Response.json({ error: "Account deleted" }, { status: 403 });
+  if (u.deleted_at) {
+    return Response.json(
+      { error: "Account deleted" },
+      { status: 403, headers: { "Cache-Control": "no-store" } }
+    );
+  }
   if (u.is_active === 0)
-    return Response.json({ error: "Account deactivated" }, { status: 403 });
+    return Response.json(
+      { error: "Account deactivated" },
+      { status: 403, headers: { "Cache-Control": "no-store" } }
+    );
 
-  return Response.json({
-    success: true,
-    user: {
-      id: u.id,
-      email: u.email,
-      role: u.role,
+  return Response.json(
+    {
+      success: true,
+      user: {
+        id: u.id,
+        email: u.email,
+        role: u.role,
 
-      firstName: u.first_name,
-      lastName: u.last_name,
-      username: u.username,
-      birthDate: u.birth_date,
-      place: u.place,
+        firstName: u.first_name,
+        lastName: u.last_name,
+        username: u.username,
+        birthDate: u.birth_date,
+        place: u.place,
 
-      bio: u.bio,
-      phone: u.phone,
-      avatarUrl: u.avatar_url,
-      avatarBorderUrl: u.avatar_border_url,
+        bio: u.bio,
+        phone: sanitizeStoredPhone(u.phone),
+        avatarUrl: u.avatar_url,
+        avatarBorderUrl: u.avatar_border_url,
 
-      joinedDate: u.created_at,
-      updatedAt: u.updated_at,
+        joinedDate: u.created_at,
+        updatedAt: u.updated_at,
+      },
     },
-  });
+    { headers: { "Cache-Control": "no-store" } }
+  );
 }
 
 /* ================= UPDATE PROFILE ================= */
 
 export async function PUT(req: Request): Promise<Response> {
+  console.log("[PUT /api/auth/profile] Request received");
   const auth = await getAuthUser(req);
-  if (!auth) return Response.json({ error: "Unauthorized" }, { status: 401 });
+  if (!auth) {
+    console.log("[PUT /api/auth/profile] Unauthorized - no auth user");
+    return Response.json({ error: "Unauthorized" }, { status: 401 });
+  }
+  console.log("[PUT /api/auth/profile] Authenticated user:", auth.userId);
   const hasAvatarBorderColumn = await hasColumn("users", "avatar_border_url");
 
   const raw: unknown = await req.json().catch(() => ({}));
   const body: ProfileUpdateBody = isObject(raw) ? (raw as ProfileUpdateBody) : {};
 
   // profile fields
-  const firstName = cleanStr(body.firstName, 80);
-  const lastName = cleanStr(body.lastName, 80);
+  const firstName = cleanStr(body.firstName, 60);
+  const lastName = cleanStr(body.lastName, 60);
   const username = cleanStr(body.username, 50);
   const birthDate = cleanStr(body.birthDate, 30);
   const place = cleanStr(body.place, 120);
-  const bio = cleanStr(body.bio, 500);
-  const phone = normalizePhone(body.phone, 40);
+  const bio = cleanStr(body.bio, 255);
+  const phone = normalizePhone(body.phone, 30);
   const avatarUrl = cleanStr(body.avatarUrl, 255);
   const avatarBorderUrl =
     hasAvatarBorderColumn && isObject(body) && hasOwn(body, "avatarBorderUrl")

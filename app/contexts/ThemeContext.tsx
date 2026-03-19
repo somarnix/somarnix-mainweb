@@ -13,8 +13,10 @@ const ThemeContext = createContext<ThemeContextType | undefined>(undefined);
 
 export function ThemeProvider({ children }: { children: ReactNode }) {
   const [theme, setTheme] = useState<Theme>("light");
+  const [hydrated, setHydrated] = useState(false);
 
   useEffect(() => {
+    setHydrated(true);
     const saved = localStorage.getItem("edugroit-theme");
     if (saved === "light" || saved === "dark") {
       setTheme(saved);
@@ -22,6 +24,7 @@ export function ThemeProvider({ children }: { children: ReactNode }) {
   }, []);
 
   useEffect(() => {
+    if (!hydrated) return;
     localStorage.setItem("edugroit-theme", theme);
 
     if (theme === "dark") {
@@ -29,7 +32,7 @@ export function ThemeProvider({ children }: { children: ReactNode }) {
     } else {
       document.documentElement.classList.remove("dark");
     }
-  }, [theme]);
+  }, [theme, hydrated]);
 
   const toggleTheme = () => {
     setTheme((prev) => (prev === "light" ? "dark" : "light"));

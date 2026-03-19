@@ -303,6 +303,19 @@
     background-color: color-mix(in srgb, white 78%, transparent) !important;
   }
 
+  /* Prompt AI tab pages are rendered inside the studio frame, so avoid nested
+     full-screen dark layouts in light mode. */
+  .prompt-ai-studio .min-h-screen {
+    min-height: auto !important;
+    background: transparent !important;
+  }
+
+  .prompt-ai-studio .min-h-screen > .mx-auto {
+    max-width: none;
+    padding-top: 1.5rem;
+    padding-bottom: 1.5rem;
+  }
+
   .dark .prompt-ai-studio [class*="bg-emerald-500/10"],
   .dark .prompt-ai-studio [class*="bg-amber-500/10"],
   .dark .prompt-ai-studio [class*="bg-red-500/10"] {

@@ -59,21 +59,21 @@ export function CoursesFilter({
   return (
     <aside className="md:col-span-4 lg:col-span-3">
       <div className="space-y-4 lg:hidden">
-        <div className="rounded-2xl border border-gray-100 bg-white p-4 shadow-sm dark:border-gray-800 dark:bg-gray-900">
-          <div className="flex items-center gap-2 text-sm font-semibold text-gray-700 dark:text-gray-200">
+        <div className="card p-4">
+          <div className="flex items-center gap-2 text-sm font-semibold text-primary">
             <Filter className="w-4 h-4" />
             {t("filters.title")}
           </div>
 
           <div className="mt-4 grid gap-3">
             <label className="space-y-1">
-              <span className="text-xs font-semibold uppercase tracking-wide text-gray-500 dark:text-gray-400">
+              <span className="text-xs font-semibold uppercase tracking-wide text-secondary">
                 {t("filters.categories")}
               </span>
               <select
                 value={selectedCategories[0] ?? ""}
                 onChange={(event) => onSelectCategory(event.target.value)}
-                className="w-full rounded-xl border border-gray-200 bg-gray-50 px-3 py-3 text-sm text-gray-700 focus:outline-none focus:ring-2 focus:ring-blue-500 dark:border-gray-700 dark:bg-gray-950 dark:text-gray-200"
+                className="input"
               >
                 <option value="">{t("filters.allVideos")}</option>
                 {categories.map((category) => (
@@ -85,13 +85,13 @@ export function CoursesFilter({
             </label>
 
             <label className="space-y-1">
-              <span className="text-xs font-semibold uppercase tracking-wide text-gray-500 dark:text-gray-400">
+              <span className="text-xs font-semibold uppercase tracking-wide text-secondary">
                 {t("filters.sortBy")}
               </span>
               <select
                 value={activeSortValue}
                 onChange={(event) => onSortClick(event.target.value as SortOption["id"])}
-                className="w-full rounded-xl border border-gray-200 bg-gray-50 px-3 py-3 text-sm text-gray-700 focus:outline-none focus:ring-2 focus:ring-blue-500 dark:border-gray-700 dark:bg-gray-950 dark:text-gray-200"
+                className="input"
               >
                 {sortOptions.map((option) => (
                   <option key={option.id} value={option.id}>
@@ -102,7 +102,7 @@ export function CoursesFilter({
             </label>
 
             <label className="space-y-1">
-              <span className="text-xs font-semibold uppercase tracking-wide text-gray-500 dark:text-gray-400">
+              <span className="text-xs font-semibold uppercase tracking-wide text-secondary">
                 {t("filters.price")}
               </span>
               <select
@@ -110,7 +110,7 @@ export function CoursesFilter({
                 onChange={(event) =>
                   onSelectPrice(event.target.value as "all" | "free" | "paid")
                 }
-                className="w-full rounded-xl border border-gray-200 bg-gray-50 px-3 py-3 text-sm text-gray-700 focus:outline-none focus:ring-2 focus:ring-blue-500 dark:border-gray-700 dark:bg-gray-950 dark:text-gray-200"
+                className="input"
               >
                 {priceFilters.map((option) => (
                   <option key={option.id} value={option.id}>
@@ -121,21 +121,21 @@ export function CoursesFilter({
             </label>
           </div>
 
-          <details className="mt-4 rounded-xl border border-gray-200 bg-gray-50 px-3 py-2 dark:border-gray-700 dark:bg-gray-950">
-            <summary className="cursor-pointer list-none text-sm font-semibold text-gray-700 dark:text-gray-200">
+          <details className="mt-4 rounded-xl border border-border bg-secondary px-3 py-2">
+            <summary className="cursor-pointer list-none text-sm font-semibold text-primary">
               {t("filters.tag")} ({selectedTags.length})
             </summary>
             <div className="mt-3 space-y-2">
               {tags.map((tag) => (
                 <label
                   key={tag.id}
-                  className="flex items-center gap-2 text-sm text-gray-600 dark:text-gray-200"
+                  className="flex items-center gap-2 text-sm text-primary"
                 >
                   <input
                     type="checkbox"
                     checked={selectedTags.includes(tag.id)}
                     onChange={() => onSelectTag(tag.id)}
-                    className="h-4 w-4 rounded border-gray-300 text-blue-600 dark:border-gray-700"
+                    className="h-4 w-4 rounded border-border text-primary"
                   />
                   {tag.label}
                 </label>
@@ -143,21 +143,21 @@ export function CoursesFilter({
             </div>
           </details>
 
-          <details className="mt-3 rounded-xl border border-gray-200 bg-gray-50 px-3 py-2 dark:border-gray-700 dark:bg-gray-950">
-            <summary className="cursor-pointer list-none text-sm font-semibold text-gray-700 dark:text-gray-200">
+          <details className="mt-3 rounded-xl border border-border bg-secondary px-3 py-2">
+            <summary className="cursor-pointer list-none text-sm font-semibold text-primary">
               {t("filters.level")} ({selectedLevels.length})
             </summary>
             <div className="mt-3 space-y-2">
               {levels.map((level) => (
                 <label
                   key={level.id}
-                  className="flex items-center gap-2 text-sm text-gray-600 dark:text-gray-200"
+                  className="flex items-center gap-2 text-sm text-primary"
                 >
                   <input
                     type="checkbox"
                     checked={selectedLevels.includes(level.id)}
                     onChange={() => onSelectLevel(level.id)}
-                    className="h-4 w-4 rounded border-gray-300 text-blue-600 dark:border-gray-700"
+                    className="h-4 w-4 rounded border-border text-primary"
                   />
                   {level.label}
                 </label>
@@ -174,15 +174,15 @@ export function CoursesFilter({
         </div>
       </div>
 
-      <div className="hidden h-fit space-y-6 rounded-2xl border border-gray-100 bg-white p-5 shadow-sm dark:border-gray-800 dark:bg-gray-900 lg:block">
+      <div className="hidden h-fit space-y-6 card lg:block p-5">
         <div>
-          <div className="flex items-center gap-2 text-sm font-semibold text-gray-700 dark:text-gray-200">
+          <div className="flex items-center gap-2 text-sm font-semibold text-primary">
             <Filter className="w-4 h-4" />
             {t("filters.title")}
           </div>
 
           <div className="mt-5 space-y-3">
-            <p className="text-xs font-semibold uppercase tracking-wide text-gray-500 dark:text-gray-400">
+            <p className="text-xs font-semibold uppercase tracking-wide text-secondary">
               {t("filters.categories")}
             </p>
             <button
@@ -190,7 +190,7 @@ export function CoursesFilter({
               className={`w-full rounded-xl px-3 py-2 text-left text-sm transition ${
                 selectedCategories.length === 0
                   ? "bg-blue-50 text-blue-600 dark:bg-blue-900/30 dark:text-blue-300"
-                  : "text-gray-700 hover:bg-gray-50 dark:text-gray-200 dark:hover:bg-gray-800"
+                  : "text-primary hover:bg-secondary"
               }`}
             >
               {t("filters.allVideos")}
@@ -205,7 +205,7 @@ export function CoursesFilter({
                   className={`w-full rounded-xl px-3 py-2 text-left text-sm transition ${
                     isActive
                       ? "bg-blue-50 text-blue-600 dark:bg-blue-900/30 dark:text-blue-300"
-                      : "text-gray-700 hover:bg-gray-50 dark:text-gray-200 dark:hover:bg-gray-800"
+                      : "text-primary hover:bg-secondary"
                   }`}
                 >
                   {category.name}
@@ -215,7 +215,7 @@ export function CoursesFilter({
           </div>
 
           <div className="mt-6 space-y-3">
-            <p className="text-xs font-semibold uppercase tracking-wide text-gray-500 dark:text-gray-400">
+            <p className="text-xs font-semibold uppercase tracking-wide text-secondary">
               {t("filters.sortBy")}
             </p>
             <div className="space-y-2">
@@ -228,7 +228,7 @@ export function CoursesFilter({
                     className={`w-full rounded-xl px-3 py-2 text-left text-sm transition ${
                       isActive
                         ? "bg-blue-50 text-blue-600 dark:bg-blue-900/30 dark:text-blue-300"
-                        : "text-gray-700 hover:bg-gray-50 dark:text-gray-200 dark:hover:bg-gray-800"
+                        : "text-primary hover:bg-secondary"
                     }`}
                   >
                     {option.label}
@@ -239,20 +239,20 @@ export function CoursesFilter({
           </div>
 
           <div className="mt-6 space-y-3">
-            <p className="text-xs font-semibold uppercase tracking-wide text-gray-500 dark:text-gray-400">
+            <p className="text-xs font-semibold uppercase tracking-wide text-secondary">
               {t("filters.tag")}
             </p>
             <div className="space-y-2">
               {tags.map((tag) => (
                 <label
                   key={tag.id}
-                  className="flex items-center gap-2 text-sm text-gray-600 dark:text-gray-200"
+                  className="flex items-center gap-2 text-sm text-primary"
                 >
                   <input
                     type="checkbox"
                     checked={selectedTags.includes(tag.id)}
                     onChange={() => onSelectTag(tag.id)}
-                    className="h-4 w-4 rounded border-gray-300 text-blue-600 dark:border-gray-700"
+                    className="h-4 w-4 rounded border-border text-primary"
                   />
                   {tag.label}
                 </label>
@@ -261,20 +261,20 @@ export function CoursesFilter({
           </div>
 
           <div className="mt-6 space-y-3">
-            <p className="text-xs font-semibold uppercase tracking-wide text-gray-500 dark:text-gray-400">
+            <p className="text-xs font-semibold uppercase tracking-wide text-secondary">
               {t("filters.level")}
             </p>
             <div className="space-y-2">
               {levels.map((level) => (
                 <label
                   key={level.id}
-                  className="flex items-center gap-2 text-sm text-gray-600 dark:text-gray-200"
+                  className="flex items-center gap-2 text-sm text-primary"
                 >
                   <input
                     type="checkbox"
                     checked={selectedLevels.includes(level.id)}
                     onChange={() => onSelectLevel(level.id)}
-                    className="h-4 w-4 rounded border-gray-300 text-blue-600 dark:border-gray-700"
+                    className="h-4 w-4 rounded border-border text-primary"
                   />
                   {level.label}
                 </label>
@@ -283,21 +283,21 @@ export function CoursesFilter({
           </div>
 
           <div className="mt-6 space-y-3">
-            <p className="text-xs font-semibold uppercase tracking-wide text-gray-500 dark:text-gray-400">
+            <p className="text-xs font-semibold uppercase tracking-wide text-secondary">
               {t("filters.price")}
             </p>
             <div className="space-y-2">
               {priceFilters.map((option) => (
                 <label
                   key={option.id}
-                  className="flex items-center gap-2 text-sm text-gray-600 dark:text-gray-200"
+                  className="flex items-center gap-2 text-sm text-primary"
                 >
                   <input
                     type="radio"
                     name="price"
                     checked={selectedPrice === option.id}
                     onChange={() => onSelectPrice(option.id)}
-                    className="h-4 w-4 border-gray-300 text-blue-600 dark:border-gray-700"
+                    className="h-4 w-4 border-border text-primary"
                   />
                   {option.label}
                 </label>

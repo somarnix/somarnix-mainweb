@@ -1,4 +1,4 @@
-// app\components\Header.tsx
+﻿// app\components\Header.tsx
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { ShoppingCart, Menu, X, User, Globe, Moon, Sun, LogOut, Settings, BookOpen, Wallet, DollarSign, Package, FileText, Layers, ChevronRight, Facebook, Youtube, Send, MessageCircle, Loader2, Smile, SmilePlus, Sticker, Pin, ArrowLeft, MoreVertical, Edit3, Trash2, Check, Bell, Search } from 'lucide-react';
 import { Button } from './ui/button';
@@ -219,7 +219,7 @@ export function Header({
     code: string;
     flag: string;
     dial: string;
-  }>({ name: "United States", code: "US", flag: "🇺🇸", dial: "+1" });
+  }>({ name: "United States", code: "US", flag: "๐บ๐ธ", dial: "+1" });
   const chatWidgetRef = useRef<HTMLDivElement | null>(null);
   const chatWidgetMessagesRef = useRef<HTMLDivElement | null>(null);
   const notificationRef = useRef<HTMLDivElement | null>(null);
@@ -261,8 +261,8 @@ export function Header({
     window.addEventListener("resize", syncSidebarMode);
     return () => window.removeEventListener("resize", syncSidebarMode);
   }, [setMobileSidebarOpen, setSidebarOpen]);
-  const fallbackAdminLabel = language === "km" ? "អ្នកគ្រប់គ្រង" : "Admin";
-  const fallbackBuyerLabel = language === "km" ? "អតិថិជន" : "Buyer";
+  const fallbackAdminLabel = language === "km" ? "แขแ’แ“แ€แแ’แแ”แแแ’แแ" : "Admin";
+  const fallbackBuyerLabel = language === "km" ? "แขแแทแแทแแ“" : "Buyer";
   const activeParty = chatWidgetActive
     ? isAdmin
       ? chatWidgetActive.buyer
@@ -273,7 +273,11 @@ export function Header({
     ? resolveDisplayName(activeParty?.name, activeParty?.email) ?? activePartyFallback
     : null;
   const accountDisplayName =
-    user?.firstName?.trim() || user?.username?.trim() || user?.email?.trim() || "User";
+    user?.username?.trim() ||
+    user?.firstName?.trim() ||
+    user?.email?.trim() ||
+    "User";
+  const verifiedBadgeSrc = "/border/blue%20verify.svg";
   const unreadCancelledNotifications = useMemo(
     () => cancelledNotifications.filter((item) => !item.isRead),
     [cancelledNotifications]
@@ -412,7 +416,21 @@ export function Header({
       return buyerText.includes(term) || sellerText.includes(term) || orderText.includes(term);
     });
   }, [chatWidgetConversations, chatWidgetSearchTerm, chatWidgetActivityFilter, isAdmin]);
-  const emojiQuickList = ["😀", "😂", "😍", "😎", "🙏", "👍", "🔥", "🎉"];
+  const getChatWidgetFilterLabel = (filter: ChatWidgetActivityFilter) => {
+    switch (filter) {
+      case "online":
+        return t("popup.filterOnline");
+      case "offline":
+        return t("popup.filterOffline");
+      case "read":
+        return t("popup.filterRead");
+      case "unread":
+        return t("popup.filterUnread");
+      default:
+        return t("popup.filterAll");
+    }
+  };
+  const emojiQuickList = ["๐€", "๐", "๐", "๐", "๐", "๐‘", "๐”ฅ", "๐"];
 
   useEffect(() => {
     const readCountry = () => {
@@ -425,7 +443,7 @@ export function Header({
           setHeaderCountry({
             name: String(parsed.name),
             code: String(parsed.cca2).toUpperCase(),
-            flag: String(parsed.flag ?? "🌍"),
+            flag: String(parsed.flag ?? "๐"),
             dial: String(parsed.dial),
           });
         }
@@ -541,7 +559,7 @@ const normalizeParticipant = (participant?: any): HeaderChatParticipant => {
           typeof data?.error === 'string'
             ? data.error
             : language === 'km'
-            ? 'មិនអាចទាញយកការសន្ទនាបានទេ'
+            ? 'แแทแ“แขแถแ…แ‘แถแแแ€แ€แถแแแ“แ’แ‘แ“แถแ”แถแ“แ‘แ'
             : 'Unable to load chat'
         );
       }
@@ -555,7 +573,7 @@ const normalizeParticipant = (participant?: any): HeaderChatParticipant => {
         err instanceof Error
           ? err.message
           : language === 'km'
-          ? 'មិនអាចទាញយកការសន្ទនាបានទេ'
+          ? 'แแทแ“แขแถแ…แ‘แถแแแ€แ€แถแแแ“แ’แ‘แ“แถแ”แถแ“แ‘แ'
           : 'Unable to load chat'
       );
     } finally {
@@ -677,7 +695,7 @@ const getChatNoteBadgeClass = (result?: string | null) => {
           typeof data?.error === 'string'
             ? data.error
             : language === 'km'
-            ? 'មិនអាចទាញយកបញ្ជីការសន្ទនាបានទេ'
+            ? 'แแทแ“แขแถแ…แ‘แถแแแ€แ”แแ’แแธแ€แถแแแ“แ’แ‘แ“แถแ”แถแ“แ‘แ'
             : 'Unable to load chats'
         );
       }
@@ -714,7 +732,7 @@ const getChatNoteBadgeClass = (result?: string | null) => {
         err instanceof Error
           ? err.message
           : language === 'km'
-          ? 'មិនអាចទាញយកបញ្ជីការសន្ទនាបានទេ'
+          ? 'แแทแ“แขแถแ…แ‘แถแแแ€แ”แแ’แแธแ€แถแแแ“แ’แ‘แ“แถแ”แถแ“แ‘แ'
           : 'Unable to load chats'
       );
     } finally {
@@ -1021,7 +1039,7 @@ const getChatNoteBadgeClass = (result?: string | null) => {
         typeof data?.error === 'string'
           ? data.error
           : language === 'km'
-          ? 'មិនអាចផ្ញើសារបានទេ'
+          ? 'แแทแ“แขแถแ…แ•แ’แแพแแถแแ”แถแ“แ‘แ'
           : 'Unable to send message'
       );
     }
@@ -1046,7 +1064,7 @@ const getChatNoteBadgeClass = (result?: string | null) => {
         err instanceof Error
           ? err.message
           : language === 'km'
-          ? 'មិនអាចផ្ញើសារបានទេ'
+          ? 'แแทแ“แขแถแ…แ•แ’แแพแแถแแ”แถแ“แ‘แ'
           : 'Unable to send message'
       );
     } finally {
@@ -1065,7 +1083,7 @@ const getChatNoteBadgeClass = (result?: string | null) => {
         err instanceof Error
           ? err.message
           : language === 'km'
-          ? 'មិនអាចផ្ញើស្ទីក័រ'
+          ? 'แแทแ“แขแถแ…แ•แ’แแพแแ’แ‘แธแ€แแ'
           : 'Unable to send sticker'
       );
     } finally {
@@ -1089,7 +1107,7 @@ const getChatNoteBadgeClass = (result?: string | null) => {
           typeof data?.error === 'string'
             ? data.error
             : language === 'km'
-            ? 'មិនអាចធ្វើប្រតិកម្មបានទេ'
+            ? 'แแทแ“แขแถแ…แ’แ’แแพแ”แ’แแแทแ€แแ’แแ”แถแ“แ‘แ'
             : 'Unable to react'
         );
       }
@@ -1115,7 +1133,7 @@ const getChatNoteBadgeClass = (result?: string | null) => {
         err instanceof Error
           ? err.message
           : language === 'km'
-          ? 'មិនអាចធ្វើប្រតិកម្មបានទេ'
+          ? 'แแทแ“แขแถแ…แ’แ’แแพแ”แ’แแแทแ€แแ’แแ”แถแ“แ‘แ'
           : 'Unable to react'
       );
     } finally {
@@ -1140,7 +1158,7 @@ const getChatNoteBadgeClass = (result?: string | null) => {
           typeof data?.error === "string"
             ? data.error
             : language === "km"
-            ? "មិនអាចលុបសារ"
+            ? "แแทแ“แขแถแ…แแปแ”แแถแ"
             : "Unable to delete message"
         );
       }
@@ -1166,7 +1184,7 @@ const getChatNoteBadgeClass = (result?: string | null) => {
         err instanceof Error
           ? err.message
           : language === "km"
-          ? "មិនអាចលុបសារ"
+          ? "แแทแ“แขแถแ…แแปแ”แแถแ"
           : "Unable to delete message"
       );
     } finally {
@@ -1194,7 +1212,7 @@ const getChatNoteBadgeClass = (result?: string | null) => {
           typeof data?.error === "string"
             ? data.error
             : language === "km"
-            ? "មិនអាចបិទភ្ជាប់សារ"
+            ? "แแทแ“แขแถแ…แ”แทแ‘แ—แ’แแถแ”แแแถแ"
             : "Unable to pin message"
         );
       }
@@ -1211,7 +1229,7 @@ const getChatNoteBadgeClass = (result?: string | null) => {
         err instanceof Error
           ? err.message
           : language === "km"
-          ? "មិនអាចបិទភ្ជាប់សារ"
+          ? "แแทแ“แขแถแ…แ”แทแ‘แ—แ’แแถแ”แแแถแ"
           : "Unable to pin message"
       );
     } finally {
@@ -1236,7 +1254,7 @@ const getChatNoteBadgeClass = (result?: string | null) => {
     if (!trimmed) {
       setChatWidgetError(
         language === "km"
-          ? "សូមបញ្ចូលអត្ថបទថ្មី"
+          ? "แแผแแ”แแ’แ…แผแแขแแ’แแ”แ‘แแ’แแธ"
           : "Please provide the updated message."
       );
       return;
@@ -1259,7 +1277,7 @@ const getChatNoteBadgeClass = (result?: string | null) => {
           typeof data?.error === "string"
             ? data.error
             : language === "km"
-            ? "មិនអាចកែសារបានទេ"
+            ? "แแทแ“แขแถแ…แ€แแแถแแ”แถแ“แ‘แ"
             : "Unable to edit message"
         );
       }
@@ -1277,7 +1295,7 @@ const getChatNoteBadgeClass = (result?: string | null) => {
         err instanceof Error
           ? err.message
           : language === "km"
-          ? "មិនអាចកែសារបានទេ"
+          ? "แแทแ“แขแถแ…แ€แแแถแแ”แถแ“แ‘แ"
           : "Unable to edit message"
       );
     } finally {
@@ -1285,8 +1303,8 @@ const getChatNoteBadgeClass = (result?: string | null) => {
     }
   };
 
-  const handleLogout = () => {
-    logout();
+  const handleLogout = async () => {
+    await logout();
     setAccountPopupOpen(false);
     onNavigate('home');
   };
@@ -1374,91 +1392,91 @@ const getChatNoteBadgeClass = (result?: string | null) => {
     <header
       className={`sticky top-0 z-30 border-b shadow-sm transition-colors ${
         isAppShell
-          ? "app-safe-top bg-white/95 border-slate-200/80 backdrop-blur dark:bg-gray-950/95 dark:border-slate-800"
-          : "bg-white dark:bg-gray-900 border-gray-200 dark:border-gray-700"
+          ? "app-safe-top bg-gradient-to-br from-blue-50 via-purple-50 to-white/95 border-slate-200/80 backdrop-blur dark:from-slate-950 dark:via-slate-900 dark:to-slate-950/95 dark:border-slate-800"
+          : "bg-gradient-to-br from-blue-50 via-purple-50 to-white border-gray-200 dark:from-slate-950 dark:via-slate-900 dark:to-slate-950 dark:border-gray-700"
       }`}
     >
       {/* Top Bar - Currency, Language, Theme, Social Icons */}
       <div
-        className={`bg-gray-100 dark:bg-gray-800 border-b border-gray-200 dark:border-gray-700 ${
+        className={`bg-gradient-to-r from-blue-50 via-purple-50 to-gray-100 dark:from-slate-950 dark:via-slate-900 dark:to-slate-800 border-b border-gray-200 dark:border-gray-700 ${
           isAppShell ? "hidden" : ""
         }`}
       >
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
           <div className="flex justify-between items-center h-10">
-            {/* Left Side - Currency, Language, Dark Mode */}
-            <div className="flex items-center gap-2 md:gap-4">
+            {/* Left Side - Currency, Translate, Theme */}
+            <div className="flex items-center gap-1 sm:gap-2 md:gap-4">
               {/* Currency Switcher */}
               <button
                 onClick={() => setCurrency(currency === 'USD' ? 'KHR' : 'USD')}
-                className="flex items-center gap-1 px-2 md:px-3 py-1 rounded text-xs md:text-sm text-gray-700 dark:text-gray-300 hover:text-blue-600 dark:hover:text-blue-400 transition-colors"
+                className="flex items-center gap-1 sm:gap-2 px-2 sm:px-2.5 py-1.5 rounded-lg text-xs sm:text-sm font-medium text-gray-700 dark:text-gray-300 hover:bg-gray-200 dark:hover:bg-gray-700 transition-colors"
                 title={currency === 'USD' ? 'Switch to KHR' : 'Switch to USD'}
               >
-                <DollarSign className="w-3 h-3 md:w-4 md:h-4" />
-                <span className="font-semibold">{currency}</span>
+                <DollarSign className="w-3 h-3 sm:w-4 sm:h-4" />
+                <span className="font-semibold hidden xs:inline">{currency}</span>
               </button>
 
               {/* Language Switcher */}
               <button
                 onClick={() => setLanguage(language === 'en' ? 'km' : 'en')}
-                className="flex items-center gap-1 px-2 md:px-3 py-1 rounded text-xs md:text-sm text-gray-700 dark:text-gray-300 hover:text-blue-600 dark:hover:text-blue-400 transition-colors"
+                className="flex items-center gap-1 sm:gap-2 px-2 sm:px-2.5 py-1.5 rounded-lg text-xs sm:text-sm font-medium text-gray-700 dark:text-gray-300 hover:bg-gray-200 dark:hover:bg-gray-700 transition-colors"
                 title={language === 'en' ? 'Switch to Khmer' : 'Switch to English'}
               >
-                <Globe className="w-3 h-3 md:w-4 md:h-4" />
-                <span className="font-medium">{language === 'en' ? 'ភាសាខ្មែរ' : 'EN'}</span>
+                <Globe className="w-3 h-3 sm:w-4 sm:h-4" />
+                <span className="font-medium">{language === 'en' ? 'KM' : 'EN'}</span>
               </button>
 
               {/* Theme Toggle */}
               <button
                 onClick={toggleTheme}
-                className="flex items-center gap-1 px-2 md:px-3 py-1 rounded text-xs md:text-sm text-gray-700 dark:text-gray-300 hover:text-blue-600 dark:hover:text-blue-400 transition-colors"
+                className="flex items-center gap-1 sm:gap-2 px-2 sm:px-2.5 py-1.5 rounded-lg text-xs sm:text-sm font-medium text-gray-700 dark:text-gray-300 hover:bg-gray-200 dark:hover:bg-gray-700 transition-colors"
                 title={theme === 'light' ? 'Switch to Dark Mode' : 'Switch to Light Mode'}
               >
-                {theme === 'light' ? <Moon className="w-3 h-3 md:w-4 md:h-4" /> : <Sun className="w-3 h-3 md:w-4 md:h-4" />}
-                <span className="font-medium hidden sm:inline">{theme === 'light' ? 'Dark' : 'Light'}</span>
+                {theme === 'light' ? <Moon className="w-3 h-3 sm:w-4 sm:h-4" /> : <Sun className="w-3 h-3 sm:w-4 sm:h-4" />}
+                <span className="font-medium hidden md:inline">{theme === 'light' ? 'Dark' : 'Light'}</span>
               </button>
             </div>
 
             {/* Right Side - Social Media Icons */}
-            <div className="flex items-center gap-2 md:gap-3">
+            <div className="flex items-center gap-1 sm:gap-2 md:gap-3">
               <a
                 href="https://www.youtube.com/"
                 target="_blank"
                 rel="noopener noreferrer"
-                className="p-1.5 text-gray-600 dark:text-gray-400 hover:text-red-600 dark:hover:text-red-400 transition-colors"
+                className="p-1.5 sm:p-2 text-gray-600 dark:text-gray-400 hover:text-red-600 dark:hover:text-red-400 transition-colors rounded-lg hover:bg-gray-200 dark:hover:bg-gray-700"
                 title="YouTube"
               >
-                <Youtube className="w-4 h-4 md:w-5 md:h-5" />
+                <Youtube className="w-4 h-4 sm:w-5 sm:h-5" />
               </a>
-              
+
               <a
-                href="https://www.youtube.com/"
+                href="https://www.facebook.com/"
                 target="_blank"
                 rel="noopener noreferrer"
-                className="p-1.5 text-gray-600 dark:text-gray-400 hover:text-blue-600 dark:hover:text-blue-400 transition-colors"
+                className="p-1.5 sm:p-2 text-gray-600 dark:text-gray-400 hover:text-blue-600 dark:hover:text-blue-400 transition-colors rounded-lg hover:bg-gray-200 dark:hover:bg-gray-700"
                 title="Facebook"
               >
-                <Facebook className="w-4 h-4 md:w-5 md:h-5" />
+                <Facebook className="w-4 h-4 sm:w-5 sm:h-5" />
               </a>
-              
+
               <a
-                href="https://www.youtube.com/"
+                href="https://t.me/"
                 target="_blank"
                 rel="noopener noreferrer"
-                className="p-1.5 text-gray-600 dark:text-gray-400 hover:text-blue-400 dark:hover:text-blue-300 transition-colors"
+                className="p-1.5 sm:p-2 text-gray-600 dark:text-gray-400 hover:text-blue-400 dark:hover:text-blue-300 transition-colors rounded-lg hover:bg-gray-200 dark:hover:bg-gray-700"
                 title="Telegram"
               >
-                <Send className="w-4 h-4 md:w-5 md:h-5" />
+                <Send className="w-4 h-4 sm:w-5 sm:h-5" />
               </a>
-              
+
               <a
-                href="https://www.youtube.com/"
+                href="https://www.tiktok.com/"
                 target="_blank"
                 rel="noopener noreferrer"
-                className="p-1.5 text-gray-600 dark:text-gray-400 hover:text-gray-900 dark:hover:text-white transition-colors"
+                className="p-1.5 sm:p-2 text-gray-600 dark:text-gray-400 hover:text-gray-900 dark:hover:text-white transition-colors rounded-lg hover:bg-gray-200 dark:hover:bg-gray-700"
                 title="TikTok"
               >
-                <svg className="w-4 h-4 md:w-5 md:h-5" fill="currentColor" viewBox="0 0 24 24">
+                <svg className="w-4 h-4 sm:w-5 sm:h-5" fill="currentColor" viewBox="0 0 24 24">
                   <path d="M19.59 6.69a4.83 4.83 0 0 1-3.77-4.25V2h-3.45v13.67a2.89 2.89 0 0 1-5.2 1.74 2.89 2.89 0 0 1 2.31-4.64 2.93 2.93 0 0 1 .88.13V9.4a6.84 6.84 0 0 0-1-.05A6.33 6.33 0 0 0 5 20.1a6.34 6.34 0 0 0 10.86-4.43v-7a8.16 8.16 0 0 0 4.77 1.52v-3.4a4.85 4.85 0 0 1-1-.1z"/>
                 </svg>
               </a>
@@ -1468,10 +1486,10 @@ const getChatNoteBadgeClass = (result?: string | null) => {
       </div>
 
       {/* Main Header */}
-      <div className={`max-w-7xl mx-auto overflow-x-clip ${isAppShell ? "px-2.5 sm:px-5" : "px-4 sm:px-6 lg:px-8"}`}>
-        <div className={`flex items-center justify-between ${isAppShell ? "h-[4.1rem] sm:h-[4.25rem]" : "h-16"}`}>
+      <div className={`max-w-7xl mx-auto overflow-x-clip ${isAppShell ? "px-3 sm:px-4 lg:px-6" : "px-4 sm:px-6 lg:px-8"}`}>
+        <div className={`flex items-center justify-between ${isAppShell ? "h-[4rem] sm:h-[4.25rem] md:h-[4.5rem]" : "h-[4.25rem] sm:h-[4.5rem] md:h-[4.75rem]"}`}>
           {/* Left: Hamburger Menu + Logo */}
-          <div className="flex min-w-0 flex-1 items-center gap-1.5 sm:gap-3">
+          <div className="flex min-w-0 items-center gap-2 sm:gap-3">
             <button
               onClick={toggleSidebarMenu}
               className={`p-2 transition-colors ${
@@ -1479,52 +1497,49 @@ const getChatNoteBadgeClass = (result?: string | null) => {
                   ? "rounded-2xl hover:bg-slate-100 dark:hover:bg-slate-900"
                   : "hover:bg-gray-100 dark:hover:bg-gray-800 rounded-lg"
               }`}
+              aria-label="Toggle menu"
             >
               {isDesktopSidebarViewport && sidebarOpen ? (
-                <X className="w-6 h-6 text-gray-700 dark:text-gray-300" />
+                <X className="w-5 h-5 sm:w-6 sm:h-6 text-gray-700 dark:text-gray-300" />
               ) : (
-                <Menu className="w-6 h-6 text-gray-700 dark:text-gray-300" />
+                <Menu className="w-5 h-5 sm:w-6 sm:h-6 text-gray-700 dark:text-gray-300" />
               )}
             </button>
 
-            {/* Logo */}
-            <button 
+            {/* Logo - Mobile: Logo + Name, Desktop: Logo + Name */}
+            <button
               onClick={() => onNavigate('home')}
-              className="flex min-w-0 max-w-full items-center gap-2 sm:gap-3"
+              className="flex min-w-0 items-center gap-2 rounded-lg hover:bg-gray-50 dark:hover:bg-gray-800/50 transition-colors"
             >
               <img
                 src="/khqr-assets/gstechkh-logo.png"
                 alt="GSTECHKH"
-                className={`flex-shrink-0 object-contain ${
-                  isAppShell
-                    ? "h-8 w-8 rounded-2xl shadow-[0_14px_30px_rgba(59,130,246,0.30)] sm:h-11 sm:w-11"
-                    : "h-8 w-8 rounded-lg sm:h-10 sm:w-10"
-                }`}
+                className="h-7 w-7 sm:h-10 sm:w-10 md:h-11 md:w-11 flex-shrink-0 object-contain rounded-lg shadow-md"
               />
-              <span
-                className={`min-w-0 truncate font-bold bg-gradient-to-r from-blue-600 to-purple-600 bg-clip-text text-transparent ${
-                  isAppShell
-                    ? "max-w-[5.75rem] text-base sm:max-w-none sm:text-xl"
-                    : "max-w-[7rem] text-base sm:text-2xl"
-                }`}
-              >
-                GSTECHKH
-              </span>
+              <div className="flex flex-col min-w-0 leading-tight">
+                <span className="font-bold text-blue-600 dark:text-blue-400 text-[0.7rem] sm:hidden">
+                  GSTECH
+                </span>
+                <span className="font-bold text-blue-600 dark:text-blue-400 hidden sm:block sm:text-lg md:text-xl">
+                  GSTECHKH
+                </span>
+                <span className="font-bold text-purple-600 dark:text-purple-400 text-xs sm:hidden">
+                  KH
+                </span>
+              </div>
             </button>
           </div>
 
-          {/* Desktop Navigation */}
-          <nav
-            className={`items-center gap-6 xl:gap-8 ${
-              isDesktopSidebarViewport ? "flex" : "hidden"
-            }`}
-          >
+          {/* Desktop Navigation - Hidden on mobile/tablet */}
+          <nav className="hidden lg:flex items-center gap-1 xl:gap-2">
             {navLinks.map((link) => (
               <button
                 key={link.value}
                 onClick={() => onNavigate(link.value)}
-                className={`text-sm font-medium transition-colors hover:text-blue-600 dark:hover:text-blue-400 ${
-                  currentPage === link.value ? 'text-blue-600 dark:text-blue-400' : 'text-gray-700 dark:text-gray-300'
+                className={`px-3 py-2 rounded-lg font-medium text-sm transition-all hover:bg-gray-100 dark:hover:bg-gray-800 ${
+                  currentPage === link.value
+                    ? 'text-blue-600 dark:text-blue-400 bg-blue-50 dark:bg-blue-900/20'
+                    : 'text-gray-700 dark:text-gray-300'
                 }`}
               >
                 {link.name}
@@ -1533,49 +1548,43 @@ const getChatNoteBadgeClass = (result?: string | null) => {
           </nav>
 
           {/* Right Side Actions */}
-          <div className={`flex shrink-0 items-center ${isAppShell ? "space-x-0.5 sm:space-x-1.5" : "space-x-1.5 sm:space-x-2 md:space-x-4"}`}>
-            <div className={`hidden md:flex items-center gap-2 ${isAppShell ? "hidden" : ""}`}>
-              <button
-                className="flex items-center gap-2 rounded-full border border-red-200 bg-red-600 px-3 py-1.5 text-xs font-semibold text-white shadow-sm hover:bg-red-700 transition-colors"
-                type="button"
-                title={headerCountry.name}
-              >
-                <span className="flex h-6 w-6 items-center justify-center rounded-full bg-white/15 text-base overflow-hidden">
-                  {headerCountry.flag.startsWith("http") ? (
-                    <img
-                      src={headerCountry.flag}
-                      alt={headerCountry.name}
-                      className="h-5 w-5 rounded-full object-cover"
-                    />
-                  ) : (
-                    headerCountry.flag
-                  )}
-                </span>
-                <span>{headerCountry.code}</span>
-              </button>
-              {/* <button
-                className="rounded-full border border-red-200 bg-red-600 px-4 py-1.5 text-xs font-semibold text-white shadow-sm hover:bg-red-700 transition-colors"
-                type="button"
-                onClick={() => onNavigate("becomeseller")}
-              >
-                {t("header.becomeSeller")}
-              </button> */}
-            </div>
+          <div className="flex shrink-0 items-center gap-1 sm:gap-2">
+            {/* Country Selector - Desktop: Flag + Code, Mobile: Flag Only (Circular, Big) */}
+            <button
+              className="order-1 flex items-center justify-center rounded-lg transition-colors p-1 sm:order-none sm:p-1.5 lg:rounded-full lg:bg-gray-100 lg:dark:bg-gray-800 lg:px-2.5 lg:py-1.5 lg:gap-1.5 lg:text-xs lg:font-semibold lg:text-gray-700 lg:dark:text-gray-300 lg:hover:bg-gray-200 lg:dark:hover:bg-gray-700"
+              type="button"
+              title={headerCountry.name}
+            >
+              <span className="flex h-7 w-7 sm:h-8 sm:w-8 lg:h-5 lg:w-5 items-center justify-center rounded-full lg:rounded-md overflow-hidden shadow-md lg:shadow-sm border border-white/50 lg:border-none">
+                {headerCountry.flag.startsWith("http") ? (
+                  <img
+                    src={headerCountry.flag}
+                    alt={headerCountry.name}
+                    className="h-full w-full object-cover"
+                  />
+                ) : (
+                  <span className="text-xl lg:text-lg">{headerCountry.flag}</span>
+                )}
+              </span>
+              <span className="hidden lg:inline">{headerCountry.code}</span>
+            </button>
 
           {/* Notification */}
-          <div className="relative" ref={notificationRef}>
+          <div className="relative order-3 sm:order-none" ref={notificationRef}>
             <button
               onClick={handleToggleNotifications}
-              className="relative rounded-lg p-1.5 text-gray-700 transition-colors hover:text-blue-600 dark:text-gray-300 dark:hover:text-blue-400 sm:p-2"
+              className={`relative rounded-lg text-gray-700 transition-colors hover:text-blue-600 dark:text-gray-300 dark:hover:text-blue-400 hover:bg-gray-100 dark:hover:bg-gray-800 ${
+                isAppShell ? "p-1.5 sm:p-2" : "p-2"
+              }`}
               title="Notifications"
             >
-              <Bell className="h-[1.15rem] w-[1.15rem] sm:h-5 sm:w-5" />
+              <Bell className="h-5 w-5 sm:h-5 sm:w-5" />
               {totalNotificationUnread > 0 ? (
-                <span className="absolute -right-1 -top-1 inline-flex min-w-[1rem] items-center justify-center rounded-full bg-red-500 px-1 text-[10px] font-semibold leading-4 text-white">
+                <span className="absolute -right-0.5 -top-0.5 inline-flex min-w-[1.1rem] items-center justify-center rounded-full bg-red-500 px-1 text-[9px] sm:text-[10px] font-semibold leading-4 text-white">
                   {totalNotificationUnread > 9 ? "9+" : totalNotificationUnread}
                 </span>
               ) : notificationHasOrderItems ? (
-                <span className="absolute top-1 right-1 block w-2 h-2 rounded-full bg-green-500" />
+                <span className="absolute top-1.5 right-1.5 block w-2 h-2 rounded-full bg-green-500" />
               ) : null}
             </button>
 
@@ -1638,7 +1647,7 @@ const getChatNoteBadgeClass = (result?: string | null) => {
                     </div>
                     <div className="bg-gray-50 dark:bg-gray-800/50 px-3 py-2 text-[10px] font-semibold tracking-[0.08em] text-gray-500 dark:text-gray-400 flex items-center justify-between gap-3 sm:px-4 sm:text-[11px] sm:tracking-[0.12em]">
                       <span className="flex min-w-0 items-center gap-2">
-                        <span className="truncate">Cancelled Orders</span>
+                        <span className="truncate">{t("popup.cancelledOrders")}</span>
                         {orderUnreadCounts.cancelled > 0 ? (
                           <span className="rounded-full bg-red-500 px-1.5 py-0.5 text-[10px] leading-none text-white">
                             {orderUnreadCounts.cancelled > 9 ? "9+" : orderUnreadCounts.cancelled}
@@ -1652,7 +1661,7 @@ const getChatNoteBadgeClass = (result?: string | null) => {
                         }}
                         className="shrink-0 whitespace-nowrap text-xs text-red-500 hover:text-red-600 flex items-center gap-1"
                       >
-                        View all
+                        {t("popup.viewAll")}
                         <ChevronRight className="w-3 h-3" />
                       </button>
                     </div>
@@ -1660,7 +1669,7 @@ const getChatNoteBadgeClass = (result?: string | null) => {
                     <div className="divide-y divide-gray-100 dark:divide-gray-800">
                       {notificationLoading ? (
                         <div className="px-4 py-4 text-sm text-gray-500">
-                          Loading...
+                          {t("popup.loading")}
                         </div>
                       ) : notificationError ? (
                         <div className="px-4 py-4 text-sm text-red-500">
@@ -1687,7 +1696,7 @@ const getChatNoteBadgeClass = (result?: string | null) => {
                                   <span className="h-2 w-2 shrink-0 rounded-full bg-blue-500" />
                                 ) : null}
                                 <div className="truncate text-sm font-semibold text-gray-900 dark:text-white">
-                                  {item.product_title || "Order item"}
+                                  {item.product_title || t("popup.orderItem")}
                                 </div>
                               </div>
                               <div className="text-xs text-gray-500">
@@ -1701,7 +1710,7 @@ const getChatNoteBadgeClass = (result?: string | null) => {
                                     disabled={orderNotificationSaving !== null}
                                     className="text-xs font-medium text-blue-600 disabled:cursor-not-allowed disabled:text-gray-400 dark:text-blue-400 dark:disabled:text-gray-600"
                                   >
-                                    {orderNotificationSaving === `cancelled:${item.id}` ? "Saving..." : "Mark read"}
+                                    {orderNotificationSaving === `cancelled:${item.id}` ? t("popup.saving") : t("popup.markRead")}
                                   </button>
                                 ) : (
                                   <span className="text-xs text-gray-400 dark:text-gray-500">Read</span>
@@ -1729,7 +1738,7 @@ const getChatNoteBadgeClass = (result?: string | null) => {
                         }}
                         className="shrink-0 whitespace-nowrap text-xs text-red-500 hover:text-red-600 flex items-center gap-1"
                       >
-                        View all
+                        {t("popup.viewAll")}
                         <ChevronRight className="w-3 h-3" />
                       </button>
                     </div>
@@ -1737,7 +1746,7 @@ const getChatNoteBadgeClass = (result?: string | null) => {
                     <div className="divide-y divide-gray-100 dark:divide-gray-800">
                       {notificationLoading ? (
                         <div className="px-4 py-4 text-sm text-gray-500">
-                          Loading...
+                          {t("popup.loading")}
                         </div>
                       ) : notificationError ? (
                         <div className="px-4 py-4 text-sm text-red-500">
@@ -1764,7 +1773,7 @@ const getChatNoteBadgeClass = (result?: string | null) => {
                                   <span className="h-2 w-2 shrink-0 rounded-full bg-blue-500" />
                                 ) : null}
                                 <div className="truncate text-sm font-semibold text-gray-900 dark:text-white">
-                                  {item.product_title || "Order item"}
+                                  {item.product_title || t("popup.orderItem")}
                                 </div>
                               </div>
                               <div className="text-xs text-gray-500">
@@ -1778,10 +1787,10 @@ const getChatNoteBadgeClass = (result?: string | null) => {
                                     disabled={orderNotificationSaving !== null}
                                     className="text-xs font-medium text-blue-600 disabled:cursor-not-allowed disabled:text-gray-400 dark:text-blue-400 dark:disabled:text-gray-600"
                                   >
-                                    {orderNotificationSaving === `purchase:${item.id}` ? "Saving..." : "Mark read"}
+                                    {orderNotificationSaving === `purchase:${item.id}` ? t("popup.saving") : t("popup.markRead")}
                                   </button>
                                 ) : (
-                                  <span className="text-xs text-gray-400 dark:text-gray-500">Read</span>
+                                  <span className="text-xs text-gray-400 dark:text-gray-500">{t("popup.read")}</span>
                                 )}
                               </div>
                             </div>
@@ -1792,7 +1801,7 @@ const getChatNoteBadgeClass = (result?: string | null) => {
 
                     <div className="bg-gray-50 dark:bg-gray-800/50 px-3 py-2 text-[10px] font-semibold tracking-[0.08em] text-gray-500 dark:text-gray-400 flex items-center justify-between gap-3 sm:px-4 sm:text-[11px] sm:tracking-[0.12em]">
                       <span className="flex min-w-0 items-center gap-2">
-                        <span className="truncate">Sold Orders</span>
+                        <span className="truncate">{t("popup.soldOrders")}</span>
                         {orderUnreadCounts.sold > 0 ? (
                           <span className="rounded-full bg-red-500 px-1.5 py-0.5 text-[10px] leading-none text-white">
                             {orderUnreadCounts.sold > 9 ? "9+" : orderUnreadCounts.sold}
@@ -1806,7 +1815,7 @@ const getChatNoteBadgeClass = (result?: string | null) => {
                         }}
                         className="shrink-0 whitespace-nowrap text-xs text-red-500 hover:text-red-600 flex items-center gap-1"
                       >
-                        View all
+                        {t("popup.viewAll")}
                         <ChevronRight className="w-3 h-3" />
                       </button>
                     </div>
@@ -1814,7 +1823,7 @@ const getChatNoteBadgeClass = (result?: string | null) => {
                     <div className="divide-y divide-gray-100 dark:divide-gray-800">
                       {notificationLoading ? (
                         <div className="px-4 py-4 text-sm text-gray-500">
-                          Loading...
+                          {t("popup.loading")}
                         </div>
                       ) : notificationError ? (
                         <div className="px-4 py-4 text-sm text-red-500">
@@ -1822,7 +1831,7 @@ const getChatNoteBadgeClass = (result?: string | null) => {
                         </div>
                       ) : unreadSoldNotifications.length === 0 ? (
                         <div className="px-4 py-4 text-center text-sm text-gray-500 dark:text-gray-400">
-                          No new sold orders
+                          {t("popup.noNewSoldOrders")}
                         </div>
                       ) : (
                         unreadSoldNotifications.map((item) => (
@@ -1841,7 +1850,7 @@ const getChatNoteBadgeClass = (result?: string | null) => {
                                   <span className="h-2 w-2 shrink-0 rounded-full bg-blue-500" />
                                 ) : null}
                                 <div className="truncate text-sm font-semibold text-gray-900 dark:text-white">
-                                  {item.product_title || "Order item"}
+                                  {item.product_title || t("popup.orderItem")}
                                 </div>
                               </div>
                               <div className="text-xs text-gray-500">
@@ -1855,10 +1864,10 @@ const getChatNoteBadgeClass = (result?: string | null) => {
                                     disabled={orderNotificationSaving !== null}
                                     className="text-xs font-medium text-blue-600 disabled:cursor-not-allowed disabled:text-gray-400 dark:text-blue-400 dark:disabled:text-gray-600"
                                   >
-                                    {orderNotificationSaving === `sold:${item.id}` ? "Saving..." : "Mark read"}
+                                    {orderNotificationSaving === `sold:${item.id}` ? t("popup.saving") : t("popup.markRead")}
                                   </button>
                                 ) : (
-                                  <span className="text-xs text-gray-400 dark:text-gray-500">Read</span>
+                                  <span className="text-xs text-gray-400 dark:text-gray-500">{t("popup.read")}</span>
                                 )}
                               </div>
                             </div>
@@ -1871,7 +1880,7 @@ const getChatNoteBadgeClass = (result?: string | null) => {
                   <div className="modal-scrollbar max-h-[calc(100vh-8rem)] overflow-y-auto divide-y divide-gray-100 dark:divide-gray-800 sm:max-h-[28rem]">
                     <div className="flex items-center justify-between gap-3 px-3 py-3 sm:px-4">
                       <div className="text-[10px] font-semibold uppercase tracking-[0.08em] text-gray-500 dark:text-gray-400 sm:text-[11px] sm:tracking-[0.12em]">
-                        System Notifications
+                        {t("popup.systemNotifications")}
                       </div>
                       <button
                         type="button"
@@ -1879,12 +1888,12 @@ const getChatNoteBadgeClass = (result?: string | null) => {
                         disabled={systemUnreadCount <= 0 || systemNotificationSaving !== null}
                         className="shrink-0 text-[11px] font-medium text-blue-600 disabled:cursor-not-allowed disabled:text-gray-400 dark:text-blue-400 dark:disabled:text-gray-600 sm:text-xs"
                       >
-                        {systemNotificationSaving === "all" ? "Saving..." : "Mark all read"}
+                        {systemNotificationSaving === "all" ? t("popup.saving") : t("popup.markAllRead")}
                       </button>
                     </div>
                     {systemNotificationLoading ? (
                       <div className="px-4 py-4 text-sm text-gray-500">
-                        Loading...
+                        {t("popup.loading")}
                       </div>
                     ) : systemNotificationError ? (
                       <div className="px-4 py-4 text-sm text-red-500">
@@ -1892,7 +1901,7 @@ const getChatNoteBadgeClass = (result?: string | null) => {
                       </div>
                     ) : unreadSystemNotifications.length === 0 ? (
                       <div className="px-4 py-4 text-sm text-gray-500 dark:text-gray-400">
-                        No notifications
+                        {t("popup.noNotifications")}
                       </div>
                     ) : (
                       unreadSystemNotifications.map((item) => {
@@ -1952,11 +1961,11 @@ const getChatNoteBadgeClass = (result?: string | null) => {
                                     disabled={systemNotificationSaving !== null}
                                     className="text-xs font-medium text-blue-600 disabled:cursor-not-allowed disabled:text-gray-400 dark:text-blue-400 dark:disabled:text-gray-600"
                                   >
-                                    {systemNotificationSaving === item.id ? "Saving..." : "Mark read"}
+                                    {systemNotificationSaving === item.id ? t("popup.saving") : t("popup.markRead")}
                                   </button>
                                 ) : (
                                   <span className="text-xs text-gray-400 dark:text-gray-500">
-                                    Read
+                                    {t("popup.read")}
                                   </span>
                                 )}
                               </div>
@@ -1971,15 +1980,18 @@ const getChatNoteBadgeClass = (result?: string | null) => {
             )}
           </div>
 
-          {/* Chat */}
-          <div className="relative">
+          {/* Chat - Desktop/Tablet */}
+          <div className="relative hidden sm:inline-flex">
             <button
               onClick={handleToggleChatWidget}
-              className="relative rounded-lg p-1.5 text-gray-700 transition-colors hover:text-blue-600 dark:text-gray-300 dark:hover:text-blue-400 sm:p-2"
+              className={`relative rounded-lg text-gray-700 transition-colors hover:text-blue-600 dark:text-gray-300 dark:hover:text-blue-400 hover:bg-gray-100 dark:hover:bg-gray-800 ${
+                isAppShell ? "p-1.5 sm:p-2" : "p-2"
+              }`}
+              title={t("popup.chat")}
             >
-              <MessageCircle className="h-[1.15rem] w-[1.15rem] sm:h-5 sm:w-5" />
+              <MessageCircle className="h-5 w-5 sm:h-5 sm:w-5" />
               {hasChatActivity && (
-                <span className="absolute top-1 right-1 block w-2 h-2 rounded-full bg-green-500" />
+                <span className="absolute top-1.5 right-1.5 block w-2 h-2 rounded-full bg-green-500" />
               )}
             </button>
             {chatWidgetOpen && (
@@ -1992,13 +2004,9 @@ const getChatNoteBadgeClass = (result?: string | null) => {
                     <div className="bg-gradient-to-r from-blue-600 to-purple-600 text-white px-4 py-3 flex items-center justify-between">
                       <div>
                         <p className="text-sm font-semibold">
-                          {language === "km" ? "ជជែកជាមួយអ្នកគ្រប់គ្រង" : "Chat with admins"}
+                          {t("popup.chatWithAdmins")}
                         </p>
-                        <p className="text-xs opacity-80">
-                          {language === "km"
-                            ? "????????????????????????????????"
-                            : "Select a conversation to begin"}
-                        </p>
+                        <p className="text-xs opacity-80">{t("popup.selectConversation")}</p>
                       </div>
                       <button
                         onClick={() => setChatWidgetOpen(false)}
@@ -2008,7 +2016,7 @@ const getChatNoteBadgeClass = (result?: string | null) => {
                       </button>
                     </div>
                     <div className="px-4 pt-3 pb-2 border-b border-gray-100 dark:border-gray-800 flex items-center justify-between text-xs text-gray-500 uppercase font-semibold">
-                      <span>{language === "km" ? "??????????????" : "Conversations"}</span>
+                      <span>{t("popup.conversations")}</span>
                       <Button
                         variant="ghost"
                         size="sm"
@@ -2017,7 +2025,7 @@ const getChatNoteBadgeClass = (result?: string | null) => {
                           onNavigate("chat");
                         }}
                       >
-                        {language === "km" ? "??????????" : "View all"}
+                        {t("popup.viewAll")}
                       </Button>
                     </div>
                     <div className="px-4 pt-3 pb-2 border-b border-gray-100 dark:border-gray-800 space-y-2">
@@ -2026,18 +2034,18 @@ const getChatNoteBadgeClass = (result?: string | null) => {
                         <input
                           value={chatWidgetSearchTerm}
                           onChange={(e) => setChatWidgetSearchTerm(e.target.value)}
-                          placeholder={language === "km" ? "ស្វែងរក Order ឬ Email" : "Search order or email"}
+                          placeholder={t("popup.searchOrderEmail")}
                           className="w-full h-9 rounded-lg border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-900 pl-8 pr-2 text-xs text-gray-900 dark:text-gray-100 focus:outline-none focus:ring-2 focus:ring-blue-500"
                         />
                       </div>
                       <div className="flex flex-wrap gap-1.5">
                         {(
                           [
-                            { key: "all", label: language === "km" ? "ទាំងអស់" : "All" },
-                            { key: "online", label: language === "km" ? "អនឡាញ" : "Online" },
-                            { key: "offline", label: language === "km" ? "ក្រៅបណ្តាញ" : "Offline" },
-                            { key: "read", label: language === "km" ? "បានអាន" : "Read" },
-                            { key: "unread", label: language === "km" ? "មិនទាន់អាន" : "Unread" },
+                            { key: "all", label: language === "km" ? "แ‘แถแแแขแแ" : "All" },
+                            { key: "online", label: language === "km" ? "แขแ“แกแถแ" : "Online" },
+                            { key: "offline", label: language === "km" ? "แ€แ’แแ…แ”แแ’แแถแ" : "Offline" },
+                            { key: "read", label: language === "km" ? "แ”แถแ“แขแถแ“" : "Read" },
+                            { key: "unread", label: language === "km" ? "แแทแ“แ‘แถแ“แแขแถแ“" : "Unread" },
                           ] as Array<{ key: ChatWidgetActivityFilter; label: string }>
                         ).map((tab) => {
                           const active = chatWidgetActivityFilter === tab.key;
@@ -2068,7 +2076,7 @@ const getChatNoteBadgeClass = (result?: string | null) => {
                                           : "border-rose-200 bg-rose-50 text-rose-700 hover:bg-rose-100"
                               }`}
                             >
-                              <span>{tab.label}</span>
+                              <span>{getChatWidgetFilterLabel(tab.key)}</span>
                               <span
                                 className={`inline-flex min-w-[16px] items-center justify-center rounded-full px-1 py-0.5 text-[9px] ${
                                   tab.key === "all"
@@ -2103,13 +2111,11 @@ const getChatNoteBadgeClass = (result?: string | null) => {
                       {chatWidgetLoading ? (
                         <div className="flex items-center gap-2 text-sm text-gray-500">
                           <Loader2 className="w-4 h-4 animate-spin" />
-                          {language === "km" ? "??????????..." : "Loading..."}
+                          {t("popup.loading")}
                         </div>
                       ) : filteredChatWidgetConversations.length === 0 ? (
                         <div className="text-sm text-gray-500">
-                          {language === "km"
-                            ? "???????????????????????"
-                            : "No conversations yet."}
+                          {t("popup.noConversations")}
                         </div>
                       ) : (
                         filteredChatWidgetConversations.map((conv) => {
@@ -2140,11 +2146,9 @@ const getChatNoteBadgeClass = (result?: string | null) => {
                             : !!counterpart?.online;
                           const snippet =
                             conv.lastMessageType === "sticker"
-                              ? language === "km"
-                                ? "???????"
-                                : "Sticker"
+                              ? t("popup.sticker")
                               : conv.lastMessage ||
-                                (language === "km" ? "????????" : "No messages");
+                                t("popup.noMessages");
                           return (
                             <button
                               key={conv.orderId}
@@ -2182,7 +2186,7 @@ const getChatNoteBadgeClass = (result?: string | null) => {
                                   </div>
                                   <div className="mt-0.5 flex items-center gap-2">
                                     <div className="text-xs text-gray-500 truncate">
-                                      {language === "km" ? "Order" : "Order"} {conv.orderNumber}
+                                      Order {conv.orderNumber}
                                     </div>
                                     <span className={getChatOrderStateBadgeClass(conv.state)}>
                                       {getChatOrderStateLabel(conv.state)}
@@ -2231,7 +2235,7 @@ const getChatNoteBadgeClass = (result?: string | null) => {
                       <button
                         onClick={handleBackToWidgetList}
                         className="p-1.5 rounded-full hover:bg-white/20 transition-colors"
-                        title={language === "km" ? "??????" : "Back"}
+                        title={t("popup.back")}
                       >
                         <ArrowLeft className="w-4 h-4" />
                       </button>
@@ -2271,29 +2275,25 @@ const getChatNoteBadgeClass = (result?: string | null) => {
                     </div>
                     <div className="px-4 py-2 border-b border-gray-100 dark:border-gray-800 text-xs text-gray-500 flex items-center justify-between">
                       <span>
-                        {language === "km"
-                          ? "អ្នកគ្រប់គ្រងរួចរាល់ក្នុងការឆ្លើយតប"
-                          : "Admin is ready to respond"}
+                        {t("popup.adminReady")}
                       </span>
                       <Button
                         variant="ghost"
                         size="sm"
                         onClick={() => onOpenOrderDetail(chatWidgetActive.orderId)}
                       >
-                        {language === "km" ? "??????????????" : "View order"}
+                        {t("popup.viewOrder")}
                       </Button>
                     </div>
                     <div ref={chatWidgetMessagesRef} className="scrollbar-hide min-h-0 flex-1 overflow-y-auto overscroll-contain p-4 space-y-3 touch-pan-y [-webkit-overflow-scrolling:touch]">
                       {chatWidgetMessagesLoading ? (
                         <div className="flex items-center gap-2 text-sm text-gray-500">
                           <Loader2 className="w-4 h-4 animate-spin" />
-                          {language === "km" ? "??????????..." : "Loading..."}
+                          {t("popup.loading")}
                         </div>
                       ) : chatWidgetMessages.length === 0 ? (
                         <div className="text-sm text-gray-500">
-                          {language === "km"
-                            ? "?????????????? ???????????????!"
-                            : "No messages yet. Say hello!"}
+                          {t("popup.noMessagesYet")}
                         </div>
                       ) : (
                         <>
@@ -2302,14 +2302,12 @@ const getChatNoteBadgeClass = (result?: string | null) => {
                               <div className="flex items-center gap-2">
                                 <Pin className="w-3 h-3" />
                                 <span>
-                                  {language === "km" ? "សារបិទភ្ជាប់" : "Pinned messages"} (
+                                  {t("popup.pinnedMessages")} (
                                   {chatWidgetPinnedMessages.length})
                                 </span>
                               </div>
                               <span className="text-[11px] text-amber-500 dark:text-amber-200">
-                                {language === "km"
-                                  ? "បង្ហាញនៅលើកំពូល"
-                                  : "Highlighted for quick access"}
+                                {t("popup.highlighted")}
                               </span>
                             </div>
                           )}
@@ -2319,9 +2317,7 @@ const getChatNoteBadgeClass = (result?: string | null) => {
                           const displayName =
                             msg.senderName ||
                             (isMine
-                              ? language === "km"
-                                ? "អ្នក"
-                                : "You"
+                              ? t("popup.you")
                               : isAdmin
                               ? fallbackBuyerLabel
                               : fallbackAdminLabel);
@@ -2372,7 +2368,7 @@ const getChatNoteBadgeClass = (result?: string | null) => {
                                       } inline-flex items-center gap-1 text-[10px] text-amber-500`}
                                     >
                                       <Pin className="w-3 h-3" />
-                                      {language === "km" ? "????????????" : "Pinned"}
+                                      {t("popup.pinnedMessages")}
                                     </span>
                                   )}
                                   <div
@@ -2386,12 +2382,7 @@ const getChatNoteBadgeClass = (result?: string | null) => {
                                     {isDeleted ? (
                                       <p>
                                         {isMine
-                                          ? language === "km"
-                                            ? "?????????????"
-                                            : "You unsent this message."
-                                          : language === "km"
-                                          ? "?????????????????"
-                                          : "This message was removed."}
+                                          ? t("popup.youUnsent") : t("popup.messageRemoved")}
                                       </p>
                                     ) : msg.type === "sticker" && msg.stickerPath ? (
                                       <img
@@ -2421,7 +2412,7 @@ const getChatNoteBadgeClass = (result?: string | null) => {
                                             prev === msg.id ? null : msg.id
                                           );
                                         }}
-                                        title={language === "km" ? "ជម្រើស" : "More actions"}
+                                        title={t("popup.moreActions")}
                                       >
                                         <MoreVertical className="w-3 h-3" />
                                       </button>
@@ -2446,12 +2437,7 @@ const getChatNoteBadgeClass = (result?: string | null) => {
                                         )}
                                         <span>
                                           {msg.isPinned
-                                            ? language === "km"
-                                              ? "ដោះបិទភ្ជាប់"
-                                              : "Unpin"
-                                            : language === "km"
-                                            ? "បិទភ្ជាប់"
-                                            : "Pin message"}
+                                            ? t("popup.unpin") : t("popup.pinMessage")}
                                         </span>
                                       </button>
                                       {isMine && msg.type !== "sticker" && (
@@ -2460,7 +2446,7 @@ const getChatNoteBadgeClass = (result?: string | null) => {
                                           onClick={() => handleWidgetStartEdit(msg)}
                                         >
                                           <Edit3 className="w-3 h-3" />
-                                          <span>{language === "km" ? "កែសារ" : "Edit message"}</span>
+                                          <span>{t("popup.editMessage")}</span>
                                         </button>
                                       )}
                                       {isMine && (
@@ -2474,7 +2460,7 @@ const getChatNoteBadgeClass = (result?: string | null) => {
                                           ) : (
                                             <Trash2 className="w-3 h-3" />
                                           )}
-                                          <span>{language === "km" ? "លុប" : "Remove"}</span>
+                                          <span>{t("popup.remove")}</span>
                                         </button>
                                       )}
                                     </div>
@@ -2508,7 +2494,7 @@ const getChatNoteBadgeClass = (result?: string | null) => {
                                   <span>{formatWidgetTime(msg.createdAt)}</span>
                                   {msg.editedAt && !isDeleted && (
                                     <span className="italic">
-                                      {language === "km" ? "?????" : "Edited"}
+                                      {t("popup.edited")}
                                     </span>
                                   )}
                                   {!isDeleted && (
@@ -2519,7 +2505,7 @@ const getChatNoteBadgeClass = (result?: string | null) => {
                                           prev === msg.id ? null : msg.id
                                         )
                                       }
-                                      title={language === "km" ? "?????????" : "React"}
+                                      title={t("popup.react")}
                                     >
                                       <SmilePlus className="w-3 h-3" />
                                     </button>
@@ -2544,7 +2530,7 @@ const getChatNoteBadgeClass = (result?: string | null) => {
                                     <div className="w-5 h-5 rounded-full overflow-hidden border border-white shadow">
                                       {seenAvatarElement}
                                     </div>
-                                    <span>{language === "km" ? "បានឃើញ" : "Seen"}</span>
+                                    <span>{t("popup.seen")}</span>
                                   </div>
                                 )}
                                 {chatWidgetEditingId === msg.id && !isDeleted && msg.type !== "sticker" && (
@@ -2563,7 +2549,7 @@ const getChatNoteBadgeClass = (result?: string | null) => {
                                         className="text-gray-600 dark:text-gray-300"
                                       >
                                         <X className="w-3 h-3 mr-1" />
-                                        {language === "km" ? "បោះបង់" : "Cancel"}
+                                        {t("popup.cancel")}
                                       </Button>
                                       <Button
                                         size="sm"
@@ -2575,7 +2561,7 @@ const getChatNoteBadgeClass = (result?: string | null) => {
                                         ) : (
                                           <Check className="w-3 h-3 mr-1" />
                                         )}
-                                        {language === "km" ? "រក្សាទុក" : "Save"}
+                                        {t("popup.save")}
                                       </Button>
                                     </div>
                                   </div>
@@ -2607,7 +2593,7 @@ const getChatNoteBadgeClass = (result?: string | null) => {
                               ? "border-blue-500 text-blue-500"
                               : "border-gray-200 dark:border-gray-700 text-gray-500"
                           }`}
-                          title={language === "km" ? "????????" : "Emoji"}
+                          title={t("popup.emoji")}
                         >
                           <Smile className="w-4 h-4" />
                         </button>
@@ -2621,7 +2607,7 @@ const getChatNoteBadgeClass = (result?: string | null) => {
                               ? "border-blue-500 text-blue-500"
                               : "border-gray-200 dark:border-gray-700 text-gray-500"
                           }`}
-                          title={language === "km" ? "???????" : "Stickers"}
+                          title={t("popup.stickers")}
                         >
                           <Sticker className="w-4 h-4" />
                         </button>
@@ -2690,11 +2676,7 @@ const getChatNoteBadgeClass = (result?: string | null) => {
                         rows={2}
                         value={chatWidgetInput}
                         onChange={(e) => setChatWidgetInput(e.target.value)}
-                        placeholder={
-                          language === "km"
-                            ? "??????????????..."
-                            : "Type a quick message..."
-                        }
+                        placeholder={t("popup.typeQuickMessage")}
                       />
                       <div className="flex justify-end">
                         <Button
@@ -2709,7 +2691,7 @@ const getChatNoteBadgeClass = (result?: string | null) => {
                           ) : (
                             <Send className="w-4 h-4 mr-2" />
                           )}
-                          {language === "km" ? "????" : "Send"}
+                          {t("popup.send")}
                         </Button>
                       </div>
                     </div>
@@ -2722,26 +2704,54 @@ const getChatNoteBadgeClass = (result?: string | null) => {
           {/* Cart */}
             <button
               onClick={() => onNavigate('cart')}
-              className="relative rounded-lg p-1.5 text-gray-700 transition-colors hover:text-blue-600 dark:text-gray-300 dark:hover:text-blue-400 sm:p-2"
+              className={`relative rounded-lg text-gray-700 transition-colors hover:text-blue-600 dark:text-gray-300 dark:hover:text-blue-400 hover:bg-gray-100 dark:hover:bg-gray-800 ${
+                isAppShell ? "p-1.5 sm:p-2" : "p-2"
+              } hidden sm:inline-flex`}
+              title={language === 'km' ? 'แ€แ“แ’แแ’แแ€' : 'Cart'}
             >
-              <ShoppingCart className="h-[1.15rem] w-[1.15rem] sm:h-5 sm:w-5" />
+              <ShoppingCart className="h-5 w-5 sm:h-5 sm:w-5" />
               {cartCount > 0 && (
-                <span className="absolute -top-1 -right-1 bg-red-500 text-white text-xs rounded-full w-5 h-5 flex items-center justify-center">
-                  {cartCount}
+                <span className="absolute -top-0.5 -right-0.5 bg-red-500 text-white text-[10px] sm:text-xs rounded-full w-5 h-5 sm:w-6 sm:h-6 flex items-center justify-center font-semibold">
+                  {cartCount > 9 ? '9+' : cartCount}
                 </span>
               )}
             </button>
 
-            {/* User Account Icon - Desktop */}
+            {/* Mobile Chat Button - Shows only on mobile (below sm) */}
+            <button
+              onClick={handleToggleChatWidget}
+              className="relative order-2 rounded-lg p-2 text-gray-700 transition-colors hover:text-blue-600 dark:text-gray-300 dark:hover:text-blue-400 hover:bg-gray-100 dark:hover:bg-gray-800 sm:order-none sm:hidden inline-flex"
+              title={t("popup.chat")}
+            >
+              <MessageCircle className="w-5 h-5" />
+              {hasChatActivity && (
+                <span className="absolute top-1.5 right-1.5 block w-2 h-2 rounded-full bg-green-500" />
+              )}
+            </button>
+
+            {/* Mobile Cart Button - Shows only on xs/sm screens */}
+            <button
+              onClick={() => onNavigate('cart')}
+              className="relative order-4 rounded-lg p-2 text-gray-700 transition-colors hover:text-blue-600 dark:text-gray-300 dark:hover:text-blue-400 hover:bg-gray-100 dark:hover:bg-gray-800 sm:order-none sm:hidden inline-flex"
+              title={language === 'km' ? 'แ€แ“แ’แแ’แแ€' : 'Cart'}
+            >
+              <ShoppingCart className="h-5 w-5" />
+              {cartCount > 0 && (
+                <span className="absolute -top-0.5 -right-0.5 bg-red-500 text-white text-[10px] rounded-full w-5 h-5 flex items-center justify-center font-semibold">
+                  {cartCount > 9 ? '9+' : cartCount}
+                </span>
+              )}
+            </button>
+
+            {/* User Account Icon - Desktop/Tablet */}
             {isAuthenticated && user ? (
               <div
-                className={`relative ${
-                  isDesktopSidebarViewport ? "block" : "hidden"
-                }`}
+                className="relative hidden sm:block"
               >
                 <button
                   onClick={() => setAccountPopupOpen(!accountPopupOpen)}
-                  className="p-2 hover:bg-gray-100 dark:hover:bg-gray-800 rounded-lg transition-colors"
+                  className="p-1.5 hover:bg-gray-100 dark:hover:bg-gray-800 rounded-lg transition-colors"
+                  title={language === 'km' ? 'แแแ“แธ' : 'Account'}
                 >
                   <ProfileAvatar
                     src={user.avatarUrl}
@@ -2751,7 +2761,7 @@ const getChatNoteBadgeClass = (result?: string | null) => {
                       .slice(0, 2)
                       .toUpperCase()}
                     borderUrl={user.avatarBorderUrl}
-                    className="h-8 w-8 rounded-full ring-2 ring-blue-500"
+                    className="h-9 w-9 rounded-full bg-white p-0.5 shadow-[0_10px_24px_rgba(15,23,42,0.18)] ring-1 ring-slate-200/80 dark:bg-slate-950 dark:ring-slate-700/70"
                     fallbackClassName="text-sm"
                   />
                 </button>
@@ -2768,10 +2778,33 @@ const getChatNoteBadgeClass = (result?: string | null) => {
                     {/* Popup - Small like reference image */}
                     <div className="absolute right-0 mt-2 w-48 bg-blue-600 dark:bg-blue-700 rounded-lg shadow-2xl overflow-hidden z-40">
                       {/* User Info Header */}
-                      <div className="px-4 py-3 bg-blue-700 dark:bg-blue-800 border-b border-blue-500">
-                        <div className="text-xs font-bold text-white truncate">{accountDisplayName}</div>
+                      <div className="border-b border-blue-500 bg-blue-700 px-4 py-3 dark:bg-blue-800">
+                        <div className="mb-2 flex items-center gap-3">
+                          <ProfileAvatar
+                            src={user.avatarUrl}
+                            alt={accountDisplayName}
+                            fallback={(user?.firstName || user?.username || user?.email || "U")
+                              .trim()
+                              .slice(0, 2)
+                              .toUpperCase()}
+                            borderUrl={user.avatarBorderUrl}
+                            className="h-10 w-10 rounded-full bg-white p-0.5 ring-1 ring-white/50"
+                            fallbackClassName="text-xs"
+                          />
+                          <div className="min-w-0">
+                            <div className="flex items-center gap-1.5">
+                              <div className="truncate text-xs font-bold text-white">{accountDisplayName}</div>
+                              <img
+                                src={verifiedBadgeSrc}
+                                alt="Verified"
+                                className="h-4 w-4 shrink-0 object-contain"
+                              />
+                            </div>
+                          </div>
+                        </div>
+                        <div className="hidden text-xs font-bold text-white truncate">{accountDisplayName}</div>
                         <div className="text-xs text-blue-200 truncate">
-                          {language === 'km' ? 'អត្តសញ្ញាណ' : 'User ID'}: {user.id}
+                          {language === 'km' ? 'แขแแ’แแแแ’แแถแ' : 'User ID'}: {user.id}
                         </div>
                       </div>
                       
@@ -2783,7 +2816,7 @@ const getChatNoteBadgeClass = (result?: string | null) => {
                         className="w-full text-left px-4 py-2.5 text-sm text-white hover:bg-blue-700 dark:hover:bg-blue-800 flex items-center gap-2 font-medium transition-colors"
                       >
                         <User className="w-4 h-4" />
-                        <span>{language === 'km' ? 'គណនី' : 'Account'}</span>
+                        <span>{language === 'km' ? 'แแแ“แธ' : 'Account'}</span>
                       </button>
                       
                       <button
@@ -2794,7 +2827,7 @@ const getChatNoteBadgeClass = (result?: string | null) => {
                         className="w-full text-left px-4 py-2.5 text-sm text-white hover:bg-blue-700 dark:hover:bg-blue-800 flex items-center gap-2 font-medium transition-colors"
                       >
                         <FileText className="w-4 h-4" />
-                        <span>{language === 'km' ? 'ការបញ្ជាទិញ' : 'Purchase History'}</span>
+                        <span>{language === 'km' ? 'แ€แถแแ”แแ’แแถแ‘แทแ' : 'Purchase History'}</span>
                       </button>
                       
                       <button
@@ -2802,47 +2835,54 @@ const getChatNoteBadgeClass = (result?: string | null) => {
                         className="w-full text-left px-4 py-2.5 text-sm text-white hover:bg-blue-700 dark:hover:bg-blue-800 flex items-center gap-2 font-medium transition-colors"
                       >
                         <LogOut className="w-4 h-4" />
-                        <span>{language === 'km' ? 'ចាកចេញ' : 'Logout'}</span>
+                        <span>{language === 'km' ? 'แ…แถแ€แ…แแ' : 'Logout'}</span>
                       </button>
                     </div>
                   </>
                 )}
               </div>
             ) : (
-              <div
-                className={`items-center gap-2 ${
-                  isDesktopSidebarViewport ? "flex" : "hidden"
-                }`}
-              >
-                <Button
-                  variant="ghost"
-                  size="sm"
+              <>
+                {/* Desktop Login/Signup Buttons */}
+                <div className="hidden lg:flex items-center gap-2">
+                  <Button
+                    variant="ghost"
+                    size="sm"
+                    onClick={() => onNavigate('login')}
+                    className="text-gray-700 dark:text-gray-300 hover:text-blue-600 dark:hover:text-blue-400"
+                  >
+                    <User className="w-4 h-4 mr-2" />
+                    {t('nav.login')}
+                  </Button>
+                  <Button
+                    size="sm"
+                    onClick={() => onNavigate('register')}
+                    className="bg-gradient-to-r from-blue-600 to-purple-600 hover:from-blue-700 hover:to-purple-700 text-white"
+                  >
+                    {t('nav.signup')}
+                  </Button>
+                </div>
+
+                {/* Mobile Login Button - Icon Only */}
+                <button
                   onClick={() => onNavigate('login')}
-                  className="text-gray-700 dark:text-gray-300 hover:text-blue-600 dark:hover:text-blue-400"
+                className="order-5 lg:hidden rounded-lg p-2 text-gray-700 transition-colors hover:text-blue-600 dark:text-gray-300 dark:hover:text-blue-400 hover:bg-gray-100 dark:hover:bg-gray-800 inline-flex sm:order-none"
+                  title={language === 'km' ? 'แ…แผแแแแ“แธ' : 'Login'}
                 >
-                  <User className="w-4 h-4 mr-2" />
-                  {t('nav.login')}
-                </Button>
-                <Button
-                  size="sm"
-                  onClick={() => onNavigate('register')}
-                  className="bg-gradient-to-r from-blue-600 to-purple-600 hover:from-blue-700 hover:to-purple-700"
-                >
-                  {t('nav.signup')}
-                </Button>
-              </div>
+                  <User className="w-5 h-5" />
+                </button>
+              </>
             )}
 
             {/* User Account Icon - Mobile */}
             {isAuthenticated && user ? (
               <div
-                className={`relative ${
-                  isDesktopSidebarViewport ? "hidden" : "block"
-                }`}
+                className="relative order-5 sm:order-none sm:hidden block"
               >
                 <button
                   onClick={() => setAccountPopupOpen(!accountPopupOpen)}
-                  className="rounded-lg p-1 hover:bg-gray-100 dark:hover:bg-gray-800 transition-colors sm:p-1.5"
+                  className="rounded-lg p-1.5 hover:bg-gray-100 dark:hover:bg-gray-800 transition-colors"
+                  title={language === 'km' ? 'แแแ“แธ' : 'Account'}
                 >
                   <ProfileAvatar
                     src={user.avatarUrl}
@@ -2852,8 +2892,8 @@ const getChatNoteBadgeClass = (result?: string | null) => {
                       .slice(0, 2)
                       .toUpperCase()}
                     borderUrl={user.avatarBorderUrl}
-                    className="h-7 w-7 rounded-full ring-2 ring-blue-500 sm:h-8 sm:w-8"
-                    fallbackClassName="text-sm"
+                    className="h-9 w-9 rounded-full bg-white p-0.5 shadow-[0_8px_20px_rgba(15,23,42,0.16)] ring-1 ring-slate-200/80 dark:bg-slate-950 dark:ring-slate-700/70"
+                    fallbackClassName="text-xs"
                   />
                 </button>
 
@@ -2861,13 +2901,41 @@ const getChatNoteBadgeClass = (result?: string | null) => {
                 {accountPopupOpen && (
                   <>
                     {/* Backdrop */}
-                    <div 
+                    <div
                       className="fixed inset-0 bg-black/50 z-40"
                       onClick={() => setAccountPopupOpen(false)}
                     />
-                    
+
                     {/* Popup - Match PC style with 3 buttons */}
                     <div className="absolute right-0 mt-2 w-48 bg-blue-600 dark:bg-blue-700 rounded-lg shadow-2xl overflow-hidden z-50">
+                      <div className="border-b border-blue-500 bg-blue-700 px-4 py-3 dark:bg-blue-800">
+                        <div className="flex items-center gap-3">
+                          <ProfileAvatar
+                            src={user.avatarUrl}
+                            alt={accountDisplayName}
+                            fallback={(user?.firstName || user?.username || user?.email || "U")
+                              .trim()
+                              .slice(0, 2)
+                              .toUpperCase()}
+                            borderUrl={user.avatarBorderUrl}
+                            className="h-10 w-10 rounded-full bg-white p-0.5 ring-1 ring-white/50"
+                            fallbackClassName="text-xs"
+                          />
+                          <div className="min-w-0">
+                            <div className="flex items-center gap-1.5">
+                              <div className="truncate text-xs font-bold text-white">{accountDisplayName}</div>
+                              <img
+                                src={verifiedBadgeSrc}
+                                alt="Verified"
+                                className="h-4 w-4 shrink-0 object-contain"
+                              />
+                            </div>
+                            <div className="truncate text-xs text-blue-200">
+                              {language === 'km' ? 'เนยเธเนยยเนยโ€เนยยเนยยเนยยเนยโ€เนยยเนยเธ–เนยย' : 'User ID'}: {user.id}
+                            </div>
+                          </div>
+                        </div>
+                      </div>
                       <button
                         onClick={() => {
                           onNavigate('profile');
@@ -2876,7 +2944,7 @@ const getChatNoteBadgeClass = (result?: string | null) => {
                         className="w-full text-left px-4 py-2.5 text-sm text-white hover:bg-blue-700 dark:hover:bg-blue-800 flex items-center gap-2 font-medium transition-colors"
                       >
                         <User className="w-4 h-4" />
-                        <span>{language === 'km' ? 'គណនី' : 'Account'}</span>
+                        <span>{language === 'km' ? 'แแแ“แธ' : 'Account'}</span>
                       </button>
                       
                       <button
@@ -2887,7 +2955,7 @@ const getChatNoteBadgeClass = (result?: string | null) => {
                         className="w-full text-left px-4 py-2.5 text-sm text-white hover:bg-blue-700 dark:hover:bg-blue-800 flex items-center gap-2 font-medium transition-colors"
                       >
                         <Package className="w-4 h-4" />
-                        <span>{language === 'km' ? 'ការបញ្ជាទិញ' : 'Purchase History'}</span>
+                        <span>{language === 'km' ? 'แ€แถแแ”แแ’แแถแ‘แทแ' : 'Purchase History'}</span>
                       </button>
                       
                       <button
@@ -2895,7 +2963,7 @@ const getChatNoteBadgeClass = (result?: string | null) => {
                         className="w-full text-left px-4 py-2.5 text-sm text-white hover:bg-blue-700 dark:hover:bg-blue-800 flex items-center gap-2 font-medium transition-colors"
                       >
                         <LogOut className="w-4 h-4" />
-                        <span>{language === 'km' ? 'ចាកចេញ' : 'Logout'}</span>
+                        <span>{language === 'km' ? 'แ…แถแ€แ…แแ' : 'Logout'}</span>
                       </button>
                     </div>
                   </>
@@ -2904,7 +2972,7 @@ const getChatNoteBadgeClass = (result?: string | null) => {
             ) : (
               <button
                 onClick={() => onNavigate('login')}
-                className={`p-2 text-gray-700 dark:text-gray-300 hover:text-blue-600 dark:hover:text-blue-400 transition-colors ${
+                className={`order-5 p-2 text-gray-700 dark:text-gray-300 hover:text-blue-600 dark:hover:text-blue-400 transition-colors sm:order-none ${
                   isDesktopSidebarViewport ? "hidden" : "block"
                 }`}
               >
@@ -2918,3 +2986,4 @@ const getChatNoteBadgeClass = (result?: string | null) => {
     </header>
   );
 }
+

@@ -158,7 +158,7 @@ export function AllPage({ onOpenProductDetail }: { onOpenProductDetail: (slug: s
           {/* ================= MAIN GRID ================= */}
           <main className="lg:col-span-3">
             {loading ? (
-              <div className="text-center text-gray-500">Loading...</div>
+              <div className="text-center text-gray-500">{t("common.loading")}</div>
             ) : sortedItems.length > 0 ? (
               <>
                 <div className="mb-6 flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4">

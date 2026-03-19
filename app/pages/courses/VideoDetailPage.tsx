@@ -16,6 +16,7 @@ import { PreviewVideoPage, PreviewLesson } from "./PreviewVideoPage";
 import { QRPaymentModal } from "../../components/QRPaymentModal";
 import { useAuth } from "../../contexts/AuthContext";
 import { useCurrency } from "../../contexts/CurrencyContext";
+import { useLanguage } from "../../contexts/LanguageContext";
 import { toast } from "sonner";
 
 interface VideoDetailPageProps {
@@ -179,6 +180,7 @@ export function VideoDetailPage({
 
   const { user } = useAuth();
   const { formatPrice } = useCurrency();
+  const { language, t } = useLanguage();
   const [course, setCourse] = useState<ApiCourse | null>(null);
   const [sections, setSections] = useState<ApiSection[]>([]);
   const [lessons, setLessons] = useState<ApiLesson[]>([]);
@@ -211,7 +213,7 @@ export function VideoDetailPage({
 
   const openPreviewWithLesson = (lessonId?: string) => {
     if (previewLessons.length === 0) {
-      toast.error("No preview lessons available");
+      toast.error(t("courses.noPreviewLessons"));
       return;
     }
     setPreviewLessonId(lessonId ?? previewLessons[0]?.id ?? null);
@@ -228,11 +230,13 @@ export function VideoDetailPage({
         id: section.id,
         title: section.title,
         lectures: sectionLessons.length,
-        length: `${sectionLessons.length} lessons`,
+        length: t("courseDetail.sectionLessons", {
+          count: sectionLessons.length,
+        }),
         lessons: sectionLessons,
       };
     });
-  }, [lessons, sections]);
+  }, [lessons, sections, t]);
 
   useEffect(() => {
     const load = async () => {
@@ -250,7 +254,7 @@ export function VideoDetailPage({
         });
         const data = await res.json();
         if (!res.ok) {
-          throw new Error(data?.error || "Course not found");
+          throw new Error(data?.error || t("courseDetail.courseNotFound"));
         }
         setCourse(data.course ?? null);
         setSections(Array.isArray(data.sections) ? data.sections : []);
@@ -275,7 +279,7 @@ export function VideoDetailPage({
     };
 
     load();
-  }, [slug]);
+  }, [slug, t]);
 
   const [showAllSections, setShowAllSections] = useState(false);
   const [openSections, setOpenSections] = useState<Record<string, boolean>>({});
@@ -378,17 +382,24 @@ export function VideoDetailPage({
     return prices.length ? Math.min(...prices) : 0;
   }, [plans]);
 
+  const formatDisplayDate = (value: Date | null) => {
+    if (!value || Number.isNaN(value.getTime())) {
+      return t("courseDetail.notAvailable");
+    }
+    return value.toLocaleDateString(language === "km" ? "km-KH" : "en-US");
+  };
+
   const formatPlanDuration = (days?: number | null) => {
     if (!days) return "";
     if (days % 365 === 0) {
       const years = days / 365;
-      return `${years} year${years > 1 ? "s" : ""}`;
+      return `${years} ${t(years > 1 ? "courseDetail.years" : "courseDetail.year")}`;
     }
     if (days % 30 === 0) {
       const months = days / 30;
-      return `${months} month${months > 1 ? "s" : ""}`;
+      return `${months} ${t(months > 1 ? "courseDetail.months" : "courseDetail.month")}`;
     }
-    return `${days} days`;
+    return `${days} ${t(days > 1 ? "courseDetail.days" : "courseDetail.day")}`;
   };
 
   const splitFeatureLines = (value?: string | null) => {
@@ -400,9 +411,11 @@ export function VideoDetailPage({
   };
 
   const formatCoursePlanLabel = (plan: ApiPlan) => {
-    if (plan.access_type === "lifetime") return "Lifetime access";
+    if (plan.access_type === "lifetime") return t("courseDetail.lifetimeAccess");
     const duration = formatPlanDuration(plan.duration_days);
-    return duration ? `${duration} access` : "Limited access";
+    return duration
+      ? t("courseDetail.durationAccess", { duration })
+      : t("courseDetail.limitedAccess");
   };
 
   const formatCoursePlanDeviceLabel = (plan: ApiPlan) => {
@@ -415,9 +428,11 @@ export function VideoDetailPage({
         : 1;
     const effective = Math.min(itemMax, GLOBAL_LOGIN_MAX_DEVICES);
     if (isUnlimited) {
-      return `Unlimited device (max ${GLOBAL_LOGIN_MAX_DEVICES} devices)`;
+      return t("courseDetail.unlimitedDevices", {
+        count: GLOBAL_LOGIN_MAX_DEVICES,
+      });
     }
-    return `Max ${effective} devices`;
+    return t("courseDetail.maxDevices", { count: effective });
   };
 
   const openSellerBlog = (sellerId: number | null | undefined) => {
@@ -435,28 +450,28 @@ export function VideoDetailPage({
   ) => {
     if (purchaseLoading) return;
     if (!plan) {
-      toast.error("Please select a plan");
+      toast.error(t("courseDetail.selectPlan"));
       return;
     }
     if (!user) {
-      toast.error("Please login to continue");
+      toast.error(t("courseDetail.loginToContinue"));
       onNavigate("login");
       return;
     }
     if (access?.has_subscription && type === "subscription") {
-      toast.info("You already have an active subscription");
+      toast.info(t("courseDetail.alreadyActiveSubscription"));
       return;
     }
 
     const price = Number(plan.price ?? 0);
     if (!Number.isFinite(price)) {
-      toast.error("Invalid plan price");
+      toast.error(t("courseDetail.invalidPlanPrice"));
       return;
     }
 
     if (type === "course") {
       if (!course?.id) {
-        toast.error("Course not found");
+        toast.error(t("courseDetail.courseNotFound"));
         return;
       }
       try {
@@ -474,16 +489,17 @@ export function VideoDetailPage({
         if (!res.ok) {
           throw new Error(
             (data && typeof data.error === "string" ? data.error : null) ||
-              "Failed to add course to cart"
+              t("courseDetail.failedAddToCart")
           );
         }
-        toast.success("Course added to cart");
+        toast.success(t("courseDetail.addedToCart"));
         if (typeof window !== "undefined") {
           window.dispatchEvent(new CustomEvent("cart:changed"));
         }
         onNavigate("cart");
       } catch (err) {
-        const message = err instanceof Error ? err.message : "Failed to add course to cart";
+        const message =
+          err instanceof Error ? err.message : t("courseDetail.failedAddToCart");
         toast.error(message);
       } finally {
         setPurchaseLoading(false);
@@ -491,7 +507,7 @@ export function VideoDetailPage({
       return;
     }
 
-    const label = `Subscription - ${plan.name}`;
+    const label = t("courseDetail.subscriptionLabel", { name: plan.name });
 
     if (price <= 0) {
       await submitPurchase(type, plan.id, {
@@ -540,7 +556,7 @@ export function VideoDetailPage({
       });
       const data1 = await res1.json();
       if (!res1.ok) {
-        throw new Error(data1?.error || "Failed to create order");
+        throw new Error(data1?.error || t("courseDetail.failedCreateOrder"));
       }
 
       const orderId = data1.orderId;
@@ -558,10 +574,10 @@ export function VideoDetailPage({
       });
       const data2 = await res2.json();
       if (!res2.ok) {
-        throw new Error(data2?.error || "Payment failed");
+        throw new Error(data2?.error || t("courseDetail.paymentFailed"));
       }
 
-      toast.success("Order created successfully");
+      toast.success(t("courseDetail.orderCreated"));
       setShowPaymentModal(false);
       setPurchasePending(null);
       if (onOpenOrderDetail) {
@@ -570,7 +586,7 @@ export function VideoDetailPage({
         onNavigate("orders");
       }
     } catch (err) {
-      const message = err instanceof Error ? err.message : "Purchase failed";
+      const message = err instanceof Error ? err.message : t("courseDetail.purchaseFailed");
       toast.error(message);
     } finally {
       setPurchaseLoading(false);
@@ -582,7 +598,7 @@ export function VideoDetailPage({
       <div className="video-blog-page min-h-screen bg-gray-50">
         <div className="w-full px-4 lg:px-8 py-10">
           <div className="rounded-2xl border border-gray-200 bg-white p-10 text-center text-gray-500">
-            Loading...
+            {t("common.loading")}
           </div>
         </div>
       </div>
@@ -598,11 +614,11 @@ export function VideoDetailPage({
             className="inline-flex items-center gap-2 text-sm text-gray-600 hover:text-blue-600"
           >
             <ArrowLeft className="w-4 h-4" />
-            Back to videos
+            {t("courseDetail.backToVideos")}
           </button>
 
           <div className="mt-8 rounded-2xl border border-gray-200 bg-white p-10 text-center text-gray-500">
-            {loadError || "Video not found."}
+            {loadError || t("courseDetail.videoNotFound")}
           </div>
         </div>
       </div>
@@ -622,13 +638,13 @@ export function VideoDetailPage({
   }
 
   return (
-    <div className="video-blog-page min-h-screen bg-gray-50">
+    <div className="video-blog-page min-h-screen bg-gray-50 dark:bg-gray-900">
       <div className="w-full max-w-7xl mx-auto px-4 lg:px-8 py-10">
         <div className="grid grid-cols-1 lg:grid-cols-12 gap-8 items-start">
           {/* LEFT */}
           <section className="lg:col-span-8 min-w-0 space-y-6">
             {/* HERO */}
-            <div className="relative overflow-hidden rounded-3xl border border-slate-200/40 bg-gradient-to-br from-slate-950 via-slate-900 to-indigo-950 text-white shadow-xl">
+            <div className="relative overflow-hidden rounded-3xl border border-slate-200/40 dark:border-slate-700/40 bg-gradient-to-br from-slate-950 via-slate-900 to-indigo-950 text-white shadow-xl">
               <div className="absolute -top-24 -right-24 h-72 w-72 rounded-full bg-indigo-500/20 blur-3xl" />
               <div className="absolute -bottom-28 -left-28 h-72 w-72 rounded-full bg-fuchsia-500/20 blur-3xl" />
 
@@ -638,12 +654,12 @@ export function VideoDetailPage({
                   className="inline-flex items-center gap-2 text-xs text-slate-300 hover:text-white"
                 >
                   <ArrowLeft className="w-4 h-4" />
-                  Back to videos
+                  {t("courseDetail.backToVideos")}
                 </button>
 
                 <div className="mt-5 flex flex-wrap items-center gap-2">
                   <span className="rounded-full bg-emerald-500/15 text-emerald-200 px-3 py-1 text-xs font-semibold ring-1 ring-emerald-400/20">
-                    Bestseller
+                    {t("courseDetail.bestseller")}
                   </span>
                   {course.category ? (
                     <span className="rounded-full bg-white/10 px-3 py-1 text-xs font-semibold ring-1 ring-white/10">
@@ -667,53 +683,53 @@ export function VideoDetailPage({
                 <p className="mt-3 text-sm text-slate-200/90">{course.description}</p>
 
                 <div className="mt-4 text-xs text-slate-300">
-                  Created by{" "}
+                  {t("courseDetail.createdBy")}{" "}
                   <button
                     type="button"
                     onClick={() => openSellerBlog(Number(course.posted_by ?? 0))}
                     disabled={!course.posted_by}
                     className="text-white font-semibold underline-offset-2 hover:underline disabled:no-underline"
                   >
-                    {course.author_name || "Instructor"}
+                    {course.author_name || t("labels.instructor")}
                   </button>
                 </div>
 
                 <div className="mt-2 flex flex-wrap items-center gap-4 text-[11px] text-slate-300/80">
                   <span className="inline-flex items-center gap-1">
                     <Calendar className="w-3 h-3" />
-                    Last updated {uploadDate ? uploadDate.toLocaleDateString() : "N/A"}
+                    {t("courseDetail.lastUpdated")} {formatDisplayDate(uploadDate)}
                   </span>
-                  <span>English</span>
-                  <span>Arabic (Auto)</span>
-                  <span>21 more</span>
+                  <span>{t("courseDetail.languageEnglish")}</span>
+                  <span>{t("courseDetail.languageArabicAuto")}</span>
+                  <span>{t("courseDetail.moreLanguages", { count: 21 })}</span>
                 </div>
 
                 <div className="mt-6 grid gap-3 sm:grid-cols-3">
                   <div className="rounded-2xl bg-white/6 ring-1 ring-white/10 p-4">
-                    <div className="text-[10px] uppercase tracking-wide text-slate-300/70">Rating</div>
+                    <div className="text-[10px] uppercase tracking-wide text-slate-300/70">{t("courseDetail.rating")}</div>
                     <div className="mt-1 inline-flex items-center gap-1 text-white font-semibold">
                       <Star className="w-4 h-4 fill-yellow-400 text-yellow-400" />
                       {ratingValue.toFixed(1)}
                     </div>
                     <div className="mt-1 text-[11px] text-slate-300/80">
-                      {ratingCount} ratings
+                      {t("courseDetail.ratings", { count: ratingCount })}
                     </div>
                   </div>
 
                   <div className="rounded-2xl bg-white/6 ring-1 ring-white/10 p-4">
-                    <div className="text-[10px] uppercase tracking-wide text-slate-300/70">Learners</div>
+                    <div className="text-[10px] uppercase tracking-wide text-slate-300/70">{t("courseDetail.learners")}</div>
                     <div className="mt-1 text-white font-semibold">
                       {studentsCount.toLocaleString()}
                     </div>
-                    <div className="mt-1 text-[11px] text-slate-300/80">Students</div>
+                    <div className="mt-1 text-[11px] text-slate-300/80">{t("courseDetail.students")}</div>
                   </div>
 
                   <div className="rounded-2xl bg-white/6 ring-1 ring-white/10 p-4">
-                    <div className="text-[10px] uppercase tracking-wide text-slate-300/70">Updated</div>
+                    <div className="text-[10px] uppercase tracking-wide text-slate-300/70">{t("courseDetail.updated")}</div>
                     <div className="mt-1 text-white font-semibold">
-                      {uploadDate ? uploadDate.toLocaleDateString() : "N/A"}
+                      {formatDisplayDate(uploadDate)}
                     </div>
-                    <div className="mt-1 text-[11px] text-slate-300/80">Latest version</div>
+                    <div className="mt-1 text-[11px] text-slate-300/80">{t("courseDetail.latestVersion")}</div>
                   </div>
                 </div>
               </div>
@@ -721,32 +737,32 @@ export function VideoDetailPage({
 
             {/* content cards remain the same… */}
             {/* ✅ (keep your remaining code exactly below this point) */}
-            {/* I didn’t remove anything – only preview connection added */}
+            {/* I didn't remove anything – only preview connection added */}
             {/* --- YOUR SAME UI CONTINUES --- */}
 
             {/* WHAT YOU'LL LEARN */}
-            <div className="rounded-2xl border border-gray-200 bg-white p-6 shadow-sm">
+            <div className="rounded-2xl border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-800 p-6 shadow-sm">
               <div className="flex items-center justify-between gap-3 mb-4">
-                <h2 className="text-lg font-semibold text-gray-900">What you&apos;ll learn</h2>
-                <span className="text-xs text-gray-500">Key outcomes</span>
+                <h2 className="text-lg font-semibold text-gray-900 dark:text-gray-100">{t("courseDetail.whatYouWillLearn")}</h2>
+                <span className="text-xs text-gray-500 dark:text-gray-400">{t("courseDetail.keyOutcomes")}</span>
               </div>
 
-              <div className="grid gap-3 md:grid-cols-2 text-sm text-gray-700">
-                {learningOutcomes.map((t) => (
-                  <div key={t} className="flex items-start gap-2 rounded-xl bg-gray-50 p-3">
+              <div className="grid gap-3 md:grid-cols-2 text-sm text-gray-700 dark:text-gray-300">
+                {learningOutcomes.map((outcome) => (
+                  <div key={outcome} className="flex items-start gap-2 rounded-xl bg-gray-50 dark:bg-gray-700 p-3">
                     <PlayCircle className="w-4 h-4 text-blue-600 mt-0.5" />
-                    <span>{t}</span>
+                    <span>{outcome}</span>
                   </div>
                 ))}
                 {learningOutcomes.length === 0 ? (
-                  <div className="text-sm text-gray-500">No key outcomes yet.</div>
+                  <div className="text-sm text-gray-500 dark:text-gray-400">{t("courseDetail.noKeyOutcomes")}</div>
                 ) : null}
               </div>
             </div>
 
             {/* TOPICS */}
-            <div className="rounded-2xl border border-gray-200 bg-white p-6 shadow-sm">
-              <h3 className="text-sm font-semibold text-gray-900">Explore related topics</h3>
+            <div className="rounded-2xl border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-800 p-6 shadow-sm">
+              <h3 className="text-sm font-semibold text-gray-900 dark:text-gray-100">{t("courseDetail.relatedTopics")}</h3>
               <div className="mt-3 flex flex-wrap gap-2">
                 {tagList.length ? (
                   tagList.map((topic) => (
@@ -758,7 +774,7 @@ export function VideoDetailPage({
                     </span>
                   ))
                 ) : (
-                  <span className="text-xs text-gray-500">No tags</span>
+                  <span className="text-xs text-gray-500">{t("courseDetail.noTags")}</span>
                 )}
               </div>
             </div>
@@ -767,9 +783,13 @@ export function VideoDetailPage({
             <div className="rounded-2xl border border-gray-200 bg-white p-6 shadow-sm">
               <div className="flex flex-wrap items-center justify-between gap-3 mb-4">
                 <div>
-                  <h2 className="text-lg font-semibold text-gray-900">Course content</h2>
+                  <h2 className="text-lg font-semibold text-gray-900">{t("courseDetail.courseContent")}</h2>
                   <p className="text-xs text-gray-500">
-                    {totalSections} sections • {totalLectures} lectures • {totalDurationText} total length
+                    {t("courseDetail.contentSummary", {
+                      sections: totalSections,
+                      lectures: totalLectures,
+                      duration: totalDurationText,
+                    })}
                   </p>
                 </div>
 
@@ -778,13 +798,13 @@ export function VideoDetailPage({
                     onClick={expandAll}
                     className="rounded-xl border border-gray-200 px-3 py-2 text-xs font-semibold text-gray-700 hover:bg-gray-50"
                   >
-                    Expand all
+                    {t("courseDetail.expandAll")}
                   </button>
                   <button
                     onClick={collapseAll}
                     className="rounded-xl border border-gray-200 px-3 py-2 text-xs font-semibold text-gray-700 hover:bg-gray-50"
                   >
-                    Collapse all
+                    {t("courseDetail.collapseAll")}
                   </button>
                 </div>
               </div>
@@ -803,7 +823,10 @@ export function VideoDetailPage({
                         <div className="min-w-0">
                           <div className="text-sm font-semibold text-gray-900 truncate">{section.title}</div>
                           <div className="mt-1 text-xs text-gray-500">
-                            {section.lectures} lectures • {section.length}
+                            {t("courseDetail.sectionSummary", {
+                              lectures: section.lectures,
+                              length: section.length,
+                            })}
                           </div>
                         </div>
 
@@ -828,11 +851,13 @@ export function VideoDetailPage({
                                     onClick={() => openPreviewWithLesson(String(lesson.id))}
                                     className="text-xs font-semibold text-blue-600 whitespace-nowrap hover:underline"
                                   >
-                                    Preview • {lesson.duration_label ?? ""}
+                                    {t("courseDetail.previewDuration", {
+                                      duration: lesson.duration_label ?? "",
+                                    })}
                                   </button>
                                 ) : (
                                   <span className="text-xs text-gray-500 whitespace-nowrap">
-                                    {lesson.is_locked ? "Locked" : lesson.duration_label ?? ""}
+                                    {lesson.is_locked ? t("courseDetail.locked") : lesson.duration_label ?? ""}
                                   </span>
                                 )}
                               </div>
@@ -850,7 +875,7 @@ export function VideoDetailPage({
 
           {/* RIGHT (STICKY) */}
           <aside className="lg:col-span-4 lg:self-start">
-            <div className="rounded-2xl border border-gray-200 bg-white p-5 shadow-sm lg:sticky lg:top-24">
+            <div className="rounded-2xl border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-800 p-5 shadow-sm lg:sticky lg:top-24">
               {/* ✅ CLICK TO OPEN PREVIEW PAGE */}
               <button
                 type="button"
@@ -858,7 +883,7 @@ export function VideoDetailPage({
                 className="w-full text-left disabled:cursor-not-allowed disabled:opacity-70"
                 disabled={previewLessons.length === 0}
               >
-                <div className="rounded-2xl overflow-hidden border border-gray-200 relative">
+                <div className="rounded-2xl overflow-hidden border border-gray-200 dark:border-gray-700 relative">
                   <img
                     src={heroImage}
                     alt={course.title}
@@ -872,19 +897,21 @@ export function VideoDetailPage({
                   </div>
                 </div>
 
-                <div className="mt-3 text-sm font-semibold text-gray-900">
-                  Preview this course
+                <div className="mt-3 text-sm font-semibold text-gray-900 dark:text-gray-100">
+                  {t("courseDetail.previewCourse")}
                 </div>
-                <div className="text-xs text-gray-500">
-                  Watch {previewLessons.length} free sample videos
+                <div className="text-xs text-gray-500 dark:text-gray-400">
+                  {t("courseDetail.previewSampleCount", {
+                    count: previewLessons.length,
+                  })}
                 </div>
               </button>
 
               <div className="mt-4 flex items-start justify-between gap-3">
                 <div>
-                  <div className="text-xs font-semibold text-gray-700">Course price</div>
-                  <div className="mt-1 text-3xl font-extrabold text-gray-900">
-                    {minCoursePrice === 0 ? "Free" : formatPrice(minCoursePrice)}
+                  <div className="text-xs font-semibold text-gray-700 dark:text-gray-300">{t("courseDetail.coursePrice")}</div>
+                  <div className="mt-1 text-3xl font-extrabold text-gray-900 dark:text-gray-100">
+                    {minCoursePrice === 0 ? t("courseDetail.free") : formatPrice(minCoursePrice)}
                   </div>
                 </div>
 
@@ -893,25 +920,29 @@ export function VideoDetailPage({
                     <Star className="w-4 h-4 fill-yellow-400 text-yellow-400" />
                     {ratingValue.toFixed(1)}
                   </div>
-                  <div className="text-xs text-gray-500">{ratingCount} ratings</div>
+                  <div className="text-xs text-gray-500">{t("courseDetail.ratings", { count: ratingCount })}</div>
                 </div>
               </div>
 
               {access?.has_access ? (
                 <div className="mt-4 rounded-xl border border-emerald-200 bg-emerald-50 px-3 py-2 text-xs text-emerald-700">
-                  You already have access to this course.
+                  {t("courseDetail.alreadyHasAccess")}
                 </div>
               ) : null}
               {lifetimeCoursePurchased ? (
                 <div className="mt-2 rounded-xl border border-blue-200 bg-blue-50 px-3 py-2 text-xs text-blue-700">
-                  Lifetime plan already purchased.
-                  {access?.course_order_number ? ` Order no: ${access.course_order_number}` : ""}
+                  {t("courseDetail.lifetimePurchased")}
+                  {access?.course_order_number
+                    ? ` ${t("courseDetail.orderNo", {
+                        orderNo: access.course_order_number,
+                      })}`
+                    : ""}
                 </div>
               ) : null}
 
               {plans.length > 0 && (
                 <div className="mt-4 space-y-2">
-                  <div className="text-xs font-semibold text-gray-700">Course plans</div>
+                  <div className="text-xs font-semibold text-gray-700">{t("courseDetail.coursePlans")}</div>
                   {plans.map((plan) => {
                     const active = plan.id === selectedCoursePlanId;
                     return (
@@ -937,7 +968,7 @@ export function VideoDetailPage({
                           </div>
                           <div className="text-xs font-semibold text-gray-900">
                             {Number(plan.price ?? 0) === 0
-                              ? "Free"
+                              ? t("courseDetail.free")
                               : formatPrice(Number(plan.price))}
                           </div>
                         </div>
@@ -951,17 +982,17 @@ export function VideoDetailPage({
                     disabled={!canBuyCoursePlan}
                   >
                     {lifetimeCoursePurchased
-                      ? "Lifetime already purchased"
+                      ? t("courseDetail.lifetimeAlreadyPurchased")
                       : access?.has_course_access
-                        ? "Add upgrade to cart"
-                        : "Add course to cart"}
+                        ? t("courseDetail.addUpgradeToCart")
+                        : t("courseDetail.addCourseToCart")}
                   </button>
                 </div>
               )}
 
               {subscriptionPlans.length > 0 && (
                 <div className="mt-4 space-y-2">
-                  <div className="text-xs font-semibold text-gray-700">Subscription plans</div>
+                  <div className="text-xs font-semibold text-gray-700">{t("courseDetail.subscriptionPlans")}</div>
                   {subscriptionPlans.map((plan) => {
                     const active = plan.id === selectedSubscriptionPlanId;
                     const isCurrent = access?.active_subscription_plan_id === plan.id;
@@ -985,22 +1016,22 @@ export function VideoDetailPage({
                               <div className="font-semibold text-gray-900 truncate">{plan.name}</div>
                               {isCurrent ? (
                                 <span className="text-[10px] px-2 py-0.5 rounded-full bg-gray-900 text-white">
-                                  Current
+                                  {t("courseDetail.current")}
                                 </span>
                               ) : null}
                               {isPending ? (
                                 <span className="text-[10px] px-2 py-0.5 rounded-full bg-amber-100 text-amber-700">
-                                  Pending
+                                  {t("courseDetail.pending")}
                                 </span>
                               ) : null}
                             </div>
                             <div className="text-[11px] text-gray-500">
-                              {durationLabel || "Subscription"}
+                              {durationLabel || t("courseDetail.subscription")}
                             </div>
                           </div>
                           <div className="text-xs font-semibold text-gray-900">
                             {Number(plan.price ?? 0) === 0
-                              ? "Free"
+                              ? t("courseDetail.free")
                               : formatPrice(Number(plan.price))}
                           </div>
                         </div>
@@ -1015,9 +1046,9 @@ export function VideoDetailPage({
                           </ul>
                         ) : null}
                         <div className="mt-2 flex flex-wrap gap-2 text-[11px] text-gray-500">
-                          {plan.access_courses ? "All courses" : null}
-                          {plan.access_ai_tools ? "AI tools" : null}
-                          {plan.access_downloads ? "Downloads" : null}
+                          {plan.access_courses ? t("courseDetail.allCourses") : null}
+                          {plan.access_ai_tools ? t("courseDetail.aiTools") : null}
+                          {plan.access_downloads ? t("courseDetail.downloads") : null}
                         </div>
                       </button>
                     );
@@ -1036,10 +1067,10 @@ export function VideoDetailPage({
                     }
                   >
                     {access?.has_subscription
-                      ? "Current plan active"
+                      ? t("courseDetail.currentPlanActive")
                       : access?.pending_subscription_plan_id
-                        ? "Pending approval"
-                        : "Subscribe to all courses"}
+                        ? t("courseDetail.pendingApproval")
+                        : t("courseDetail.subscribeAllCourses")}
                   </button>
                 </div>
               )}
@@ -1047,17 +1078,17 @@ export function VideoDetailPage({
               <div className="mt-5 grid grid-cols-3 gap-2">
                 <div className="rounded-xl bg-gray-50 p-3 text-center">
                   <Clock className="w-4 h-4 mx-auto text-gray-700" />
-                  <div className="mt-1 text-[11px] text-gray-600">Duration</div>
+                  <div className="mt-1 text-[11px] text-gray-600">{t("courseDetail.duration")}</div>
                   <div className="text-xs font-semibold text-gray-900">{totalDurationText}</div>
                 </div>
                 <div className="rounded-xl bg-gray-50 p-3 text-center">
                   <BookOpen className="w-4 h-4 mx-auto text-gray-700" />
-                  <div className="mt-1 text-[11px] text-gray-600">Lessons</div>
+                  <div className="mt-1 text-[11px] text-gray-600">{t("courseDetail.lessons")}</div>
                   <div className="text-xs font-semibold text-gray-900">{totalLectures}</div>
                 </div>
                 <div className="rounded-xl bg-gray-50 p-3 text-center">
                   <Users className="w-4 h-4 mx-auto text-gray-700" />
-                  <div className="mt-1 text-[11px] text-gray-600">Students</div>
+                  <div className="mt-1 text-[11px] text-gray-600">{t("courseDetail.students")}</div>
                   <div className="text-xs font-semibold text-gray-900">
                     {studentsCount.toLocaleString()}
                   </div>
@@ -1066,7 +1097,7 @@ export function VideoDetailPage({
 
               <div className="mt-4 flex items-center gap-2 rounded-xl border border-gray-200 bg-white p-3">
                 <ShieldCheck className="w-4 h-4 text-emerald-600" />
-                <div className="text-xs text-gray-600">30-Day Money-Back Guarantee • Lifetime access</div>
+                <div className="text-xs text-gray-600">{t("courseDetail.moneyBackAndLifetime")}</div>
               </div>
             </div>
           </aside>
@@ -1108,15 +1139,15 @@ export function VideoDetailPage({
             <div className="w-full max-w-5xl rounded-2xl bg-white shadow-xl">
               <div className="flex items-center justify-between border-b px-6 py-4">
                 <div>
-                  <div className="text-lg font-semibold text-gray-900">Choose a plan</div>
-                  <div className="text-xs text-gray-500">Pick the best subscription for you</div>
+                  <div className="text-lg font-semibold text-gray-900">{t("courseDetail.choosePlan")}</div>
+                  <div className="text-xs text-gray-500">{t("courseDetail.pickSubscription")}</div>
                 </div>
                 <button
                   type="button"
                   className="text-gray-500 hover:text-gray-700"
                   onClick={() => setShowSubscriptionModal(false)}
                 >
-                  ✕
+                  &times;
                 </button>
               </div>
               <div className="px-6 py-5 grid gap-4 md:grid-cols-3">
@@ -1145,17 +1176,17 @@ export function VideoDetailPage({
                             : formatPrice(Number(plan.price))}
                         </div>
                         <div className="text-xs text-gray-500">
-                          {durationLabel || "per month"}
+                          {durationLabel || t("courseDetail.perMonth")}
                         </div>
                       </div>
                       {isCurrent ? (
                         <div className="mt-2 inline-flex items-center rounded-full bg-gray-900 px-3 py-1 text-[11px] text-white">
-                          Your current plan
+                          {t("courseDetail.yourCurrentPlan")}
                         </div>
                       ) : null}
                       {isPending ? (
                         <div className="mt-2 inline-flex items-center rounded-full bg-amber-100 px-3 py-1 text-[11px] text-amber-700">
-                          Pending approval
+                          {t("courseDetail.pendingApproval")}
                         </div>
                       ) : null}
                       {plan.description ? (
@@ -1178,7 +1209,11 @@ export function VideoDetailPage({
                                 : "border-gray-200 text-gray-700"
                           }`}
                         >
-                          {isCurrent ? "Current plan" : active ? "Selected" : "Choose plan"}
+                          {isCurrent
+                            ? t("courseDetail.currentPlan")
+                            : active
+                              ? t("courseDetail.selected")
+                              : t("courseDetail.choosePlanButton")}
                         </div>
                       </div>
                     </button>
@@ -1187,7 +1222,7 @@ export function VideoDetailPage({
               </div>
               <div className="border-t px-6 py-4 flex items-center justify-between">
                 <div className="text-sm text-gray-600">
-                  Total{" "}
+                  {t("courseDetail.total")}{" "}
                   <span className="font-semibold text-gray-900">
                     {selectedSubscriptionPlan
                       ? formatPrice(Number(selectedSubscriptionPlan.price ?? 0))
@@ -1200,7 +1235,7 @@ export function VideoDetailPage({
                     className="px-4 py-2 rounded-lg border text-sm"
                     onClick={() => setShowSubscriptionModal(false)}
                   >
-                    Close
+                    {t("courseDetail.close")}
                   </button>
                   <button
                     type="button"
@@ -1216,10 +1251,10 @@ export function VideoDetailPage({
                     }}
                   >
                     {access?.has_subscription
-                      ? "Current plan active"
+                      ? t("courseDetail.currentPlanActive")
                       : access?.pending_subscription_plan_id
-                        ? "Pending approval"
-                        : "Continue"}
+                        ? t("courseDetail.pendingApproval")
+                        : t("courseDetail.continue")}
                   </button>
                 </div>
               </div>

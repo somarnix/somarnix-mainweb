@@ -1,5 +1,6 @@
 "use client";
 
+import Image from "next/image";
 import type { ComponentType, ReactNode } from "react";
 import {
   ShoppingCart,
@@ -55,26 +56,27 @@ export function Sidebar({
   isMobile = false,
   isAppShell = false,
 }: SidebarProps) {
-  const { language } = useLanguage();
+  const { t } = useLanguage();
   const { user, isAuthenticated } = useAuth();
+  const verifiedBadgeSrc = "/border/blue%20verify.svg";
 
   const navigationLinks: NavLink[] = [
-    { id: "home", icon: Home, label: language === "km" ? "เนยโ€เนยยเนยโ€“เนยยเนยยเนยยเนยเธเนยย" : "Home", page: "home" },
-    { id: "all", icon: Grid, label: language === "km" ? "เนยโ€เนยเธ–เนยยเนยยเนยเธเนยยเนยย" : "All", page: "all" },
+    { id: "home", icon: Home, label: t("nav.home"), page: "home" },
+    { id: "all", icon: Grid, label: t("nav.all"), page: "all" },
     { id: "courses", icon: GraduationCap, label: "AI", page: "courses" },
-    { id: "programs", icon: Code, label: language === "km" ? "เนยโฌเนยยเนยโ€เนยยเนยยเนยเธ—เนยโ€เนยเธ" : "Programs", page: "programs" },
-    { id: "games", icon: Gamepad2, label: language === "km" ? "เนยย เนยโ€เนยยเนยยเนยย" : "Games", page: "games" },
-    { id: "tools", icon: Wrench, label: language === "km" ? "เนยเธเนยโ€เนยโฌเนยยเนยยเนยย" : "Tools", page: "tools" },
-    { id: "video-courses", icon: GraduationCap, label: language === "km" ? "Video Courses" : "Courses", page: "video-courses" },
-    { id: "blog", icon: Play, label: language === "km" ? "เนยโ€เนยโ€เนยยเนยเธเนยโฌ" : "Blog", page: "blog" },
-    { id: "about", icon: Info, label: language === "km" ? "เนยเธเนยยเนยโ€“เนยเธเนยยเนยเธเนยย" : "About", page: "services" },
+    { id: "programs", icon: Code, label: t("nav.programs"), page: "programs" },
+    { id: "games", icon: Gamepad2, label: t("nav.games"), page: "games" },
+    { id: "tools", icon: Wrench, label: t("nav.tools"), page: "tools" },
+    { id: "video-courses", icon: GraduationCap, label: t("nav.videoCourses"), page: "video-courses" },
+    { id: "blog", icon: Play, label: t("nav.blog"), page: "blog" },
+    { id: "about", icon: Info, label: t("nav.about"), page: "services" },
   ];
 
   const sidebarMenuItems: ActionItem[] = [
     {
       id: "cart",
       icon: ShoppingCart,
-      label: language === "km" ? "เนยโฌเนยโ€เนยโ€เนยยเนยโ€เนยยเนยโฌ" : "Cart",
+      label: t("sidebar.cart"),
       onClick: () => {
         onNavigate("cart");
         if (isMobile && onClose) onClose();
@@ -83,7 +85,7 @@ export function Sidebar({
     {
       id: "orders",
       icon: Package,
-      label: language === "km" ? "เนยโฌเนยเธ–เนยยเนยโ€เนยยเนยโ€เนยยเนยเธ–เนยโ€เนยเธ—เนยย" : "Orders",
+      label: t("sidebar.orders"),
       onClick: () => {
         onNavigate("orders");
         if (isMobile && onClose) onClose();
@@ -92,7 +94,7 @@ export function Sidebar({
     {
       id: "chat",
       icon: MessageCircle,
-      label: language === "km" ? "เนยยเนยยเนยยเนยโฌ" : "Chat",
+      label: t("sidebar.chat"),
       onClick: () => {
         onNavigate("chat");
         if (isMobile && onClose) onClose();
@@ -101,7 +103,7 @@ export function Sidebar({
     {
       id: "services",
       icon: Layers,
-      label: language === "km" ? "เนยเธเนยยเนยโ€“เนยเธเนยยเนยเธเนยย" : "About",
+      label: t("nav.about"),
       onClick: () => {
         onNavigate("services");
         if (isMobile && onClose) onClose();
@@ -110,7 +112,7 @@ export function Sidebar({
     {
       id: "profile",
       icon: User,
-      label: language === "km" ? "เนยโ€เนยโ€เนยยเนยยเนยยเนยโ€เนยยเนยเธ—เนยยเนยเธเนยโ€" : "Profile",
+      label: t("sidebar.profile"),
       onClick: () => {
         onNavigate("profile");
         if (isMobile && onClose) onClose();
@@ -119,7 +121,7 @@ export function Sidebar({
     {
       id: "support-center",
       icon: LifeBuoy,
-      label: language === "km" ? "เนยยเนยยเนยโ€เนยยเนยยเนยยเนยโ€เนยยเนยยเนยยเนยยเนยโ€เนยเธเนยย" : "Support Center",
+      label: t("sidebar.supportCenter"),
       onClick: () => {
         onNavigate("support-center");
         if (isMobile && onClose) onClose();
@@ -128,17 +130,17 @@ export function Sidebar({
   ];
 
   const adminMenuItems = [
-    { id: "admin-dashboard", label: "Dashboard", page: "admin-dashboard" },
-    { id: "admin-orders-seller", label: "Orders Seller", page: "admin-orders-seller" },
-    { id: "admin-products", label: "Products", page: "admin-products" },
-    { id: "admin-tools", label: "Tools", page: "admin-tools" },
-    { id: "admin-tool-licenses", label: "License Tool", page: "admin-tool-licenses" },
-    { id: "admin-video-courses", label: "Video Courses", page: "admin-video-courses" },
-    { id: "admin-video-courses-promotions", label: "Promotions", page: "admin-video-courses-promotions" },
-    { id: "admin-notifications", label: "Notifications", page: "admin-notifications" },
-    { id: "admin-orders", label: "Orders", page: "admin-orders" },
-    { id: "admin-users", label: "Users", page: "admin-users" },
-    { id: "admin-test", label: "Payments", page: "admin-test" },
+    { id: "admin-dashboard", label: t("admin.dashboard"), page: "admin-dashboard" },
+    { id: "admin-orders-seller", label: t("admin.ordersSeller"), page: "admin-orders-seller" },
+    { id: "admin-products", label: t("admin.products"), page: "admin-products" },
+    { id: "admin-tools", label: t("admin.tools"), page: "admin-tools" },
+    { id: "admin-tool-licenses", label: t("admin.toolLicenses"), page: "admin-tool-licenses" },
+    { id: "admin-video-courses", label: t("admin.videoCourses"), page: "admin-video-courses" },
+    { id: "admin-video-courses-promotions", label: t("admin.promotions"), page: "admin-video-courses-promotions" },
+    { id: "admin-notifications", label: t("admin.notifications"), page: "admin-notifications" },
+    { id: "admin-orders", label: t("admin.orders"), page: "admin-orders" },
+    { id: "admin-users", label: t("admin.users"), page: "admin-users" },
+    { id: "admin-test", label: t("admin.payments"), page: "admin-test" },
   ];
 
   const primaryExploreLinks = navigationLinks.slice(0, 6);
@@ -158,14 +160,14 @@ export function Sidebar({
 
   const surfaceClass = isAppShell
     ? "app-mobile-scroll bg-[radial-gradient(circle_at_top,_rgba(59,130,246,0.22),_transparent_28%),linear-gradient(180deg,#081121_0%,#0f172a_52%,#111827_100%)]"
-    : "bg-gradient-to-b from-gray-900 to-gray-800";
+    : "bg-sidebar text-sidebar-foreground";
 
   return (
     <>
       {isMobile && <div className={overlayClass} onClick={onClose} />}
 
       <div
-        className={`${shellClass} ${isMobile ? "" : "w-56 xl:w-72 2xl:w-80 sticky top-0 h-full self-stretch"} flex-shrink-0 overflow-y-auto text-white shadow-2xl ${surfaceClass}`}
+        className={`${shellClass} ${isMobile ? "" : "w-56 xl:w-72 2xl:w-80 sticky top-0 h-full self-stretch"} flex-shrink-0 overflow-y-auto shadow-2xl ${surfaceClass}`}
       >
         {isMobile && onClose && (
           <button
@@ -180,12 +182,32 @@ export function Sidebar({
           </button>
         )}
 
+        <div
+          className={`flex items-center justify-center gap-3 py-6 ${
+            isAppShell ? "px-4" : "px-6"
+          }`}
+        >
+          <img
+            src="/khqr-assets/gstechkh-logo.png"
+            alt="GSTECHKH"
+            className="h-12 w-12 sm:h-14 sm:w-14 flex-shrink-0 object-contain rounded-xl shadow-lg"
+          />
+          <div className="flex flex-col">
+            <span className="font-bold bg-gradient-to-r from-blue-400 to-purple-400 bg-clip-text text-transparent text-2xl sm:text-3xl tracking-tight">
+              GSTECH
+            </span>
+            <span className="font-bold bg-gradient-to-r from-purple-400 to-pink-400 bg-clip-text text-transparent text-lg sm:text-xl tracking-wide">
+              KH
+            </span>
+          </div>
+        </div>
+
         {isAuthenticated && user ? (
           <div
             className={
               isAppShell
-                ? "relative mx-4 mb-5 mt-[calc(env(safe-area-inset-top,0px)+0.75rem)] rounded-[2rem] border border-white/10 bg-[linear-gradient(145deg,rgba(37,99,235,0.96),rgba(29,78,216,0.9),rgba(124,58,237,0.82))] px-6 pb-6 pt-7 shadow-[0_24px_60px_rgba(15,23,42,0.45)]"
-                : "relative mb-4 rounded-b-3xl bg-gradient-to-br from-blue-600 to-blue-700 p-6"
+                ? "relative mx-4 mb-5 mt-2 rounded-[2rem] border border-white/10 bg-[linear-gradient(145deg,rgba(37,99,235,0.96),rgba(29,78,216,0.9),rgba(124,58,237,0.82))] px-6 pb-6 pt-7 shadow-[0_24px_60px_rgba(15,23,42,0.45)]"
+                : "relative mb-4 mt-2 rounded-b-3xl bg-gradient-to-br from-blue-600 to-blue-700 p-6"
             }
           >
             <div className="absolute top-0 right-0 flex gap-2">
@@ -211,28 +233,45 @@ export function Sidebar({
                 fallback={user.username || user.email}
                 borderUrl={user.avatarBorderUrl}
                 className={isAppShell ? "h-[92px] w-[92px]" : "h-20 w-20"}
-                contentClassName={`border-4 border-white shadow-lg ${
-                  isAppShell ? "ring-4 ring-white/15" : ""
-                }`}
+                contentClassName={
+                  user.avatarBorderUrl
+                    ? `shadow-lg ${isAppShell ? "ring-4 ring-white/15" : ""}`
+                    : `border-4 border-sidebar-foreground/20 shadow-lg ${isAppShell ? "ring-4 ring-white/15" : ""}`
+                }
               />
 
               <div className="mt-2 w-full">
-                <div className="truncate text-xs text-blue-200">
-                  {language === "km" ? "เนยเธเนยยเนยโ€เนยยเนยยเนยยเนยโ€เนยยเนยเธ–เนยย" : "User ID"}: {user.id}
+                <div className="truncate text-xs text-blue-100/90">
+                  {t("sidebar.userId")}: {user.id}
                 </div>
-                <div className={`truncate font-bold ${isAppShell ? "mt-1 text-3xl tracking-tight" : ""}`}>
-                  {user.username || user.email}
+                <div className="mt-1 flex min-w-0 items-center justify-center gap-2">
+                  <div
+                    className={`truncate font-bold text-white ${
+                      isAppShell ? "text-3xl tracking-tight" : ""
+                    }`}
+                  >
+                    {user.username || user.email}
+                  </div>
+                  <Image
+                    src={verifiedBadgeSrc}
+                    alt="Verified"
+                    width={32}
+                    height={32}
+                    className={`shrink-0 object-contain drop-shadow-[0_4px_10px_rgba(14,165,233,0.45)] ${
+                      isAppShell ? "h-7 w-7" : "h-5 w-5"
+                    }`}
+                  />
                 </div>
-                <div className={`truncate text-blue-100 ${isAppShell ? "mt-1 text-sm" : "text-xs"}`}>
+                <div className={`truncate text-blue-50 ${isAppShell ? "mt-1 text-sm" : "text-xs"}`}>
                   {user.email}
                 </div>
                 {isAppShell && (
                   <div className="mt-4 flex items-center justify-center gap-2 text-[11px] text-white/85">
                     <span className="rounded-full border border-white/20 bg-white/10 px-3 py-1">
-                      Android app
+                      {t("sidebar.androidApp")}
                     </span>
                     <span className="rounded-full border border-white/20 bg-white/10 px-3 py-1">
-                      Native shell
+                      {t("sidebar.nativeShell")}
                     </span>
                   </div>
                 )}
@@ -243,8 +282,8 @@ export function Sidebar({
           <div
             className={
               isAppShell
-                ? "mx-4 mt-[calc(env(safe-area-inset-top,0px)+0.75rem)] rounded-[2rem] border border-white/10 bg-[linear-gradient(145deg,rgba(37,99,235,0.96),rgba(29,78,216,0.9),rgba(124,58,237,0.82))] p-6"
-                : "mt-12 rounded-b-3xl bg-gradient-to-br from-blue-600 to-blue-700 p-6"
+                ? "mx-4 mt-2 rounded-[2rem] border border-white/10 bg-[linear-gradient(145deg,rgba(37,99,235,0.96),rgba(29,78,216,0.9),rgba(124,58,237,0.82))] p-6"
+                : "mt-2 rounded-b-3xl bg-gradient-to-br from-blue-600 to-blue-700 p-6"
             }
           >
             <div className="text-center">
@@ -259,7 +298,7 @@ export function Sidebar({
                 }}
                 className="w-full bg-white text-blue-600"
               >
-                {language === "km" ? "เนยโ€ฆเนยเธเนยยเนยยเนยยเนยโ€เนยเธ" : "Login"}
+                {t("nav.login")}
               </Button>
             </div>
           </div>
@@ -267,7 +306,7 @@ export function Sidebar({
 
         {isMobile && isAppShell ? (
           <div className="space-y-5 px-4 pb-6">
-            <SidebarSection title="Explore">
+            <SidebarSection title={t("sidebar.explore")}>
               {primaryExploreLinks.map((item) => (
                 <AppShellLink
                   key={item.id}
@@ -282,7 +321,7 @@ export function Sidebar({
               ))}
             </SidebarSection>
 
-            <SidebarSection title="Library">
+            <SidebarSection title={t("sidebar.library")}>
               {moreExploreLinks.map((item) => (
                 <AppShellLink
                   key={item.id}
@@ -296,7 +335,7 @@ export function Sidebar({
               ))}
             </SidebarSection>
 
-            <SidebarSection title="My Space">
+            <SidebarSection title={t("sidebar.mySpace")}>
               {sidebarMenuItems.map((item) => (
                 <AppShellLink
                   key={item.id}
@@ -316,7 +355,7 @@ export function Sidebar({
                   onNavigate(item.page);
                   if (onClose) onClose();
                 }}
-                className="flex w-full items-center gap-3 rounded-lg px-4 py-3 text-gray-300 hover:bg-gray-700/50"
+                className="flex w-full items-center gap-3 rounded-lg px-4 py-3 text-primary hover:bg-secondary"
               >
                 <item.icon className="w-5 h-5" />
                 <span className="flex-1 text-left">{item.label}</span>
@@ -332,7 +371,7 @@ export function Sidebar({
               <button
                 key={item.id}
                 onClick={item.onClick}
-                className="flex w-full items-center gap-3 rounded-lg px-4 py-3 text-gray-300 hover:bg-gray-700/50"
+                className="flex w-full items-center gap-3 rounded-lg px-4 py-3 text-primary hover:bg-secondary"
               >
                 <item.icon className="w-5 h-5" />
                 <span className="flex-1 text-left">{item.label}</span>
@@ -354,10 +393,10 @@ export function Sidebar({
               className={`mb-2 px-4 text-xs font-bold uppercase ${
                 isAppShell && isMobile
                   ? "text-slate-400 tracking-[0.24em]"
-                  : "text-gray-400"
+                  : "text-gray-400 dark:text-slate-400"
               }`}
             >
-              Admin
+              {t("sidebar.admin")}
             </p>
             <div className={isAppShell && isMobile ? "space-y-2 rounded-[1.5rem] border border-orange-400/15 bg-orange-500/5 p-2" : ""}>
               {adminMenuItems.map((item) => (
@@ -367,7 +406,7 @@ export function Sidebar({
                     onNavigate(item.page);
                     if (isMobile && onClose) onClose();
                   }}
-                  className={`flex w-full items-center px-4 py-3 text-orange-300 hover:bg-orange-500/10 ${
+                  className={`flex w-full items-center px-4 py-3 text-orange-300 dark:text-orange-400 hover:bg-orange-500/10 ${
                     isAppShell && isMobile ? "rounded-[1.1rem]" : "rounded-lg"
                   }`}
                 >
@@ -382,7 +421,7 @@ export function Sidebar({
         {isAppShell && isMobile ? (
           <div className="flex items-center gap-2 px-5 pb-[calc(env(safe-area-inset-bottom,0px)+1rem)] text-[11px] text-slate-500">
             <Sparkles className="h-3.5 w-3.5" />
-            <span>App shell navigation</span>
+            <span>{t("sidebar.appShellNavigation")}</span>
           </div>
         ) : null}
       </div>

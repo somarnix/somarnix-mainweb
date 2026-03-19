@@ -1,7 +1,7 @@
 import jwt, { JwtPayload } from "jsonwebtoken";
 import type { ResultSetHeader } from "mysql2";
 import { db } from "@/lib/db";
-import { clearSessionCookie, getJwtSecret } from "@/lib/security";
+import { clearSessionCookies, getJwtSecret } from "@/lib/security";
 
 /* ================= COOKIE HELPER ================= */
 
@@ -49,10 +49,9 @@ export async function POST(req: Request): Promise<Response> {
 
     // clear cookie token too
     const res = Response.json({ success: true });
-    res.headers.append(
-      "Set-Cookie",
-      clearSessionCookie()
-    );
+    for (const cookie of clearSessionCookies()) {
+      res.headers.append("Set-Cookie", cookie);
+    }
     return res;
   } catch (err) {
     return Response.json(

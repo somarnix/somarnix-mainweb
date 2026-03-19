@@ -1,4 +1,4 @@
-// app\pages\ai\AiPage.tsx
+﻿// app\pages\ai\AiPage.tsx
 import { useEffect, useState } from "react";
 import { SlidersHorizontal } from "lucide-react";
 import { CourseCard } from "../../components/CourseCard";
@@ -26,12 +26,12 @@ type DbCourse = {
 
 export function AiPage({ onOpenProductDetail }: { onOpenProductDetail: (slug: string) => void }) { 
   const { t } = useLanguage();
+  const ALL_SLUG = "__all_ai__";
 
   const [courses, setCourses] = useState<DbCourse[]>([]);
   const [loading, setLoading] = useState(true);
 
-  const allLabel = "All AI";
-  const [selectedSlug, setSelectedSlug] = useState<string>(allLabel);
+  const [selectedSlug, setSelectedSlug] = useState<string>(ALL_SLUG);
   const [slugQuery, setSlugQuery] = useState("");
   const [slugLimit, setSlugLimit] = useState(10);
 
@@ -69,7 +69,7 @@ export function AiPage({ onOpenProductDetail }: { onOpenProductDetail: (slug: st
 
   /* ================= FILTER ================= */
   const filteredCourses =
-    selectedSlug === allLabel
+    selectedSlug === ALL_SLUG
       ? courses
       : courses.filter((c) => c.slug === selectedSlug);
   const normalizedSlugQuery = slugQuery.trim().toLowerCase();
@@ -122,6 +122,10 @@ export function AiPage({ onOpenProductDetail }: { onOpenProductDetail: (slug: st
   const visibleSlugs = normalizedSlugQuery
     ? filteredSlugs
     : filteredSlugs.slice(0, slugLimit);
+  const slugOptions = [
+    { value: ALL_SLUG, label: t("ai.all") },
+    ...visibleSlugs.map((slug) => ({ value: slug, label: slug })),
+  ];
 
   function handleViewDetails(slug: string): void {
     onOpenProductDetail(slug);
@@ -133,11 +137,10 @@ export function AiPage({ onOpenProductDetail }: { onOpenProductDetail: (slug: st
       <div className="bg-gradient-to-r from-blue-600 to-purple-600 py-10 text-white sm:py-16">
         <div className="max-w-7xl mx-auto px-4">
           <h1 className="mb-3 text-3xl font-bold md:mb-4 md:text-5xl">
-            {t("courses.title") || "Explore Our Courses"}
+            {t("ai.title")}
           </h1>
           <p className="text-base text-blue-100 sm:text-xl">
-            {t("courses.subtitle") ||
-              "Discover courses in web development, design, business, and more"}
+            {t("ai.subtitle")}
           </p>
         </div>
       </div>
@@ -148,9 +151,9 @@ export function AiPage({ onOpenProductDetail }: { onOpenProductDetail: (slug: st
           <aside className="lg:col-span-1">
             <SlugFilter
               filterTitle={t("courses.filters")}
-              slugLabel={t("courses.categories") || "Slugs"}
+              slugLabel={t("filters.slugs")}
               sortLabel={t("courses.sortBy")}
-              slugs={[allLabel, ...visibleSlugs]}
+              slugOptions={slugOptions}
               selectedSlug={selectedSlug}
               onSelectSlug={setSelectedSlug}
               sortBy={sortBy}
@@ -169,7 +172,7 @@ export function AiPage({ onOpenProductDetail }: { onOpenProductDetail: (slug: st
           <main className="lg:col-span-3">
             {loading ? (
               <div className="text-center text-gray-500">
-                Loading...
+                {t("common.loading")}
               </div>
             ) : (
               <>
@@ -177,7 +180,7 @@ export function AiPage({ onOpenProductDetail }: { onOpenProductDetail: (slug: st
                 <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4 mb-6">
                   <div>
                     <h2 className="text-2xl font-bold">
-                      {selectedSlug}
+                      {selectedSlug === ALL_SLUG ? t("ai.all") : selectedSlug}
                     </h2>
                     <p className="text-gray-600 mt-1">
                       {sortedCourses.length}{" "}
@@ -193,13 +196,13 @@ export function AiPage({ onOpenProductDetail }: { onOpenProductDetail: (slug: st
                       className="w-full sm:w-64"
                       inputClassName="rounded-lg shadow-sm focus:ring-blue-500"
                     />
-                    {selectedSlug !== allLabel && (
+                    {selectedSlug !== ALL_SLUG && (
                       <Badge
                         variant="secondary"
                         className="cursor-pointer hover:bg-gray-300"
-                        onClick={() => setSelectedSlug(allLabel)}
+                        onClick={() => setSelectedSlug(ALL_SLUG)}
                       >
-                        {t("courses.clearFilter")} ×
+                        {t("courses.clearFilter")}
                       </Badge>
                     )}
                   </div>
@@ -237,10 +240,10 @@ export function AiPage({ onOpenProductDetail }: { onOpenProductDetail: (slug: st
                       {t("courses.noResultsDesc")}
                     </p>
                     <Button
-                      onClick={() => setSelectedSlug(allLabel)}
+                      onClick={() => setSelectedSlug(ALL_SLUG)}
                       className="bg-gradient-to-r from-blue-600 to-purple-600"
                     >
-                      {t("courses.viewAll")}
+                      {t("ai.all")}
                     </Button>
                   </div>
                 )}
@@ -258,3 +261,4 @@ export function AiPage({ onOpenProductDetail }: { onOpenProductDetail: (slug: st
     </div>
   );
 }
+

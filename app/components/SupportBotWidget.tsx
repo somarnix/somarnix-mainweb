@@ -2,6 +2,7 @@
 
 import { FormEvent, useEffect, useMemo, useRef, useState } from "react";
 import { MessageCircle, Minus, Send, X } from "lucide-react";
+import { useLanguage } from "../contexts/LanguageContext";
 
 type FaqItem = {
   question: string;
@@ -16,43 +17,16 @@ type ChatMessage = {
   time: string;
 };
 
-const FAQ_ITEMS: FaqItem[] = [
-  {
-    question: "How do I buy a product?",
-    answer:
-      "Open product detail, choose plan, add to cart, then complete checkout and payment.",
-    keywords: ["buy", "purchase", "checkout", "payment", "order"],
-  },
-  {
-    question: "Why is product out of stock?",
-    answer:
-      "Out of stock means quantity is used or reserved. It returns when seller restocks or cancellations release stock.",
-    keywords: ["stock", "sold out", "out of stock", "restock"],
-  },
-  {
-    question: "Where can I see my orders?",
-    answer:
-      "Go to Orders page from the left sidebar to see all statuses and open details.",
-    keywords: ["orders", "history", "order detail", "my order"],
-  },
-  {
-    question: "How can I contact human support?",
-    answer:
-      "Click Contact Human Support below and include your order ID so support can help quickly.",
-    keywords: ["support", "human", "contact", "help"],
-  },
-];
-
 function getTimeLabel() {
   return new Date().toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" });
 }
 
-function findBestAnswer(input: string) {
+function findBestAnswer(input: string, faqItems: FaqItem[]) {
   const q = input.trim().toLowerCase();
   if (!q) return null;
 
   let best: { item: FaqItem; score: number } | null = null;
-  for (const item of FAQ_ITEMS) {
+  for (const item of faqItems) {
     const source = `${item.question} ${item.answer} ${item.keywords.join(" ")}`.toLowerCase();
     let score = 0;
 
@@ -72,6 +46,32 @@ function findBestAnswer(input: string) {
 }
 
 export function SupportBotWidget() {
+  const { t } = useLanguage();
+  const faqItems = useMemo<FaqItem[]>(
+    () => [
+      {
+        question: t("supportBot.q.buy"),
+        answer: t("supportBot.a.buy"),
+        keywords: ["buy", "purchase", "checkout", "payment", "order", "ទិញ", "បង់", "បញ្ជាទិញ"],
+      },
+      {
+        question: t("supportBot.q.stock"),
+        answer: t("supportBot.a.stock"),
+        keywords: ["stock", "sold out", "out of stock", "restock", "ស្តុក", "អស់ស្តុក"],
+      },
+      {
+        question: t("supportBot.q.orders"),
+        answer: t("supportBot.a.orders"),
+        keywords: ["orders", "history", "order detail", "my order", "ការបញ្ជាទិញ", "ប្រវត្តិ"],
+      },
+      {
+        question: t("supportBot.q.human"),
+        answer: t("supportBot.a.human"),
+        keywords: ["support", "human", "contact", "help", "ជំនួយ", "ទាក់ទង"],
+      },
+    ],
+    [t]
+  );
   const [open, setOpen] = useState(false);
   const [minimized, setMinimized] = useState(false);
   const [input, setInput] = useState("");
@@ -82,17 +82,17 @@ export function SupportBotWidget() {
     {
       id: 1,
       role: "bot",
-      text: "Hi! How can I assist you today? Ask me anything about orders, stock, or payment.",
+      text: t("supportBot.greeting"),
       time: getTimeLabel(),
     },
   ]);
   const quickQuestions = useMemo(
     () => [
-      "How do I buy a product?",
-      "Why is product out of stock?",
-      "Where can I see my orders?",
+      t("supportBot.q.buy"),
+      t("supportBot.q.stock"),
+      t("supportBot.q.orders"),
     ],
-    []
+    [t]
   );
   const dateLabel = useMemo(
     () =>
@@ -133,7 +133,7 @@ export function SupportBotWidget() {
       time: getTimeLabel(),
     };
 
-    const matched = findBestAnswer(clean);
+    const matched = findBestAnswer(clean, faqItems);
     const botMessage: ChatMessage = matched
       ? {
           id: nextId(),
@@ -144,7 +144,7 @@ export function SupportBotWidget() {
       : {
           id: nextId(),
           role: "bot",
-          text: "I could not find a clear answer. Please click Contact Human Support.",
+          text: t("supportBot.noAnswer"),
           time: getTimeLabel(),
         };
 
@@ -176,14 +176,14 @@ export function SupportBotWidget() {
             setMinimized(false);
           }}
           className="group relative h-16 w-16 rounded-full border-4 border-white bg-gradient-to-br from-fuchsia-600 via-rose-600 to-red-700 shadow-2xl ring-1 ring-black/10 transition hover:scale-105"
-          aria-label="Open support bot"
+          aria-label={t("supportBot.open")}
         >
           <div className="absolute inset-0 flex items-center justify-center text-white font-bold">
             Mia
           </div>
           <span className="absolute -top-1 -right-1 inline-flex h-4 w-4 rounded-full bg-emerald-500 ring-2 ring-white" />
           <span className="absolute -left-12 top-1/2 -translate-y-1/2 rounded-full bg-slate-900 px-2 py-1 text-[10px] font-semibold text-white opacity-0 transition group-hover:opacity-100">
-            Support
+            {t("supportBot.label")}
           </span>
         </button>
       )}
@@ -205,7 +205,7 @@ export function SupportBotWidget() {
                 type="button"
                 onClick={() => setMinimized((prev) => !prev)}
                 className="rounded p-1 hover:bg-white/20"
-                aria-label="Minimize"
+                aria-label={t("supportBot.minimize")}
               >
                 <Minus className="h-4 w-4" />
               </button>
@@ -213,7 +213,7 @@ export function SupportBotWidget() {
                 type="button"
                 onClick={() => setOpen(false)}
                 className="rounded p-1 hover:bg-white/20"
-                aria-label="Close"
+                aria-label={t("supportBot.close")}
               >
                 <X className="h-4 w-4" />
               </button>
@@ -278,7 +278,7 @@ export function SupportBotWidget() {
                   <input
                     value={input}
                     onChange={(event) => setInput(event.target.value)}
-                    placeholder="Ask a question..."
+                    placeholder={t("supportBot.askQuestion")}
                     className="flex-1 rounded-xl border border-slate-300 px-3 py-2 text-sm outline-none focus:border-rose-500 dark:border-slate-600 dark:bg-slate-800 dark:text-slate-100"
                   />
                   <button
@@ -299,7 +299,7 @@ export function SupportBotWidget() {
                   >
                     <span className="inline-flex items-center gap-2">
                       <MessageCircle className="h-3.5 w-3.5" />
-                      Contact Human Support
+                      {t("supportBot.contactHuman")}
                     </span>
                   </button>
                 )}

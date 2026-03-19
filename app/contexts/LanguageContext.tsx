@@ -1,13 +1,14 @@
 "use client";
 
 import { createContext, useContext, useState, useEffect, ReactNode } from "react";
+import { translationOverrides } from "../lib/translation-overrides";
 
 type Language = "en" | "km";
 
 interface LanguageContextType {
   language: Language;
   setLanguage: (lang: Language) => void;
-  t: (key: string) => string;
+  t: (key: string, values?: Record<string, string | number>) => string;
 }
 
 const LanguageContext = createContext<LanguageContextType | undefined>(undefined);
@@ -29,11 +30,25 @@ export function LanguageProvider({ children }: { children: ReactNode }) {
   // ✅ SAVE language
   useEffect(() => {
     localStorage.setItem("edugroit-language", language);
+    document.documentElement.lang = language;
   }, [language]);
 
 
-  const t = (key: string): string =>
-    translations[language]?.[key] ?? key;
+  const t = (key: string, values?: Record<string, string | number>): string => {
+    const template =
+      translationOverrides[language]?.[key] ??
+      translations[language]?.[key] ??
+      key;
+
+    if (!values) {
+      return template;
+    }
+
+    return Object.entries(values).reduce(
+      (message, [token, value]) => message.split(`{${token}}`).join(String(value)),
+      template
+    );
+  };
 
   return (
     <LanguageContext.Provider value={{ language, setLanguage, t }}>
@@ -239,6 +254,7 @@ const translations: Record<Language, Record<string, string>> = {
     'profile.myCourses': 'My Courses',
     'profile.myProducts': 'My Products',
     'profile.about': 'About me',
+    'profile.aboutSubtitle': 'Keep your personal information up to date.',
     'profile.edit': 'Edit',
     'profile.cancel': 'Cancel',
     'profile.saveChanges': 'Save changes',
@@ -255,6 +271,9 @@ const translations: Record<Language, Record<string, string>> = {
     'profile.language': 'Language',
     'profile.theme': 'Theme',
     'profile.switch': 'Switch',
+    'profile.securityDesc': 'Manage password and account protection.',
+    'profile.changePassword': 'Change Password',
+    'profile.updateFailed': 'Profile update failed. Please try again.',
     'profile.enrolled': 'Enrolled',
     'profile.completed': 'Completed',
     'profile.hours': 'Hours',
@@ -576,6 +595,7 @@ const translations: Record<Language, Record<string, string>> = {
     'profile.myCourses': 'វគ្គសិក្សារបស់ខ្ញុំ',
     'profile.myProducts': 'ផលិតផលរបស់ខ្ញុំ',
     'profile.about': 'អំពីខ្ញុំ',
+    'profile.aboutSubtitle': 'រក្សាព័ត៌មានផ្ទាល់ខ្លួនរបស់អ្នកឱ្យទាន់សម័យជានិច្ច។',
     'profile.edit': 'កែប្រែ',
     'profile.cancel': 'បោះបង់',
     'profile.saveChanges': 'រក្សាទុកការផ្លាស់ប្តូរ',
@@ -594,6 +614,9 @@ const translations: Record<Language, Record<string, string>> = {
     'profile.language': 'ភាសា',
     'profile.theme': 'រចនាប័ទ្ម',
     'profile.switch': 'ប្តូរ',
+    'profile.securityDesc': 'គ្រប់គ្រងពាក្យសម្ងាត់ និងការការពារគណនីរបស់អ្នក។',
+    'profile.changePassword': 'ប្ដូរពាក្យសម្ងាត់',
+    'profile.updateFailed': 'ការធ្វើបច្ចុប្បន្នភាពប្រវត្តិរូបបរាជ័យ។ សូមព្យាយាមម្តងទៀត។',
 
     'profile.enrolled': 'បានចុះឈ្មោះ',
     'profile.completed': 'បានបញ្ចប់',

@@ -7,11 +7,16 @@ type SortOption = {
   label: string;
 };
 
+type SlugOption = {
+  value: string;
+  label: string;
+};
+
 type SlugFilterProps = {
   filterTitle: string;
   slugLabel: string;
   sortLabel: string;
-  slugs: string[];
+  slugOptions: SlugOption[];
   selectedSlug: string;
   onSelectSlug: (value: string) => void;
   sortBy: SortKey;
@@ -24,7 +29,7 @@ export function SlugFilter({
   filterTitle,
   slugLabel,
   sortLabel,
-  slugs,
+  slugOptions,
   selectedSlug,
   onSelectSlug,
   sortBy,
@@ -33,7 +38,7 @@ export function SlugFilter({
   activeClassName,
 }: SlugFilterProps) {
   return (
-    <div className="bg-white dark:bg-gray-800 rounded-xl shadow-sm p-6 sticky top-24">
+    <div className="card sticky top-24">
       <div className="flex items-center gap-2 mb-6">
         <Filter className="w-5 h-5" />
         <h2 className="text-lg font-bold">{filterTitle}</h2>
@@ -45,25 +50,25 @@ export function SlugFilter({
           <select
             value={selectedSlug}
             onChange={(event) => onSelectSlug(event.target.value)}
-            className="w-full rounded-lg border border-gray-200 bg-white px-4 py-3 text-sm text-gray-900 shadow-sm focus:outline-none focus:ring-2 focus:ring-blue-500 dark:bg-gray-900 dark:border-gray-700 dark:text-gray-100"
+            className="input w-full cursor-pointer"
           >
-            {slugs.map((slug) => (
-              <option key={slug} value={slug}>
-                {slug}
+            {slugOptions.map((slug) => (
+              <option key={slug.value} value={slug.value}>
+                {slug.label}
               </option>
             ))}
           </select>
         </div>
         <div className="hidden space-y-2 md:block">
-          {slugs.map((slug) => (
+          {slugOptions.map((slug) => (
             <button
-              key={slug}
-              onClick={() => onSelectSlug(slug)}
-              className={`w-full text-left px-4 py-2 rounded-lg ${
-                selectedSlug === slug ? activeClassName : "hover:bg-gray-100"
+              key={slug.value}
+              onClick={() => onSelectSlug(slug.value)}
+              className={`w-full text-left px-4 py-2 rounded-lg transition-colors ${
+                selectedSlug === slug.value ? activeClassName : "hover:bg-secondary"
               }`}
             >
-              {slug}
+              {slug.label}
             </button>
           ))}
         </div>
@@ -75,7 +80,7 @@ export function SlugFilter({
           <select
             value={sortBy}
             onChange={(event) => onSortChange(event.target.value as SortKey)}
-            className="w-full rounded-lg border border-gray-200 bg-white px-4 py-3 text-sm text-gray-900 shadow-sm focus:outline-none focus:ring-2 focus:ring-blue-500 dark:bg-gray-900 dark:border-gray-700 dark:text-gray-100"
+            className="input w-full cursor-pointer"
           >
             {sortOptions.map((option) => (
               <option key={option.id} value={option.id}>
@@ -89,8 +94,8 @@ export function SlugFilter({
             <button
               key={option.id}
               onClick={() => onSortChange(option.id)}
-              className={`w-full text-left px-4 py-2 rounded-lg ${
-                sortBy === option.id ? activeClassName : "hover:bg-gray-100"
+              className={`w-full text-left px-4 py-2 rounded-lg transition-colors ${
+                sortBy === option.id ? activeClassName : "hover:bg-secondary"
               }`}
             >
               {option.label}

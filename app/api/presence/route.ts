@@ -47,7 +47,10 @@ async function upsertLoginDevice(userId: number, deviceId: string, deviceName: s
 export async function POST(req: NextRequest) {
   const auth = await getAuthUser(req);
   if (!auth) {
-    return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+    return NextResponse.json(
+      { success: false, skipped: true, status: "offline" },
+      { status: 200, headers: { "Cache-Control": "no-store" } }
+    );
   }
 
   const payload = await resolvePayload(req);
@@ -60,15 +63,24 @@ export async function POST(req: NextRequest) {
     await upsertLoginDevice(auth.userId, deviceId, deviceName);
   }
 
-  return NextResponse.json({ success: true, status });
+  return NextResponse.json(
+    { success: true, status },
+    { headers: { "Cache-Control": "no-store" } }
+  );
 }
 
 export async function DELETE(req: NextRequest) {
   const auth = await getAuthUser(req);
   if (!auth) {
-    return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+    return NextResponse.json(
+      { success: false, skipped: true, status: "offline" },
+      { status: 200, headers: { "Cache-Control": "no-store" } }
+    );
   }
 
   await setUserPresenceStatus(auth.userId, "offline");
-  return NextResponse.json({ success: true, status: "offline" });
+  return NextResponse.json(
+    { success: true, status: "offline" },
+    { headers: { "Cache-Control": "no-store" } }
+  );
 }

@@ -24,12 +24,12 @@ type DbProgram = {
 
 export function ProgramsPage({ onOpenProductDetail }: { onOpenProductDetail: (slug: string) => void }) {
   const { t } = useLanguage();
+  const ALL_SLUG = "__all_programs__";
 
   const [programs, setPrograms] = useState<DbProgram[]>([]);
   const [loading, setLoading] = useState(true);
 
-  const allLabel = "All Programs";
-  const [selectedSlug, setSelectedSlug] = useState(allLabel);
+  const [selectedSlug, setSelectedSlug] = useState(ALL_SLUG);
   const [slugQuery, setSlugQuery] = useState("");
   const [slugLimit, setSlugLimit] = useState(10);
 
@@ -67,7 +67,7 @@ export function ProgramsPage({ onOpenProductDetail }: { onOpenProductDetail: (sl
 
   /* ================= FILTER ================= */
   const filteredPrograms =
-    selectedSlug === allLabel
+    selectedSlug === ALL_SLUG
       ? programs
       : programs.filter((p) => p.slug === selectedSlug);
   const normalizedSlugQuery = slugQuery.trim().toLowerCase();
@@ -120,6 +120,10 @@ export function ProgramsPage({ onOpenProductDetail }: { onOpenProductDetail: (sl
   const visibleSlugs = normalizedSlugQuery
     ? filteredSlugs
     : filteredSlugs.slice(0, slugLimit);
+  const slugOptions = [
+    { value: ALL_SLUG, label: t("programs.all") },
+    ...visibleSlugs.map((slug) => ({ value: slug, label: slug })),
+  ];
 
   function handleViewDetails(slug: string): void {
     onOpenProductDetail(slug);
@@ -151,7 +155,7 @@ export function ProgramsPage({ onOpenProductDetail }: { onOpenProductDetail: (sl
               filterTitle={t("courses.filters")}
               slugLabel={t("filters.slugs")}
               sortLabel={t("courses.sortBy")}
-              slugs={[allLabel, ...visibleSlugs]}
+              slugOptions={slugOptions}
               selectedSlug={selectedSlug}
               onSelectSlug={setSelectedSlug}
               sortBy={sortBy}
@@ -170,14 +174,14 @@ export function ProgramsPage({ onOpenProductDetail }: { onOpenProductDetail: (sl
           <main className="lg:col-span-3">
             {loading ? (
               <div className="text-center text-gray-500">
-                Loading...
+                {t("common.loading")}
               </div>
             ) : (
               <>
                 <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4 mb-6">
                   <div>
                     <h2 className="text-2xl font-bold">
-                      {selectedSlug}
+                      {selectedSlug === ALL_SLUG ? t("programs.all") : selectedSlug}
                     </h2>
                     <p className="text-gray-600 mt-1">
                       {sortedPrograms.length} {t("labels.programs")} {t("common.available")}
@@ -191,10 +195,10 @@ export function ProgramsPage({ onOpenProductDetail }: { onOpenProductDetail: (sl
                       className="w-full sm:w-64"
                       inputClassName="rounded-lg shadow-sm focus:ring-blue-500"
                     />
-                    {selectedSlug !== allLabel && (
+                    {selectedSlug !== ALL_SLUG && (
                       <button
                         className="px-3 py-2 rounded-lg border border-gray-200 text-sm hover:bg-gray-100 dark:border-gray-700"
-                        onClick={() => setSelectedSlug(allLabel)}
+                        onClick={() => setSelectedSlug(ALL_SLUG)}
                       >
                         {t("courses.clearFilter")}
                       </button>
