@@ -1,19 +1,19 @@
 "use client";
 
+import Link from "next/link";
+import { type FormEvent, useState } from "react";
 import {
-  Facebook,
-  Twitter,
-  Instagram,
-  Linkedin,
-  Youtube,
+  Globe,
+  LifeBuoy,
   Mail,
-  Phone,
-  MapPin,
+  MessageSquare,
   ArrowRight,
+  ShieldCheck,
 } from "lucide-react";
 import { Input } from "./ui/input";
 import { Button } from "./ui/button";
 import { useLanguage } from "../contexts/LanguageContext";
+import { SITE_NAME, SUPPORT_EMAIL } from "../lib/siteConfig";
 
 interface FooterProps {
   isAppShell?: boolean;
@@ -22,36 +22,65 @@ interface FooterProps {
 export function Footer({ isAppShell = false }: FooterProps) {
   const currentYear = new Date().getFullYear();
   const { t } = useLanguage();
+  const [newsletterEmail, setNewsletterEmail] = useState("");
+  const telegramSupportUrl = process.env.NEXT_PUBLIC_TELEGRAM_SUPPORT_URL || "/support";
 
   if (isAppShell) {
     return null;
   }
 
   const quickLinks = [
-    t("footer.aboutUs"),
-    t("footer.allCourses"),
-    t("footer.becomeInstructor"),
-    t("footer.partnerships"),
-    t("footer.careers"),
-    t("footer.blog"),
+    { label: t("footer.aboutUs"), href: "/about" },
+    { label: t("footer.allCourses"), href: "/courses" },
+    { label: t("footer.becomeInstructor"), href: "/contact#instructor" },
+    { label: t("footer.partnerships"), href: "/contact#partnerships" },
+    { label: t("footer.careers"), href: "/contact#careers" },
+    { label: t("footer.blog"), href: "/blog" },
   ];
 
   const supportLinks = [
-    t("footer.helpCenter"),
-    t("footer.faqs"),
-    t("footer.terms"),
-    t("footer.privacy"),
-    t("footer.cookies"),
-    t("footer.accessibility"),
+    { label: t("footer.helpCenter"), href: "/support" },
+    { label: t("footer.faqs"), href: "/faq" },
+    { label: t("footer.terms"), href: "/terms" },
+    { label: t("footer.privacy"), href: "/privacy" },
+    { label: t("footer.cookies"), href: "/cookies" },
+    { label: t("footer.accessibility"), href: "/accessibility" },
   ];
 
   const socialLinks = [
-    { icon: Facebook, color: "hover:text-blue-400" },
-    { icon: Twitter, color: "hover:text-sky-400" },
-    { icon: Instagram, color: "hover:text-pink-400" },
-    { icon: Linkedin, color: "hover:text-blue-300" },
-    { icon: Youtube, color: "hover:text-red-400" },
+    {
+      icon: MessageSquare,
+      color: "hover:text-sky-400",
+      href: telegramSupportUrl,
+      label: "Telegram Support",
+      external: telegramSupportUrl.startsWith("http"),
+    },
+    {
+      icon: Mail,
+      color: "hover:text-blue-400",
+      href: `mailto:${SUPPORT_EMAIL}`,
+      label: "Email Support",
+      external: false,
+    },
+    {
+      icon: ShieldCheck,
+      color: "hover:text-emerald-400",
+      href: "/copyright",
+      label: "Copyright Notice",
+      external: false,
+    },
   ];
+
+  const handleNewsletterSubmit = (event: FormEvent<HTMLFormElement>) => {
+    event.preventDefault();
+
+    const message = newsletterEmail.trim()
+      ? `Please subscribe this email to ${SITE_NAME} updates:\n\n${newsletterEmail.trim()}`
+      : `Please subscribe me to ${SITE_NAME} updates.`;
+
+    const href = `mailto:${SUPPORT_EMAIL}?subject=${encodeURIComponent("Newsletter Subscription")}&body=${encodeURIComponent(message)}`;
+    window.location.href = href;
+  };
 
   return (
     <footer className="relative overflow-hidden border-t border-gray-200 dark:border-slate-800 bg-gradient-to-br from-blue-50 via-purple-50 to-white dark:from-slate-950 dark:via-slate-900 dark:to-slate-950 text-gray-600 dark:text-slate-300">
@@ -82,7 +111,10 @@ export function Footer({ isAppShell = false }: FooterProps) {
               {socialLinks.map((item, index) => (
                 <a
                   key={index}
-                  href="#"
+                  href={item.href}
+                  target={item.external ? "_blank" : undefined}
+                  rel={item.external ? "noreferrer" : undefined}
+                  aria-label={item.label}
                   className={`flex h-9 w-9 items-center justify-center rounded-full border border-gray-200 dark:border-slate-700 bg-gray-50 dark:bg-slate-900/70 text-gray-400 transition-all duration-200 hover:-translate-y-0.5 hover:border-gray-300 dark:hover:border-slate-500 ${item.color}`}
                 >
                   <item.icon className="h-4 w-4" />
@@ -96,15 +128,15 @@ export function Footer({ isAppShell = false }: FooterProps) {
               {t("footer.quickLinks")}
             </h3>
             <ul className="space-y-2.5">
-              {quickLinks.map((label) => (
-                <li key={label}>
-                  <a
-                    href="#"
+              {quickLinks.map((item) => (
+                <li key={item.label}>
+                  <Link
+                    href={item.href}
                     className="group inline-flex items-center gap-1 text-sm text-gray-500 dark:text-slate-400 transition-colors hover:text-sky-600 dark:hover:text-sky-300"
                   >
                     <ArrowRight className="h-3.5 w-3.5 opacity-0 transition-opacity group-hover:opacity-100" />
-                    <span>{label}</span>
-                  </a>
+                    <span>{item.label}</span>
+                  </Link>
                 </li>
               ))}
             </ul>
@@ -115,14 +147,14 @@ export function Footer({ isAppShell = false }: FooterProps) {
               {t("footer.support")}
             </h3>
             <ul className="space-y-2.5">
-              {supportLinks.map((label) => (
-                <li key={label}>
-                  <a
-                    href="#"
+              {supportLinks.map((item) => (
+                <li key={item.label}>
+                  <Link
+                    href={item.href}
                     className="text-sm text-gray-500 dark:text-slate-400 transition-colors hover:text-sky-600 dark:hover:text-sky-300"
                   >
-                    {label}
-                  </a>
+                    {item.label}
+                  </Link>
                 </li>
               ))}
             </ul>
@@ -136,28 +168,54 @@ export function Footer({ isAppShell = false }: FooterProps) {
               <p className="mb-4 text-sm text-gray-500 dark:text-slate-400">
                 {t("footer.newsletterDesc")}
               </p>
-              <div className="space-y-3">
+              <form onSubmit={handleNewsletterSubmit} className="space-y-3">
                 <Input
                   type="email"
+                  value={newsletterEmail}
+                  onChange={(event) => setNewsletterEmail(event.target.value)}
                   placeholder={t("footer.emailPlaceholder")}
                   className="border-gray-200 dark:border-slate-700 bg-white dark:bg-slate-950 text-gray-900 dark:text-white placeholder:text-gray-400 dark:placeholder:text-slate-500"
                 />
-                <Button className="w-full bg-gradient-to-r from-blue-600 to-indigo-600 text-white hover:from-blue-500 hover:to-indigo-500">
+                <Button
+                  type="submit"
+                  className="w-full bg-gradient-to-r from-blue-600 to-indigo-600 text-white hover:from-blue-500 hover:to-indigo-500"
+                >
                   {t("footer.subscribe")}
                 </Button>
-              </div>
+              </form>
               <div className="mt-5 space-y-2.5 border-t border-gray-200 dark:border-slate-800 pt-4">
                 <div className="flex items-center gap-2 text-sm text-gray-600 dark:text-slate-300">
                   <Mail className="h-4 w-4 text-sky-600 dark:text-sky-400" />
-                  <span>support@edugroit.com</span>
+                  <a
+                    href={`mailto:${SUPPORT_EMAIL}`}
+                    className="transition-colors hover:text-sky-600 dark:hover:text-sky-300"
+                  >
+                    {SUPPORT_EMAIL}
+                  </a>
                 </div>
                 <div className="flex items-center gap-2 text-sm text-gray-600 dark:text-slate-300">
-                  <Phone className="h-4 w-4 text-sky-600 dark:text-sky-400" />
-                  <span>+1 (555) 123-4567</span>
+                  <MessageSquare className="h-4 w-4 text-sky-600 dark:text-sky-400" />
+                  <a
+                    href={telegramSupportUrl}
+                    target={telegramSupportUrl.startsWith("http") ? "_blank" : undefined}
+                    rel={telegramSupportUrl.startsWith("http") ? "noreferrer" : undefined}
+                    className="transition-colors hover:text-sky-600 dark:hover:text-sky-300"
+                  >
+                    Telegram Support
+                  </a>
                 </div>
-                <div className="flex items-start gap-2 text-sm text-gray-600 dark:text-slate-300">
-                  <MapPin className="mt-0.5 h-4 w-4 text-sky-600 dark:text-sky-400" />
-                  <span>123 Learning St, Education City, EC 12345</span>
+                <div className="flex items-center gap-2 text-sm text-gray-600 dark:text-slate-300">
+                  <LifeBuoy className="h-4 w-4 text-sky-600 dark:text-sky-400" />
+                  <Link
+                    href="/support"
+                    className="transition-colors hover:text-sky-600 dark:hover:text-sky-300"
+                  >
+                    Support Center
+                  </Link>
+                </div>
+                <div className="flex items-center gap-2 text-sm text-gray-600 dark:text-slate-300">
+                  <Globe className="h-4 w-4 text-sky-600 dark:text-sky-400" />
+                  <span>{SITE_NAME}</span>
                 </div>
               </div>
             </div>
@@ -169,23 +227,23 @@ export function Footer({ isAppShell = false }: FooterProps) {
         <div className="mx-auto flex max-w-7xl flex-col items-center justify-between gap-4 px-4 py-6 sm:px-6 md:flex-row lg:px-8">
           <div className="text-center sm:text-left">
             <p className="text-sm text-gray-500 dark:text-slate-400">
-              &copy; {currentYear} GSTECHKH. {t("footer.rights")}
+              &copy; {currentYear} {SITE_NAME}. {t("footer.rights")}
             </p>
             <p className="text-xs text-gray-400 dark:text-slate-500 mt-1">
               Unauthorized copying, scraping, or reproduction is strictly prohibited.
             </p>
           </div>
           <div className="flex flex-wrap items-center gap-5 text-sm text-gray-500 dark:text-slate-400">
-            <a href="#" className="transition-colors hover:text-sky-600 dark:hover:text-sky-300">
+            <Link href="/terms" className="transition-colors hover:text-sky-600 dark:hover:text-sky-300">
               {t("footer.terms")}
-            </a>
-            <a href="#" className="transition-colors hover:text-sky-600 dark:hover:text-sky-300">
+            </Link>
+            <Link href="/privacy" className="transition-colors hover:text-sky-600 dark:hover:text-sky-300">
               {t("footer.privacy")}
-            </a>
-            <a href="#" className="transition-colors hover:text-sky-600 dark:hover:text-sky-300">
+            </Link>
+            <Link href="/cookies" className="transition-colors hover:text-sky-600 dark:hover:text-sky-300">
               {t("footer.cookies")}
-            </a>
-            <a href="#" className="transition-colors hover:text-sky-600 dark:hover:text-sky-300">
+            </Link>
+            <a href="/sitemap.xml" className="transition-colors hover:text-sky-600 dark:hover:text-sky-300">
               Sitemap
             </a>
           </div>

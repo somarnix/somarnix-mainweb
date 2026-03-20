@@ -111,7 +111,10 @@ export async function GET(req: Request) {
   try {
     const auth = await getAuthUser(req);
     if (!auth) {
-      return Response.json({ error: "Unauthorized" }, { status: 401 });
+      return Response.json(
+        { items: [], subtotal: 0 },
+        { headers: { "Cache-Control": "no-store" } }
+      );
     }
 
     const [variantCols] = await db.query<RowDataPacket[]>(

@@ -4,6 +4,7 @@ import { useLanguage } from "../../contexts/LanguageContext";
 import { CoursesFilter } from "../../components/filters/CoursesFilter";
 import { Pagination } from "../../components/Pagination";
 import { Search } from "../../components/Search";
+import CoursesVideoGrid from "./components/CoursesVideoGrid";
 
 interface CoursesPageProps {
   onNavigate: (page: string) => void;
@@ -490,19 +491,13 @@ export function CoursesPage({ onOpenVideoDetail }: CoursesPageProps) {
                       </p>
                     </div>
 
-                    <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-6">
-                      {coursesLoading ? (
-                        <div className="col-span-full text-sm text-gray-500 dark:text-gray-400">
-                          {t("common.loading")}
-                        </div>
-                      ) : coursesError ? (
-                        <div className="col-span-full text-sm text-red-600 dark:text-red-400">
-                          {coursesError}
-                        </div>
-                      ) : (
-                        pagedCourses.map(renderVideoCard)
-                      )}
-                    </div>
+                    <CoursesVideoGrid
+                      loading={coursesLoading}
+                      error={coursesError}
+                      loadingLabel={t("common.loading")}
+                      items={pagedCourses}
+                      renderItem={renderVideoCard}
+                    />
 
                     <Pagination
                       currentPage={currentPage}
@@ -527,19 +522,13 @@ export function CoursesPage({ onOpenVideoDetail }: CoursesPageProps) {
                     </p>
                   </div>
 
-                  <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-6">
-                    {coursesLoading ? (
-                      <div className="col-span-full text-sm text-gray-500 dark:text-gray-400">
-                        {t("common.loading")}
-                      </div>
-                    ) : coursesError ? (
-                      <div className="col-span-full text-sm text-red-600 dark:text-red-400">
-                        {coursesError}
-                      </div>
-                    ) : (
-                      pagedSectionCourses.map(renderVideoCard)
-                    )}
-                  </div>
+                  <CoursesVideoGrid
+                    loading={coursesLoading}
+                    error={coursesError}
+                    loadingLabel={t("common.loading")}
+                    items={pagedSectionCourses}
+                    renderItem={renderVideoCard}
+                  />
 
                   <Pagination
                     currentPage={currentPage}

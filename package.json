@@ -15,9 +15,9 @@
     "build:flow-extension": "node scripts/build-flow-extension.mjs",
     "pack:flow-extension": "node scripts/pack-flow-extension.mjs",
     "telegram:support-webhook": "node scripts/set-support-webhook.mjs",
-    "payway:worker": "tsx telegram_worker.ts",
-    "payway:summary": "tsx telegram_summary.ts",
-    "payway:summary-bot": "tsx telegram_summary_bot.ts",
+    "payway:worker": "tsx workers/telegram/telegram_worker.ts",
+    "payway:summary": "tsx workers/telegram/telegram_summary.ts",
+    "payway:summary-bot": "tsx workers/telegram/telegram_summary_bot.ts",
     "start": "next start",
     "lint": "eslint"
   },

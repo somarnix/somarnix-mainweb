@@ -7,8 +7,9 @@ import { Badge } from "../../components/ui/badge";
 import { useLanguage } from "../../contexts/LanguageContext";
 import { SlugFilter } from "../../components/filters/SlugFilter";
 import { Pagination } from "../../components/Pagination";
-import { Search } from "../../components/Search";
 import { normalizeProductListResponse } from "../../../lib/products";
+import { useCatalogListing } from "../../lib/catalog/useCatalogListing";
+import SlugCatalogResults from "../shared/SlugCatalogResults";
 
 type DbCourse = {
   id: number;
@@ -30,16 +31,24 @@ export function AiPage({ onOpenProductDetail }: { onOpenProductDetail: (slug: st
 
   const [courses, setCourses] = useState<DbCourse[]>([]);
   const [loading, setLoading] = useState(true);
-
-  const [selectedSlug, setSelectedSlug] = useState<string>(ALL_SLUG);
-  const [slugQuery, setSlugQuery] = useState("");
-  const [slugLimit, setSlugLimit] = useState(10);
-
-  const [sortBy, setSortBy] = useState<
-    "popular" | "price-low" | "price-high" | "rating"
-  >("popular");
-  const [currentPage, setCurrentPage] = useState(1);
-  const [itemsPerPage, setItemsPerPage] = useState(6);
+  const {
+    pagedItems: pagedCourses,
+    selectedSlug,
+    setCurrentPage,
+    setSelectedSlug,
+    setSlugQuery,
+    setSortBy,
+    slugOptions,
+    slugQuery,
+    sortBy,
+    sortedItems: sortedCourses,
+    totalPages,
+    visiblePage,
+  } = useCatalogListing({
+    items: courses,
+    allSlug: ALL_SLUG,
+    allLabel: t("ai.all"),
+  });
 
   /* ================= FETCH FROM DB ================= */
   useEffect(() => {
@@ -48,84 +57,6 @@ export function AiPage({ onOpenProductDetail }: { onOpenProductDetail: (slug: st
       .then((data) => setCourses(normalizeProductListResponse(data) as DbCourse[]))
       .finally(() => setLoading(false));
   }, []);
-
-  useEffect(() => {
-    const updateLimit = () => {
-      setSlugLimit(window.innerWidth < 640 ? 5 : 10);
-    };
-    updateLimit();
-    window.addEventListener("resize", updateLimit);
-    return () => window.removeEventListener("resize", updateLimit);
-  }, []);
-
-  useEffect(() => {
-    const updateItemsPerPage = () => {
-      setItemsPerPage(window.innerWidth < 768 ? 3 : 6);
-    };
-    updateItemsPerPage();
-    window.addEventListener("resize", updateItemsPerPage);
-    return () => window.removeEventListener("resize", updateItemsPerPage);
-  }, []);
-
-  /* ================= FILTER ================= */
-  const filteredCourses =
-    selectedSlug === ALL_SLUG
-      ? courses
-      : courses.filter((c) => c.slug === selectedSlug);
-  const normalizedSlugQuery = slugQuery.trim().toLowerCase();
-  const searchedCourses = normalizedSlugQuery
-    ? filteredCourses.filter((c) =>
-        c.slug.toLowerCase().includes(normalizedSlugQuery)
-      )
-    : filteredCourses;
-
-  /* ================= SORT ================= */
-  const sortedCourses = [...searchedCourses].sort((a, b) => {
-    const aOut =
-      !a.is_unlimited_stock && typeof a.stock_qty === "number"
-        ? a.stock_qty <= 0
-        : false;
-    const bOut =
-      !b.is_unlimited_stock && typeof b.stock_qty === "number"
-        ? b.stock_qty <= 0
-        : false;
-    if (aOut !== bOut) return aOut ? 1 : -1;
-    switch (sortBy) {
-      case "price-low":
-        return (a.min_price ?? 0) - (b.min_price ?? 0);
-      case "price-high":
-        return (b.min_price ?? 0) - (a.min_price ?? 0);
-      case "rating":
-        return b.rating - a.rating;
-      case "popular":
-      default:
-        return b.students - a.students;
-    }
-  });
-
-  const totalPages = Math.max(1, Math.ceil(sortedCourses.length / itemsPerPage));
-  const visiblePage = Math.min(currentPage, totalPages);
-  const pagedCourses = sortedCourses.slice(
-    (visiblePage - 1) * itemsPerPage,
-    visiblePage * itemsPerPage
-  );
-
-  /* ================= CATEGORIES ================= */
-  const allSlugs = Array.from(new Set(courses.map((c) => c.slug))).sort(
-    (a, b) => a.localeCompare(b)
-  );
-  const filteredSlugs = normalizedSlugQuery
-    ? allSlugs.filter((slug) =>
-        slug.toLowerCase().includes(normalizedSlugQuery)
-      )
-    : allSlugs;
-  const visibleSlugs = normalizedSlugQuery
-    ? filteredSlugs
-    : filteredSlugs.slice(0, slugLimit);
-  const slugOptions = [
-    { value: ALL_SLUG, label: t("ai.all") },
-    ...visibleSlugs.map((slug) => ({ value: slug, label: slug })),
-  ];
 
   function handleViewDetails(slug: string): void {
     onOpenProductDetail(slug);
@@ -170,91 +101,71 @@ export function AiPage({ onOpenProductDetail }: { onOpenProductDetail: (slug: st
 
           {/* ================= MAIN GRID ================= */}
           <main className="lg:col-span-3">
-            {loading ? (
-              <div className="text-center text-gray-500">
-                {t("common.loading")}
-              </div>
-            ) : (
-              <>
-                {/* Header */}
-                <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4 mb-6">
-                  <div>
-                    <h2 className="text-2xl font-bold">
-                      {selectedSlug === ALL_SLUG ? t("ai.all") : selectedSlug}
-                    </h2>
-                    <p className="text-gray-600 mt-1">
-                      {sortedCourses.length}{" "}
-                      {t("courses.available")}
-                    </p>
-                  </div>
-
-                  <div className="flex flex-col sm:flex-row gap-3 w-full sm:w-auto">
-                    <Search
-                      value={slugQuery}
-                      onChange={setSlugQuery}
-                      placeholder={t("search.slug")}
-                      className="w-full sm:w-64"
-                      inputClassName="rounded-lg shadow-sm focus:ring-blue-500"
+            <SlugCatalogResults
+              loading={loading}
+              loadingLabel={t("common.loading")}
+              title={selectedSlug === ALL_SLUG ? t("ai.all") : selectedSlug}
+              subtitle={`${sortedCourses.length} ${t("courses.available")}`}
+              searchValue={slugQuery}
+              onSearchChange={setSlugQuery}
+              searchPlaceholder={t("search.slug")}
+              searchInputClassName="rounded-lg shadow-sm focus:ring-blue-500"
+              clearFilterControl={
+                selectedSlug !== ALL_SLUG ? (
+                  <Badge
+                    variant="secondary"
+                    className="cursor-pointer hover:bg-gray-300"
+                    onClick={() => setSelectedSlug(ALL_SLUG)}
+                  >
+                    {t("courses.clearFilter")}
+                  </Badge>
+                ) : null
+              }
+            >
+              {sortedCourses.length > 0 ? (
+                <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-6">
+                  {pagedCourses.map((c) => (
+                    <CourseCard
+                      key={c.id}
+                      id={c.id}
+                      title={c.title}
+                      slug={c.slug}
+                      image={c.image_url}
+                      price={c.min_price}
+                      originalPrice={c.min_original_price}
+                      category={c.category}
+                      stockQty={c.stock_qty}
+                      isUnlimitedStock={c.is_unlimited_stock}
+                      onViewDetails={handleViewDetails}
                     />
-                    {selectedSlug !== ALL_SLUG && (
-                      <Badge
-                        variant="secondary"
-                        className="cursor-pointer hover:bg-gray-300"
-                        onClick={() => setSelectedSlug(ALL_SLUG)}
-                      >
-                        {t("courses.clearFilter")}
-                      </Badge>
-                    )}
-                  </div>
-
+                  ))}
                 </div>
-
-                {/* Grid */}
-                {sortedCourses.length > 0 ? (
-                  <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-6">
-                    {pagedCourses.map((c) => (
-                      <CourseCard
-                        key={c.id}
-                        id={c.id}
-                        title={c.title}
-                        slug={c.slug}
-                        image={c.image_url}
-                        price={c.min_price}
-                        originalPrice={c.min_original_price}
-                        category={c.category}
-                        stockQty={c.stock_qty}
-                        isUnlimitedStock={c.is_unlimited_stock}
-                        onViewDetails={handleViewDetails}
-                      />
-                    ))}
+              ) : (
+                <div className="text-center py-12">
+                  <div className="w-24 h-24 bg-gray-100 rounded-full flex items-center justify-center mx-auto mb-4">
+                    <SlidersHorizontal className="w-12 h-12 text-gray-400" />
                   </div>
-                ) : (
-                  <div className="text-center py-12">
-                    <div className="w-24 h-24 bg-gray-100 rounded-full flex items-center justify-center mx-auto mb-4">
-                      <SlidersHorizontal className="w-12 h-12 text-gray-400" />
-                    </div>
-                    <h3 className="text-xl font-semibold mb-2">
-                      {t("courses.noResults")}
-                    </h3>
-                    <p className="text-gray-600 mb-6">
-                      {t("courses.noResultsDesc")}
-                    </p>
-                    <Button
-                      onClick={() => setSelectedSlug(ALL_SLUG)}
-                      className="bg-gradient-to-r from-blue-600 to-purple-600"
-                    >
-                      {t("ai.all")}
-                    </Button>
-                  </div>
-                )}
-                <Pagination
-                  currentPage={visiblePage}
-                  totalPages={totalPages}
-                  onPageChange={setCurrentPage}
-                  className="mt-6"
-                />
-              </>
-            )}
+                  <h3 className="text-xl font-semibold mb-2">
+                    {t("courses.noResults")}
+                  </h3>
+                  <p className="text-gray-600 mb-6">
+                    {t("courses.noResultsDesc")}
+                  </p>
+                  <Button
+                    onClick={() => setSelectedSlug(ALL_SLUG)}
+                    className="bg-gradient-to-r from-blue-600 to-purple-600"
+                  >
+                    {t("ai.all")}
+                  </Button>
+                </div>
+              )}
+              <Pagination
+                currentPage={visiblePage}
+                totalPages={totalPages}
+                onPageChange={setCurrentPage}
+                className="mt-6"
+              />
+            </SlugCatalogResults>
           </main>
         </div>
       </div>

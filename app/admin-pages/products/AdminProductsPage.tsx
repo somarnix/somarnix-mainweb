@@ -4,6 +4,7 @@
 
 import { useEffect, useMemo, useRef, useState } from "react";
 import PaginationNext from "@/app/components/PaginationNext";
+import { parseErrorMessage } from "@/app/lib/http/parseErrorMessage";
 
 /* ================= TYPES ================= */
 
@@ -79,14 +80,6 @@ function formatMoney(v: unknown): string {
   const n = typeof v === "string" ? Number(v) : typeof v === "number" ? v : NaN;
   if (!Number.isFinite(n)) return "-";
   return `$${n.toFixed(2)}`;
-}
-
-function parseErrorMessage(data: unknown, fallback: string): string {
-  if (typeof data === "object" && data !== null && "error" in data) {
-    const v = (data as { error?: unknown }).error;
-    if (typeof v === "string" && v.trim()) return v;
-  }
-  return fallback;
 }
 
 const STATUS_OPTIONS = ["all", "active", "disabled"] as const;

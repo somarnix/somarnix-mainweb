@@ -10,6 +10,7 @@ import { AuthPageControls } from "../../components/AuthPageControls";
 import { Eye, EyeOff, Lock, Mail, User } from "lucide-react";
 import { useAuth } from "../../contexts/AuthContext";
 import { useLanguage } from "../../contexts/LanguageContext";
+import { GoogleSignInButton } from "../shared/GoogleSignInButton";
 import { toast } from "sonner";
 
 interface RegisterPageProps {
@@ -61,10 +62,21 @@ export function RegisterPage({ onNavigate }: RegisterPageProps) {
   const [verificationCode, setVerificationCode] = useState("");
   const [verifyingCode, setVerifyingCode] = useState(false);
   const [resendingCode, setResendingCode] = useState(false);
-  const [googleReady, setGoogleReady] = useState(false);
 
   useEffect(() => {
     setHasMounted(true);
+  }, []);
+
+  useEffect(() => {
+    if (typeof window === "undefined") return;
+    const url = new URL(window.location.href);
+    const googleError = url.searchParams.get("googleError");
+    if (!googleError) return;
+
+    toast.error(googleError);
+    url.searchParams.delete("googleError");
+    const nextUrl = `${url.pathname}${url.search}${url.hash}`;
+    window.history.replaceState(window.history.state, "", nextUrl);
   }, []);
 
   const [formData, setFormData] = useState({
@@ -213,69 +225,6 @@ export function RegisterPage({ onNavigate }: RegisterPageProps) {
 
   const inVerifyStep = verificationEmail.trim().length > 0;
 
-  useEffect(() => {
-    if (typeof window === "undefined") return;
-    if (window.google?.accounts?.id) {
-      setGoogleReady(true);
-      return;
-    }
-
-    const existing = document.getElementById("google-gsi-script") as HTMLScriptElement | null;
-    if (existing) {
-      const handleLoad = () => setGoogleReady(true);
-      existing.addEventListener("load", handleLoad);
-      return () => {
-        existing.removeEventListener("load", handleLoad);
-      };
-    }
-
-    let active = true;
-    const script = document.createElement("script");
-    script.id = "google-gsi-script";
-    script.src = "https://accounts.google.com/gsi/client";
-    script.async = true;
-    script.defer = true;
-    script.onload = () => {
-      if (active) setGoogleReady(true);
-    };
-    document.head.appendChild(script);
-
-    return () => {
-      active = false;
-    };
-  }, []);
-
-  const handleGoogleAuth = () => {
-    const clientId = process.env.NEXT_PUBLIC_GOOGLE_CLIENT_ID;
-    if (!clientId) {
-      toast.error(t("register.googleNotConfigured"));
-      return;
-    }
-    if (!googleReady || typeof window === "undefined" || !window.google?.accounts?.id) {
-      toast.error(t("register.googleLoading"));
-      return;
-    }
-    window.google.accounts.id.initialize({
-      client_id: clientId,
-      use_fedcm_for_prompt: false,
-      callback: async (response: { credential?: string }) => {
-        const credential = typeof response?.credential === "string" ? response.credential : "";
-        if (!credential) {
-          toast.error(t("register.googleFailed"));
-          return;
-        }
-        const result = await loginWithGoogle(credential);
-        if (!result.success) {
-          toast.error(result.message || t("register.googleFailed"));
-          return;
-        }
-        toast.success(t("register.googleSuccess"));
-        onNavigate("home");
-      },
-    });
-    window.google.accounts.id.prompt();
-  };
-
   if (!hasMounted) {
     return (
       <div className="min-h-screen bg-gradient-to-br from-blue-50 via-purple-50 to-pink-50 dark:from-gray-900 dark:via-gray-900 dark:to-gray-900 flex items-center justify-center py-12 px-4 sm:px-6 lg:px-8">
@@ -303,16 +252,22 @@ export function RegisterPage({ onNavigate }: RegisterPageProps) {
           </div>
 
           {/* Social Registration Buttons */}
-          <div className="space-y-3 mb-6">
-            <Button type="button" variant="outline" className="w-full border-2" onClick={handleGoogleAuth}>
-              <svg className="w-5 h-5 mr-2" viewBox="0 0 24 24">
-                <path fill="currentColor" d="M22.56 12.25c0-.78-.07-1.53-.2-2.25H12v4.26h5.92c-.26 1.37-1.04 2.53-2.21 3.31v2.77h3.57c2.08-1.92 3.28-4.74 3.28-8.09z" />
-                <path fill="currentColor" d="M12 23c2.97 0 5.46-.98 7.28-2.66l-3.57-2.77c-.98.66-2.23 1.06-3.71 1.06-2.86 0-5.29-1.93-6.16-4.53H2.18v2.84C3.99 20.53 7.7 23 12 23z" />
-                <path fill="currentColor" d="M5.84 14.09c-.22-.66-.35-1.36-.35-2.09s.13-1.43.35-2.09V7.07H2.18C1.43 8.55 1 10.22 1 12s.43 3.45 1.18 4.93l2.85-2.22.81-.62z" />
-                <path fill="currentColor" d="M12 5.38c1.62 0 3.06.56 4.21 1.64l3.15-3.15C17.45 2.09 14.97 1 12 1 7.7 1 3.99 3.47 2.18 7.07l3.66 2.84c.87-2.6 3.3-4.53 6.16-4.53z" />
-              </svg>
-              {t("register.google")}
-            </Button>
+          <div className="space-y-3 mb-6 w-full max-w-full">
+            <GoogleSignInButton
+              clientId={process.env.NEXT_PUBLIC_GOOGLE_CLIENT_ID}
+              text="signup_with"
+              loadingLabel={t("register.googleLoading")}
+              unavailableLabel={t("register.googleNotConfigured")}
+              onCredential={async (credential) => {
+                const result = await loginWithGoogle(credential);
+                if (!result.success) {
+                  toast.error(result.message || t("register.googleFailed"));
+                  return;
+                }
+                toast.success(t("register.googleSuccess"));
+                onNavigate("home");
+              }}
+            />
           </div>
 
           {/* Divider */}

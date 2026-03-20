@@ -219,7 +219,7 @@ export function Header({
     code: string;
     flag: string;
     dial: string;
-  }>({ name: "United States", code: "US", flag: "๐บ๐ธ", dial: "+1" });
+  } | null>(null);
   const chatWidgetRef = useRef<HTMLDivElement | null>(null);
   const chatWidgetMessagesRef = useRef<HTMLDivElement | null>(null);
   const notificationRef = useRef<HTMLDivElement | null>(null);
@@ -437,7 +437,10 @@ export function Header({
       if (typeof window === "undefined") return;
       try {
         const raw = localStorage.getItem("edugroit-country");
-        if (!raw) return;
+        if (!raw) {
+          setHeaderCountry(null);
+          return;
+        }
         const parsed = JSON.parse(raw);
         if (parsed?.name && parsed?.cca2 && parsed?.dial) {
           setHeaderCountry({
@@ -446,9 +449,11 @@ export function Header({
             flag: String(parsed.flag ?? "๐"),
             dial: String(parsed.dial),
           });
+          return;
         }
+        setHeaderCountry(null);
       } catch {
-        // ignore
+        setHeaderCountry(null);
       }
     };
 
@@ -510,6 +515,14 @@ export function Header({
     minute: '2-digit',
   });
 };
+
+const hasSelectedCountry = !!headerCountry;
+const showCountrySelector = hasSelectedCountry || isAuthenticated;
+const countryButtonTitle = hasSelectedCountry
+  ? headerCountry?.name ?? ""
+  : language === "km"
+    ? "ជ្រើសរើសប្រទេស"
+    : "Select country";
 
 const normalizeParticipant = (participant?: any): HeaderChatParticipant => {
   const rawLastActive = participant?.presence?.lastActiveAt;
@@ -1549,25 +1562,33 @@ const getChatNoteBadgeClass = (result?: string | null) => {
 
           {/* Right Side Actions */}
           <div className="flex shrink-0 items-center gap-1 sm:gap-2">
-            {/* Country Selector - Desktop: Flag + Code, Mobile: Flag Only (Circular, Big) */}
-            <button
-              className="order-1 flex items-center justify-center rounded-lg transition-colors p-1 sm:order-none sm:p-1.5 lg:rounded-full lg:bg-gray-100 lg:dark:bg-gray-800 lg:px-2.5 lg:py-1.5 lg:gap-1.5 lg:text-xs lg:font-semibold lg:text-gray-700 lg:dark:text-gray-300 lg:hover:bg-gray-200 lg:dark:hover:bg-gray-700"
-              type="button"
-              title={headerCountry.name}
-            >
-              <span className="flex h-7 w-7 sm:h-8 sm:w-8 lg:h-5 lg:w-5 items-center justify-center rounded-full lg:rounded-md overflow-hidden shadow-md lg:shadow-sm border border-white/50 lg:border-none">
-                {headerCountry.flag.startsWith("http") ? (
-                  <img
-                    src={headerCountry.flag}
-                    alt={headerCountry.name}
-                    className="h-full w-full object-cover"
-                  />
-                ) : (
-                  <span className="text-xl lg:text-lg">{headerCountry.flag}</span>
-                )}
-              </span>
-              <span className="hidden lg:inline">{headerCountry.code}</span>
-            </button>
+            {/* Country Selector - hide for guests until a country is selected */}
+            {showCountrySelector ? (
+              <button
+                className="order-1 flex items-center justify-center rounded-lg transition-colors p-1 sm:order-none sm:p-1.5 lg:rounded-full lg:bg-gray-100 lg:dark:bg-gray-800 lg:px-2.5 lg:py-1.5 lg:gap-1.5 lg:text-xs lg:font-semibold lg:text-gray-700 lg:dark:text-gray-300 lg:hover:bg-gray-200 lg:dark:hover:bg-gray-700"
+                type="button"
+                title={countryButtonTitle}
+              >
+                <span className="flex h-7 w-7 sm:h-8 sm:w-8 lg:h-5 lg:w-5 items-center justify-center rounded-full lg:rounded-md overflow-hidden shadow-md lg:shadow-sm border border-white/50 lg:border-none">
+                  {hasSelectedCountry ? (
+                    headerCountry?.flag?.startsWith("http") ? (
+                      <img
+                        src={headerCountry.flag}
+                        alt={headerCountry.name}
+                        className="h-full w-full object-cover"
+                      />
+                    ) : (
+                      <span className="text-xl lg:text-lg">{headerCountry?.flag}</span>
+                    )
+                  ) : (
+                    <Globe className="h-4 w-4 text-gray-600 dark:text-gray-300" />
+                  )}
+                </span>
+                <span className="hidden lg:inline">
+                  {hasSelectedCountry ? headerCountry?.code : language === "km" ? "ប្រទេស" : "Country"}
+                </span>
+              </button>
+            ) : null}
 
           {/* Notification */}
           <div className="relative order-3 sm:order-none" ref={notificationRef}>
@@ -2743,10 +2764,11 @@ const getChatNoteBadgeClass = (result?: string | null) => {
               )}
             </button>
 
-            {/* User Account Icon - Desktop/Tablet */}
+            {/* User Account Icon - Desktop/Tablet ONLY (hidden on mobile) */}
             {isAuthenticated && user ? (
               <div
                 className="relative hidden sm:block"
+                data-header-desktop-account
               >
                 <button
                   onClick={() => setAccountPopupOpen(!accountPopupOpen)}
@@ -2866,7 +2888,7 @@ const getChatNoteBadgeClass = (result?: string | null) => {
                 {/* Mobile Login Button - Icon Only */}
                 <button
                   onClick={() => onNavigate('login')}
-                className="order-5 lg:hidden rounded-lg p-2 text-gray-700 transition-colors hover:text-blue-600 dark:text-gray-300 dark:hover:text-blue-400 hover:bg-gray-100 dark:hover:bg-gray-800 inline-flex sm:order-none"
+                className="order-5 hidden rounded-lg p-2 text-gray-700 transition-colors hover:text-blue-600 dark:text-gray-300 dark:hover:text-blue-400 hover:bg-gray-100 dark:hover:bg-gray-800 sm:order-none sm:inline-flex lg:hidden"
                   title={language === 'km' ? 'แ…แผแแแแ“แธ' : 'Login'}
                 >
                   <User className="w-5 h-5" />
@@ -2874,15 +2896,16 @@ const getChatNoteBadgeClass = (result?: string | null) => {
               </>
             )}
 
-            {/* User Account Icon - Mobile */}
+            {/* User Account Icon - Mobile ONLY (hidden on desktop) */}
             {isAuthenticated && user ? (
               <div
                 className="relative order-5 sm:order-none sm:hidden block"
+                data-header-mobile-account
               >
                 <button
                   onClick={() => setAccountPopupOpen(!accountPopupOpen)}
                   className="rounded-lg p-1.5 hover:bg-gray-100 dark:hover:bg-gray-800 transition-colors"
-                  title={language === 'km' ? 'แแแ“แธ' : 'Account'}
+                  title={language === 'km' ? 'គណនី' : 'Account'}
                 >
                   <ProfileAvatar
                     src={user.avatarUrl}
@@ -2972,7 +2995,7 @@ const getChatNoteBadgeClass = (result?: string | null) => {
             ) : (
               <button
                 onClick={() => onNavigate('login')}
-                className={`order-5 p-2 text-gray-700 dark:text-gray-300 hover:text-blue-600 dark:hover:text-blue-400 transition-colors sm:order-none ${
+                className={`order-5 p-2 text-gray-700 dark:text-gray-300 hover:text-blue-600 dark:hover:text-blue-400 transition-colors sm:hidden ${
                   isDesktopSidebarViewport ? "hidden" : "block"
                 }`}
               >

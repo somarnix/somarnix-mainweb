@@ -13,7 +13,7 @@ export async function GET(req: Request): Promise<Response> {
   if (!auth) {
     return Response.json(
       { loggedIn: false },
-      { status: 401, headers: { "Cache-Control": "no-store" } }
+      { headers: { "Cache-Control": "no-store" } }
     );
   }
 
@@ -30,7 +30,7 @@ export async function GET(req: Request): Promise<Response> {
   if (rows.length === 0) {
     return Response.json(
       { loggedIn: false },
-      { status: 401, headers: { "Cache-Control": "no-store" } }
+      { headers: { "Cache-Control": "no-store" } }
     );
   }
 

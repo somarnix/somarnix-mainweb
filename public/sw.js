@@ -3,20 +3,22 @@ const OFFLINE_URL = "/offline.html";
 
 self.addEventListener("install", (event) => {
   event.waitUntil(
-    caches.open(CACHE_NAME).then((cache) => cache.addAll([OFFLINE_URL]))
+    caches.open(CACHE_NAME).then((cache) => cache.addAll([OFFLINE_URL])),
   );
   self.skipWaiting();
 });
 
 self.addEventListener("activate", (event) => {
   event.waitUntil(
-    caches.keys().then((keys) =>
-      Promise.all(
-        keys
-          .filter((key) => key !== CACHE_NAME)
-          .map((key) => caches.delete(key))
-      )
-    )
+    caches
+      .keys()
+      .then((keys) =>
+        Promise.all(
+          keys
+            .filter((key) => key !== CACHE_NAME)
+            .map((key) => caches.delete(key)),
+        ),
+      ),
   );
   self.clients.claim();
 });
@@ -27,9 +29,24 @@ self.addEventListener("fetch", (event) => {
   const requestUrl = new URL(event.request.url);
   if (requestUrl.origin !== self.location.origin) return;
 
+  // NEVER cache API requests - always go to network
+  // This prevents stale authenticated data after logout
+  if (requestUrl.pathname.startsWith("/api/")) {
+    event.respondWith(
+      fetch(event.request).catch(() => {
+        // Return a network error response for failed API calls
+        return new Response(JSON.stringify({ error: "Network error" }), {
+          status: 503,
+          headers: { "Content-Type": "application/json" },
+        });
+      }),
+    );
+    return;
+  }
+
   if (event.request.mode === "navigate") {
     event.respondWith(
-      fetch(event.request).catch(() => caches.match(OFFLINE_URL))
+      fetch(event.request).catch(() => caches.match(OFFLINE_URL)),
     );
     return;
   }
@@ -42,10 +59,12 @@ self.addEventListener("fetch", (event) => {
           return response;
         }
         const responseClone = response.clone();
-        caches.open(CACHE_NAME).then((cache) => cache.put(event.request, responseClone));
+        caches
+          .open(CACHE_NAME)
+          .then((cache) => cache.put(event.request, responseClone));
         return response;
       });
-    })
+    }),
   );
 });
 
@@ -68,17 +87,19 @@ self.addEventListener("notificationclick", (event) => {
   event.notification.close();
   const targetUrl = event.notification.data?.url || "/";
   event.waitUntil(
-    clients.matchAll({ type: "window", includeUncontrolled: true }).then((clientList) => {
-      for (const client of clientList) {
-        if ("focus" in client) {
-          client.navigate(targetUrl);
-          return client.focus();
+    clients
+      .matchAll({ type: "window", includeUncontrolled: true })
+      .then((clientList) => {
+        for (const client of clientList) {
+          if ("focus" in client) {
+            client.navigate(targetUrl);
+            return client.focus();
+          }
         }
-      }
-      if (clients.openWindow) {
-        return clients.openWindow(targetUrl);
-      }
-      return undefined;
-    })
+        if (clients.openWindow) {
+          return clients.openWindow(targetUrl);
+        }
+        return undefined;
+      }),
   );
 });

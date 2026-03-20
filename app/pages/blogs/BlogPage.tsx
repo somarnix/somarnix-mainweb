@@ -103,7 +103,7 @@ export function BlogPage({ initialSellerId }: BlogPageProps) {
   const searchParams = useSearchParams();
   const isAppShell = useAppShellMode();
 
-  const [sellerId, setSellerId] = React.useState<number>(1);
+  const [sellerId, setSellerId] = React.useState<number | null>(null);
   const [activeServiceTab, setActiveServiceTab] = React.useState<ServiceTab>("ai");
   const [serviceCards, setServiceCards] = React.useState<ServiceCard[]>([]);
   const [serviceLoading, setServiceLoading] = React.useState(false);
@@ -135,13 +135,18 @@ export function BlogPage({ initialSellerId }: BlogPageProps) {
       return;
     }
 
-    setSellerId(1);
+    setSellerId(null);
   }, [initialSellerId, searchParams, user?.id]);
 
   React.useEffect(() => {
     let active = true;
 
     const loadProfile = async () => {
+      if (!sellerId) {
+        if (!active) return;
+        setProfile(null);
+        return;
+      }
       try {
         setProfileLoading(true);
         const res = await fetch(`/api/blog/profile?sellerId=${sellerId}`, {
@@ -170,6 +175,11 @@ export function BlogPage({ initialSellerId }: BlogPageProps) {
     let active = true;
 
     const loadServices = async () => {
+      if (!sellerId) {
+        if (!active) return;
+        setServiceCards([]);
+        return;
+      }
       try {
         setServiceLoading(true);
         const category = categoryMap[activeServiceTab];
@@ -342,41 +352,45 @@ export function BlogPage({ initialSellerId }: BlogPageProps) {
   const sellerBio = profile?.seller.bio?.trim() || "";
   const activeServiceTabLabel = getServiceTabLabel(activeServiceTab);
 
+  if (!sellerId) {
+    return null;
+  }
+
   return (
     <div
       className={`min-h-full bg-gradient-to-br from-amber-50 via-slate-100 to-emerald-50 dark:from-slate-950 dark:via-slate-950 dark:to-slate-900 ${
         isAppShell ? "pb-8 pt-2 sm:pt-4" : ""
       }`}
     >
-      <div className="mx-auto w-full max-w-7xl px-4 py-6 sm:px-5 sm:py-8 lg:px-8 lg:py-10">
-        <section className="mb-6 overflow-hidden rounded-[2rem] border border-slate-200/80 bg-white/95 shadow-[0_24px_60px_-36px_rgba(15,23,42,0.45)] backdrop-blur dark:border-slate-800 dark:bg-slate-900/95 sm:mb-8">
-          <div className="h-20 bg-gradient-to-r from-blue-600 via-indigo-500 to-violet-500 sm:h-24" />
+      <div className="mx-auto w-full max-w-7xl px-3 py-4 sm:px-5 sm:py-8 lg:px-8 lg:py-10">
+        <section className="mb-4 overflow-hidden rounded-[1.5rem] border border-slate-200/80 bg-white/95 shadow-[0_24px_60px_-36px_rgba(15,23,42,0.45)] backdrop-blur dark:border-slate-800 dark:bg-slate-900/95 sm:mb-8 sm:rounded-[2rem]">
+          <div className="h-16 bg-gradient-to-r from-blue-600 via-indigo-500 to-violet-500 sm:h-24" />
 
-          <div className="px-4 pb-5 pt-0 sm:px-6 sm:pb-6">
-            <div className="flex flex-col gap-4">
-              <div className="flex flex-col gap-4 sm:flex-row sm:items-end sm:justify-between">
-                <div className="flex min-w-0 items-start gap-4">
-                  <div className="-mt-10 shrink-0 rounded-[1.75rem] bg-white p-1.5 shadow-[0_12px_30px_rgba(15,23,42,0.12)] ring-1 ring-slate-200/70 dark:bg-slate-900 dark:ring-slate-700 sm:-mt-12 sm:p-2">
+          <div className="px-3 pb-4 pt-0 sm:px-6 sm:pb-6">
+            <div className="flex flex-col gap-3 sm:gap-4">
+              <div className="flex flex-col gap-3 sm:flex-row sm:items-end sm:justify-between">
+                <div className="flex min-w-0 items-start gap-3 sm:gap-4">
+                  <div className="-mt-8 shrink-0 rounded-[1.5rem] bg-white p-1 shadow-[0_12px_30px_rgba(15,23,42,0.12)] ring-1 ring-slate-200/70 dark:bg-slate-900 dark:ring-slate-700 sm:-mt-12 sm:p-2 sm:rounded-[1.75rem]">
                     <ProfileAvatar
                       src={profile?.seller.avatarUrl}
                       alt={sellerName}
                       fallback={avatarInitials}
                       borderUrl={profile?.seller.avatarBorderUrl}
-                      className="h-20 w-20 sm:h-24 sm:w-24"
+                      className="h-16 w-16 sm:h-24 sm:w-24"
                       contentClassName={
                         profile?.seller.avatarBorderUrl
                           ? "shadow-lg"
                           : "border-4 border-white shadow-lg dark:border-slate-900"
                       }
-                      fallbackClassName="text-xl sm:text-2xl"
+                      fallbackClassName="text-lg sm:text-2xl"
                     />
                   </div>
 
                   <div className="min-w-0 pt-2 sm:pt-0">
-                    <div className="truncate text-2xl font-semibold tracking-tight text-slate-900 dark:text-white sm:text-3xl">
+                    <div className="truncate text-xl font-semibold tracking-tight text-slate-900 dark:text-white sm:text-2xl md:text-3xl">
                       {sellerName}
                     </div>
-                    <div className="mt-1 text-sm text-slate-500 dark:text-slate-300">
+                    <div className="mt-1 text-xs text-slate-500 dark:text-slate-300 sm:text-sm">
                       {sellerMeta}
                     </div>
                   </div>
@@ -386,7 +400,7 @@ export function BlogPage({ initialSellerId }: BlogPageProps) {
                   <button
                     onClick={handleToggleFollow}
                     disabled={!profile?.viewer.canFollow || followLoading}
-                    className={`min-h-11 rounded-full px-5 py-2 text-sm font-semibold transition ${
+                    className={`min-h-10 rounded-full px-4 py-2 text-xs font-semibold transition sm:text-sm ${
                       profile?.viewer.isFollowing
                         ? "bg-slate-200 text-slate-700 hover:bg-slate-300 dark:bg-slate-800 dark:text-slate-200"
                         : "bg-blue-600 text-white hover:bg-blue-700"
@@ -398,14 +412,14 @@ export function BlogPage({ initialSellerId }: BlogPageProps) {
                         ? t("blog.following")
                         : t("blog.follow")}
                   </button>
-                  <button className="min-h-11 rounded-full bg-slate-900 px-5 py-2 text-sm font-semibold text-white transition hover:bg-slate-800 dark:bg-white dark:text-slate-900 dark:hover:bg-slate-100">
+                  <button className="min-h-10 rounded-full bg-slate-900 px-4 py-2 text-xs font-semibold text-white transition hover:bg-slate-800 dark:bg-white dark:text-slate-900 dark:hover:bg-slate-100 sm:text-sm">
                     {t("blog.message")}
                   </button>
                 </div>
               </div>
 
               {sellerBio ? (
-                <p className="max-w-3xl text-sm leading-6 text-slate-600 dark:text-slate-300">
+                <p className="max-w-full text-xs leading-5 text-slate-600 dark:text-slate-300 sm:text-sm sm:max-w-3xl sm:leading-6">
                   {sellerBio || t("blog.noDescription")}
                 </p>
               ) : null}
@@ -413,44 +427,44 @@ export function BlogPage({ initialSellerId }: BlogPageProps) {
           </div>
         </section>
 
-        <div className="grid gap-6 xl:grid-cols-[320px_minmax(0,1fr)]">
-          <aside className="space-y-6 xl:sticky xl:top-28 xl:self-start">
-            <section className="rounded-[1.75rem] border border-slate-200/70 bg-white/90 p-5 shadow-[0_18px_45px_-36px_rgba(15,23,42,0.55)] backdrop-blur dark:border-slate-800 dark:bg-slate-900 sm:p-6">
-              <div className="grid grid-cols-2 gap-3 text-center">
-                <div className="rounded-2xl border border-slate-100 bg-slate-50/60 px-3 py-4 dark:border-slate-800 dark:bg-slate-950/40">
-                  <div className="text-xl font-bold text-slate-900 dark:text-white">
+        <div className="grid gap-4 xl:grid-cols-[280px_minmax(0,1fr)]">
+          <aside className="space-y-4 xl:sticky xl:top-20 xl:self-start">
+            <section className="rounded-[1.5rem] border border-slate-200/70 bg-white/90 p-4 shadow-[0_18px_45px_-36px_rgba(15,23,42,0.55)] backdrop-blur dark:border-slate-800 dark:bg-slate-900 sm:rounded-[1.75rem] sm:p-6">
+              <div className="grid grid-cols-2 gap-2 text-center sm:gap-3">
+                <div className="rounded-xl border border-slate-100 bg-slate-50/60 px-2 py-3 dark:border-slate-800 dark:bg-slate-950/40 sm:rounded-2xl sm:px-3 sm:py-4">
+                  <div className="text-lg font-bold text-slate-900 dark:text-white sm:text-xl">
                     {formatCompact(profile?.stats.followers ?? 0)}
                   </div>
-                  <div className="mt-1 text-xs text-slate-500">{t("blog.followersLabel")}</div>
+                  <div className="mt-1 text-[10px] text-slate-500 sm:text-xs">{t("blog.followersLabel")}</div>
                 </div>
-                <div className="rounded-2xl border border-slate-100 bg-slate-50/60 px-3 py-4 dark:border-slate-800 dark:bg-slate-950/40">
-                  <div className="text-xl font-bold text-slate-900 dark:text-white">
+                <div className="rounded-xl border border-slate-100 bg-slate-50/60 px-2 py-3 dark:border-slate-800 dark:bg-slate-950/40 sm:rounded-2xl sm:px-3 sm:py-4">
+                  <div className="text-lg font-bold text-slate-900 dark:text-white sm:text-xl">
                     {formatCompact(profile?.stats.following ?? 0)}
                   </div>
-                  <div className="mt-1 text-xs text-slate-500">{t("blog.followingLabel")}</div>
+                  <div className="mt-1 text-[10px] text-slate-500 sm:text-xs">{t("blog.followingLabel")}</div>
                 </div>
               </div>
 
-              <div className="mt-5 space-y-3 text-sm text-slate-600 dark:text-slate-300">
-                <div className="flex items-center justify-between border-b border-slate-100 pb-2 dark:border-slate-800">
+              <div className="mt-4 space-y-2 text-xs text-slate-600 dark:text-slate-300 sm:mt-5 sm:space-y-3 sm:text-sm">
+                <div className="flex items-center justify-between border-b border-slate-100 pb-2 text-xs dark:border-slate-800">
                   <span>{t("blog.memberSince")}</span>
                   <span className="font-semibold text-slate-900 dark:text-white">
                     {formatMemberSince(profile?.seller.memberSince ?? null, language)}
                   </span>
                 </div>
-                <div className="flex items-center justify-between border-b border-slate-100 pb-2 dark:border-slate-800">
+                <div className="flex items-center justify-between border-b border-slate-100 pb-2 text-xs dark:border-slate-800">
                   <span>{t("blog.successfulDelivery")}</span>
                   <span className="font-semibold text-emerald-600">
                     {(profile?.stats.successfulDelivery ?? 0).toFixed(2)}%
                   </span>
                 </div>
-                <div className="flex items-center justify-between border-b border-slate-100 pb-2 dark:border-slate-800">
+                <div className="flex items-center justify-between border-b border-slate-100 pb-2 text-xs dark:border-slate-800">
                   <span>{t("blog.totalLifetimeOrders")}</span>
                   <span className="font-semibold text-slate-900 dark:text-white">
                     {formatCompact(profile?.stats.totalLifetimeOrders ?? 0)}
                   </span>
                 </div>
-                <div className="flex items-center justify-between">
+                <div className="flex items-center justify-between text-xs">
                   <span>{t("blog.allTimeRating")}</span>
                   <span className="font-semibold text-emerald-600">
                     {(profile?.stats.allTimeRating ?? 0).toFixed(2)}
@@ -459,29 +473,29 @@ export function BlogPage({ initialSellerId }: BlogPageProps) {
               </div>
             </section>
 
-            <section className="rounded-[1.75rem] border border-slate-200 bg-white p-5 shadow-[0_18px_45px_-36px_rgba(15,23,42,0.55)] dark:border-slate-800 dark:bg-slate-900">
-              <div className="text-base font-semibold text-slate-900 dark:text-white">
+            <section className="rounded-[1.5rem] border border-slate-200 bg-white p-4 shadow-[0_18px_45px_-36px_rgba(15,23,42,0.55)] dark:border-slate-800 dark:bg-slate-900 sm:rounded-[1.75rem] sm:p-6">
+              <div className="text-sm font-semibold text-slate-900 dark:text-white sm:text-base">
                 {t("blog.description")}
               </div>
-              <p className="mt-3 text-sm leading-6 text-slate-600 dark:text-slate-300">
+              <p className="mt-2 text-xs leading-5 text-slate-600 dark:text-slate-300 sm:mt-3 sm:text-sm sm:leading-6">
                 {sellerBio || t("blog.noDescription")}
               </p>
             </section>
           </aside>
 
-          <section className="space-y-6">
-            <div className="rounded-[1.75rem] border border-slate-200 bg-white p-4 shadow-[0_18px_45px_-36px_rgba(15,23,42,0.55)] dark:border-slate-800 dark:bg-slate-900 sm:p-6">
+          <section className="space-y-4 sm:space-y-6">
+            <div className="rounded-[1.5rem] border border-slate-200 bg-white p-3 shadow-[0_18px_45px_-36px_rgba(15,23,42,0.55)] dark:border-slate-800 dark:bg-slate-900 sm:rounded-[1.75rem] sm:p-6">
               <div className="flex flex-col gap-1">
-                <div className="text-base font-semibold text-slate-900 dark:text-white">
+                <div className="text-sm font-semibold text-slate-900 dark:text-white sm:text-base">
                   {t("blog.allServices")}
                 </div>
-                <div className="text-sm text-slate-500 dark:text-slate-400">
+                <div className="text-xs text-slate-500 dark:text-slate-400 sm:text-sm">
                   {t("blog.allServicesDesc")}
                 </div>
               </div>
 
-              <div className="-mx-1 mt-5 overflow-x-auto pb-1">
-                <div className="flex min-w-max items-center gap-2 px-1 text-sm">
+              <div className="-mx-1 mt-4 overflow-x-auto pb-1 sm:mt-5">
+                <div className="flex min-w-max items-center gap-1.5 px-1 text-xs sm:text-sm">
                   {serviceTabs.map((tab) => {
                     const active = tab === activeServiceTab;
 
@@ -491,8 +505,8 @@ export function BlogPage({ initialSellerId }: BlogPageProps) {
                         onClick={() => setActiveServiceTab(tab)}
                         className={
                           active
-                            ? "rounded-full bg-red-50 px-4 py-2 font-semibold text-red-600 ring-1 ring-red-100 dark:bg-red-500/10 dark:text-red-300 dark:ring-red-500/20"
-                            : "rounded-full px-4 py-2 text-slate-500 transition hover:bg-slate-100 dark:hover:bg-slate-800"
+                            ? "rounded-full bg-red-50 px-3 py-1.5 font-semibold text-red-600 ring-1 ring-red-100 dark:bg-red-500/10 dark:text-red-300 dark:ring-red-500/20 sm:px-4 sm:py-2"
+                            : "rounded-full px-3 py-1.5 text-slate-500 transition hover:bg-slate-100 dark:hover:bg-slate-800 sm:px-4 sm:py-2"
                         }
                       >
                         {getServiceTabLabel(tab)}
@@ -502,20 +516,20 @@ export function BlogPage({ initialSellerId }: BlogPageProps) {
                 </div>
               </div>
 
-              <div className="mt-5 grid gap-3 lg:grid-cols-[minmax(0,1fr)_220px]">
-                <div className="flex min-h-12 items-center gap-3 rounded-2xl border border-slate-200 bg-slate-50 px-4 py-2 text-sm text-slate-500 shadow-inner dark:border-slate-700 dark:bg-slate-950/50">
-                  <span className="inline-flex h-8 w-8 items-center justify-center rounded-full bg-white text-[10px] font-semibold text-slate-500 dark:bg-slate-900 dark:text-slate-300">
+              <div className="mt-4 grid gap-2 sm:mt-5 sm:grid-cols-2">
+                <div className="flex min-h-10 items-center gap-2 rounded-xl border border-slate-200 bg-slate-50 px-3 py-2 text-xs text-slate-500 shadow-inner dark:border-slate-700 dark:bg-slate-950/50 sm:min-h-12 sm:gap-3 sm:px-4 sm:py-2 sm:text-sm">
+                  <span className="inline-flex h-6 w-6 shrink-0 items-center justify-center rounded-full bg-white text-[9px] font-semibold text-slate-500 dark:bg-slate-900 dark:text-slate-300 sm:h-8 sm:w-8 sm:text-[10px]">
                     {t("blog.find")}
                   </span>
                   <input
                     value={searchProduct}
                     onChange={(event) => setSearchProduct(event.target.value)}
                     placeholder={t("blog.findAllBrandsIn", { category: activeServiceTabLabel })}
-                    className="w-full bg-transparent text-sm text-slate-600 placeholder:text-slate-400 focus:outline-none dark:text-slate-200"
+                    className="w-full bg-transparent text-xs text-slate-600 placeholder:text-slate-400 focus:outline-none dark:text-slate-200 sm:text-sm"
                   />
                 </div>
 
-                <div className="flex min-h-12 items-center justify-between rounded-2xl border border-slate-200 bg-white px-4 py-2 text-sm text-slate-600 dark:border-slate-700 dark:bg-slate-950/50 dark:text-slate-200">
+                <div className="flex min-h-10 items-center justify-between rounded-xl border border-slate-200 bg-white px-3 py-2 text-xs text-slate-600 dark:border-slate-700 dark:bg-slate-950/50 dark:text-slate-200 sm:min-h-12 sm:px-4 sm:py-2 sm:text-sm">
                   <select
                     value={serviceFilter}
                     onChange={(event) =>
@@ -528,7 +542,7 @@ export function BlogPage({ initialSellerId }: BlogPageProps) {
                           | "outstock"
                       )
                     }
-                    className="w-full bg-transparent text-sm text-slate-600 focus:outline-none dark:text-slate-200"
+                    className="w-full bg-transparent text-xs text-slate-600 focus:outline-none dark:text-slate-200 sm:text-sm"
                   >
                     <option value="all">{t("blog.filter.all")}</option>
                     <option value="free">{t("blog.filter.free")}</option>
@@ -540,38 +554,38 @@ export function BlogPage({ initialSellerId }: BlogPageProps) {
               </div>
 
               {activeServiceTab === "courses" && (
-                <div className="mt-3 grid gap-3 md:grid-cols-2">
-                  <div className="flex min-h-12 items-center gap-2 rounded-2xl border border-slate-200 bg-slate-50 px-4 py-2 text-sm text-slate-500 dark:border-slate-700 dark:bg-slate-950/50">
+                <div className="mt-3 grid gap-2 sm:mt-4 sm:grid-cols-2">
+                  <div className="flex min-h-10 items-center gap-2 rounded-xl border border-slate-200 bg-slate-50 px-3 py-2 text-xs text-slate-500 dark:border-slate-700 dark:bg-slate-950/50 sm:min-h-12 sm:gap-3 sm:px-4 sm:py-2 sm:text-sm">
                     <span className="font-semibold text-slate-500">{t("blog.product")}</span>
                     <input
                       value={searchProduct}
                       onChange={(event) => setSearchProduct(event.target.value)}
                       placeholder={t("blog.searchProductSlug")}
-                      className="w-full bg-transparent text-sm text-slate-600 placeholder:text-slate-400 focus:outline-none dark:text-slate-200"
+                      className="w-full bg-transparent text-xs text-slate-600 placeholder:text-slate-400 focus:outline-none dark:text-slate-200 sm:text-sm"
                     />
                   </div>
 
-                  <div className="flex min-h-12 items-center gap-2 rounded-2xl border border-slate-200 bg-slate-50 px-4 py-2 text-sm text-slate-500 dark:border-slate-700 dark:bg-slate-950/50">
+                  <div className="flex min-h-10 items-center gap-2 rounded-xl border border-slate-200 bg-slate-50 px-3 py-2 text-xs text-slate-500 dark:border-slate-700 dark:bg-slate-950/50 sm:min-h-12 sm:gap-3 sm:px-4 sm:py-2 sm:text-sm">
                     <span className="font-semibold text-slate-500">{t("blog.video")}</span>
                     <input
                       value={searchVideo}
                       onChange={(event) => setSearchVideo(event.target.value)}
                       placeholder={t("blog.searchVideoTitle")}
-                      className="w-full bg-transparent text-sm text-slate-600 placeholder:text-slate-400 focus:outline-none dark:text-slate-200"
+                      className="w-full bg-transparent text-xs text-slate-600 placeholder:text-slate-400 focus:outline-none dark:text-slate-200 sm:text-sm"
                     />
                   </div>
                 </div>
               )}
 
-              <div className="mt-6 grid grid-cols-1 gap-4 sm:grid-cols-2 xl:grid-cols-3 2xl:grid-cols-4">
+              <div className="mt-4 grid grid-cols-2 gap-3 sm:mt-6 sm:grid-cols-2 sm:gap-4 lg:grid-cols-3 xl:grid-cols-4">
                 {serviceLoading && (
-                  <div className="col-span-full rounded-2xl border border-dashed border-slate-200 bg-slate-50 px-4 py-10 text-center text-sm text-slate-500 dark:border-slate-700 dark:bg-slate-950/40">
+                  <div className="col-span-full rounded-2xl border border-dashed border-slate-200 bg-slate-50 px-4 py-8 text-center text-xs text-slate-500 dark:border-slate-700 dark:bg-slate-950/40 sm:py-10 sm:text-sm">
                     {t("blog.loadingServices")}
                   </div>
                 )}
 
                 {!serviceLoading && filteredCards.length === 0 && (
-                  <div className="col-span-full rounded-2xl border border-dashed border-slate-200 bg-slate-50 px-4 py-10 text-center text-sm text-slate-500 dark:border-slate-700 dark:bg-slate-950/40">
+                  <div className="col-span-full rounded-2xl border border-dashed border-slate-200 bg-slate-50 px-4 py-8 text-center text-xs text-slate-500 dark:border-slate-700 dark:bg-slate-950/40 sm:py-10 sm:text-sm">
                     {t("blog.noServicesFound")}
                   </div>
                 )}
@@ -601,4 +615,3 @@ export function BlogPage({ initialSellerId }: BlogPageProps) {
     </div>
   );
 }
-

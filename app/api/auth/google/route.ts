@@ -1,5 +1,6 @@
 import { db } from "@/lib/db";
 import { buildSessionCookie, getJwtSecret } from "@/lib/security";
+import { getSiteUrl } from "@/app/lib/siteUrl";
 import jwt from "jsonwebtoken";
 import type { ResultSetHeader, RowDataPacket } from "mysql2";
 
@@ -21,10 +22,151 @@ type UserRow = RowDataPacket & {
   ban_until?: string | Date | null;
 };
 
+type ParsedGoogleRequest = {
+  credential: string | null;
+  deviceId: string | null;
+  deviceName: string | null;
+  returnPath: string | null;
+  csrfToken: string | null;
+  redirectFlow: boolean;
+};
+
 function normalizeString(value: unknown): string | null {
   if (typeof value !== "string") return null;
   const trimmed = value.trim();
   return trimmed.length ? trimmed : null;
+}
+
+function sanitizePath(value: string | null, fallback: string): string {
+  if (!value) return fallback;
+  if (!value.startsWith("/") || value.startsWith("//")) return fallback;
+  return value;
+}
+
+function parseCookieValue(cookieHeader: string | null, key: string): string | null {
+  if (!cookieHeader) return null;
+  const prefix = `${key}=`;
+  for (const part of cookieHeader.split(";")) {
+    const trimmed = part.trim();
+    if (trimmed.startsWith(prefix)) {
+      return trimmed.slice(prefix.length);
+    }
+  }
+  return null;
+}
+
+function getPublicOrigin(req: Request): string {
+  const forwardedHost = normalizeString(req.headers.get("x-forwarded-host"));
+  const forwardedProto = normalizeString(req.headers.get("x-forwarded-proto"));
+  if (forwardedHost) {
+    return getSiteUrl(`${forwardedProto === "http" ? "http" : "https"}://${forwardedHost}`);
+  }
+
+  const origin = normalizeString(req.headers.get("origin"));
+  if (origin) {
+    return getSiteUrl(origin);
+  }
+
+  const host = normalizeString(req.headers.get("host"));
+  if (host) {
+    const proto =
+      forwardedProto === "http" || host.startsWith("localhost") || host.startsWith("127.0.0.1")
+        ? "http"
+        : "https";
+    return getSiteUrl(`${proto}://${host}`);
+  }
+
+  return getSiteUrl();
+}
+
+function buildPublicUrl(req: Request, path: string | null, fallback: string): URL {
+  return new URL(sanitizePath(path, fallback), `${getPublicOrigin(req)}/`);
+}
+
+function decodeButtonState(value: string | null): {
+  deviceId: string | null;
+  deviceName: string | null;
+  returnPath: string | null;
+} {
+  if (!value) {
+    return { deviceId: null, deviceName: null, returnPath: null };
+  }
+
+  try {
+    const decoded = JSON.parse(decodeURIComponent(value)) as Record<string, unknown>;
+    return {
+      deviceId: normalizeString(decoded.deviceId),
+      deviceName: normalizeString(decoded.deviceName),
+      returnPath: normalizeString(decoded.returnPath),
+    };
+  } catch {
+    return { deviceId: null, deviceName: null, returnPath: null };
+  }
+}
+
+async function parseGoogleRequest(req: Request): Promise<ParsedGoogleRequest> {
+  const contentType = req.headers.get("content-type") || "";
+
+  if (contentType.includes("application/json")) {
+    const raw = await req.json().catch(() => null);
+    const body = raw && typeof raw === "object" ? (raw as Record<string, unknown>) : {};
+    return {
+      credential: normalizeString(body.credential),
+      deviceId: normalizeString(body.deviceId),
+      deviceName: normalizeString(body.deviceName),
+      returnPath: null,
+      csrfToken: null,
+      redirectFlow: false,
+    };
+  }
+
+  if (
+    contentType.includes("application/x-www-form-urlencoded") ||
+    contentType.includes("multipart/form-data")
+  ) {
+    const form = await req.formData().catch(() => null);
+    const credential = normalizeString(form?.get("credential"));
+    const state = decodeButtonState(normalizeString(form?.get("state")));
+    return {
+      credential,
+      deviceId: state.deviceId,
+      deviceName: state.deviceName,
+      returnPath: state.returnPath,
+      csrfToken: normalizeString(form?.get("g_csrf_token")),
+      redirectFlow: true,
+    };
+  }
+
+  return {
+    credential: null,
+    deviceId: null,
+    deviceName: null,
+    returnPath: null,
+    csrfToken: null,
+    redirectFlow: false,
+  };
+}
+
+function jsonError(
+  redirectFlow: boolean,
+  req: Request,
+  returnPath: string | null,
+  error: string,
+  status: number,
+  extra: Record<string, unknown> = {}
+): Response {
+  if (!redirectFlow) {
+    return Response.json({ error, ...extra }, { status });
+  }
+
+  const target = buildPublicUrl(req, returnPath, "/login");
+  target.searchParams.set("googleError", error);
+  return new Response(null, {
+    status: 303,
+    headers: {
+      Location: target.toString(),
+    },
+  });
 }
 
 function toSafeUsernameBase(email: string): string {
@@ -77,21 +219,25 @@ async function ensureUniqueUsername(email: string): Promise<string> {
 
 export async function POST(req: Request): Promise<Response> {
   try {
-    const raw = await req.json().catch(() => null);
-    const body = raw && typeof raw === "object" ? (raw as Record<string, unknown>) : {};
-    const credential = normalizeString(body.credential);
-    const deviceId = normalizeString(body.deviceId);
-    const deviceName = normalizeString(body.deviceName);
+    const { credential, deviceId, deviceName, returnPath, csrfToken, redirectFlow } =
+      await parseGoogleRequest(req);
+
+    if (redirectFlow) {
+      const csrfCookie = parseCookieValue(req.headers.get("cookie"), "g_csrf_token");
+      if (!csrfCookie || !csrfToken || csrfCookie !== csrfToken) {
+        return jsonError(redirectFlow, req, returnPath, "Google sign-in expired. Please try again.", 400);
+      }
+    }
 
     if (!credential) {
-      return Response.json({ error: "Google credential is required" }, { status: 400 });
+      return jsonError(redirectFlow, req, returnPath, "Google credential is required", 400);
     }
 
     const tokenInfoRes = await fetch(
       `https://oauth2.googleapis.com/tokeninfo?id_token=${encodeURIComponent(credential)}`
     );
     if (!tokenInfoRes.ok) {
-      return Response.json({ error: "Invalid Google credential" }, { status: 401 });
+      return jsonError(redirectFlow, req, returnPath, "Invalid Google credential", 401);
     }
     const tokenInfo = (await tokenInfoRes.json()) as GoogleTokenInfo;
 
@@ -102,13 +248,16 @@ export async function POST(req: Request): Promise<Response> {
       process.env.GOOGLE_CLIENT_ID ?? process.env.NEXT_PUBLIC_GOOGLE_CLIENT_ID
     );
     if (!expectedAud) {
-      return Response.json(
-        { error: "Google login is not configured (missing GOOGLE_CLIENT_ID)." },
-        { status: 500 }
+      return jsonError(
+        redirectFlow,
+        req,
+        returnPath,
+        "Google login is not configured (missing GOOGLE_CLIENT_ID).",
+        500
       );
     }
     if (!email || !googleSub || !emailVerified || tokenInfo.aud !== expectedAud) {
-      return Response.json({ error: "Google account verification failed" }, { status: 401 });
+      return jsonError(redirectFlow, req, returnPath, "Google account verification failed", 401);
     }
 
     const usersHasBanUntil = await hasColumn("users", "ban_until");
@@ -132,18 +281,19 @@ export async function POST(req: Request): Promise<Response> {
     if (rows.length > 0) {
       const user = rows[0];
       if (user.deleted_at) {
-        return Response.json(
-          { error: "This email belongs to a deleted account." },
-          { status: 403 }
-        );
+        return jsonError(redirectFlow, req, returnPath, "This email belongs to a deleted account.", 403);
       }
       if (Number(user.is_active) !== 1) {
         if (usersHasBanUntil && user.ban_until) {
           const banUntilDate = new Date(user.ban_until);
           if (Number.isNaN(banUntilDate.getTime()) || banUntilDate.getTime() > Date.now()) {
-            return Response.json(
-              { error: "This account is banned.", code: "ACCOUNT_BANNED" },
-              { status: 403 }
+            return jsonError(
+              redirectFlow,
+              req,
+              returnPath,
+              "This account is banned.",
+              403,
+              { code: "ACCOUNT_BANNED" }
             );
           }
           const clearParts: string[] = ["is_active = 1", "ban_until = NULL"];
@@ -159,9 +309,13 @@ export async function POST(req: Request): Promise<Response> {
             [user.id]
           );
         } else {
-          return Response.json(
-            { error: "This account is banned.", code: "ACCOUNT_BANNED" },
-            { status: 403 }
+          return jsonError(
+            redirectFlow,
+            req,
+            returnPath,
+            "This account is banned.",
+            403,
+            { code: "ACCOUNT_BANNED" }
           );
         }
       }
@@ -241,9 +395,13 @@ export async function POST(req: Request): Promise<Response> {
     let loginDeviceRowId: number | null = null;
     if (hasLoginDevicesTable && hasLoginSettingsTable) {
       if (!deviceId) {
-        return Response.json(
-          { error: "Device ID is required for login.", code: "LOGIN_DEVICE_REQUIRED" },
-          { status: 400 }
+        return jsonError(
+          redirectFlow,
+          req,
+          returnPath,
+          "Device ID is required for login.",
+          400,
+          { code: "LOGIN_DEVICE_REQUIRED" }
         );
       }
 
@@ -297,13 +455,16 @@ export async function POST(req: Request): Promise<Response> {
         );
         const totalDevices = Number(countRows[0]?.total ?? 0);
         if (totalDevices >= maxDevices) {
-          return Response.json(
+          return jsonError(
+            redirectFlow,
+            req,
+            returnPath,
+            `Login device limit reached (${maxDevices}).`,
+            403,
             {
-              error: `Login device limit reached (${maxDevices}).`,
               code: "ACCOUNT_LOGIN_DEVICE_LIMIT",
               maxDevices,
-            },
-            { status: 403 }
+            }
           );
         }
         const [insertDevice] = await db.query<ResultSetHeader>(
@@ -323,6 +484,17 @@ export async function POST(req: Request): Promise<Response> {
       jwtSecret,
       { expiresIn: "7d" }
     );
+
+    if (redirectFlow) {
+      const target = buildPublicUrl(req, returnPath, "/");
+      return new Response(null, {
+        status: 303,
+        headers: {
+          Location: target.toString(),
+          "Set-Cookie": buildSessionCookie(token),
+        },
+      });
+    }
 
     return new Response(
       JSON.stringify({ success: true, user: { id: userId, email, role } }),

@@ -23,8 +23,8 @@ export const securityHeaders = [
     value: 'nosniff',
   },
   {
-    key: 'X-DNS-Prefetch-Control',
-    value: 'default-src \'self\'',
+    key: 'X-Permitted-Cross-Domain-Policies',
+    value: 'none',
   },
   {
     key: 'Referrer-Policy',
@@ -38,14 +38,17 @@ export const securityHeaders = [
 
 export const contentSecurityPolicy = {
   'default-src': ["'self'"],
-  'script-src': ["'self'", "'unsafe-eval'", "'unsafe-inline'"],
-  'style-src': ["'self'", "'unsafe-inline'"],
-  'img-src': ["'self'", 'blob:', 'data:', 'https:'],
-  'font-src': ["'self'"],
-  'connect-src': ["'self'", 'https:'],
+  'script-src': ["'self'", "'unsafe-eval'", "'unsafe-inline'", 'https://accounts.google.com', 'https://www.google.com', 'https://www.gstatic.com'],
+  'script-src-elem': ["'self'", "'unsafe-eval'", "'unsafe-inline'", 'https://accounts.google.com', 'https://www.google.com', 'https://www.gstatic.com'],
+  'style-src': ["'self'", "'unsafe-inline'", 'https://fonts.googleapis.com', 'https://accounts.google.com', 'https://www.google.com'],
+  'style-src-elem': ["'self'", "'unsafe-inline'", 'https://fonts.googleapis.com', 'https://accounts.google.com', 'https://www.google.com'],
+  'img-src': ["'self'", 'blob:', 'data:', 'https:', 'https://www.google.com', 'https://www.gstatic.com'],
+  'font-src': ["'self'", 'https://fonts.gstatic.com', 'data:'],
+  'connect-src': ["'self'", 'https:', 'https://accounts.google.com', 'https://www.google.com', 'https://oauth2.googleapis.com'],
+  'frame-src': ["'self'", 'https://accounts.google.com', 'https://www.google.com'],
   'frame-ancestors': ["'self'"],
   'base-uri': ["'self'"],
-  'form-action': ["'self'"],
+  'form-action': ["'self'", 'https://accounts.google.com'],
 };
 
 export function getCSPString(): string {

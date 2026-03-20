@@ -553,6 +553,14 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     } finally {
       setUser(null);
       clearClientAuthArtifacts();
+      
+      // Clear service worker cache to prevent stale authenticated data
+      if (typeof window !== "undefined" && "caches" in window) {
+        caches.keys().then((names) => {
+          names.forEach((name) => caches.delete(name));
+        }).catch(() => {});
+      }
+      
       window.location.href = "/";
     }
   };

@@ -5,8 +5,7 @@ import { toast } from "sonner";
 import { Button } from "../../components/ui/button";
 import { Input } from "../../components/ui/input";
 import { Label } from "../../components/ui/label";
-import { AuthBrand } from "../../components/AuthBrand";
-import { AuthPageControls } from "../../components/AuthPageControls";
+import AuthCenteredCard from "../../components/auth/AuthCenteredCard";
 import { useLanguage } from "../../contexts/LanguageContext";
 
 type Props = {
@@ -79,48 +78,40 @@ export default function ResetPassword({ onNavigate }: Props) {
   };
 
   return (
-    <div className="min-h-screen bg-gradient-to-br from-blue-50 via-purple-50 to-pink-50 dark:from-gray-900 dark:via-gray-900 dark:to-gray-900 flex items-center justify-center px-4 py-8">
-      <div className="max-w-md w-full">
-        <AuthPageControls />
-        <div className="bg-white dark:bg-gray-800 rounded-2xl shadow p-6">
-          <div className="mb-6 text-center">
-            <AuthBrand />
-          </div>
-          <h2 className="text-xl font-bold mb-2">{t("reset.title")}</h2>
-          <p className="text-sm text-gray-500 mb-6">
-            {t("reset.description", {
-              email: params.email || t("reset.accountFallback"),
-            })}
-          </p>
+    <AuthCenteredCard>
+      <h2 className="text-xl font-bold mb-2">{t("reset.title")}</h2>
+      <p className="text-sm text-gray-500 mb-6">
+        {t("reset.description", {
+          email: params.email || t("reset.accountFallback"),
+        })}
+      </p>
 
-          <form onSubmit={handleSubmit} className="space-y-4">
-            <div>
-              <Label htmlFor="newPassword">{t("reset.newPassword")}</Label>
-              <Input
-                id="newPassword"
-                type="password"
-                value={newPassword}
-                onChange={(e) => setNewPassword(e.target.value)}
-              />
-            </div>
-            <div>
-              <Label htmlFor="confirmPassword">{t("reset.confirmPassword")}</Label>
-              <Input
-                id="confirmPassword"
-                type="password"
-                value={confirmPassword}
-                onChange={(e) => setConfirmPassword(e.target.value)}
-              />
-            </div>
-            <Button className="w-full" type="submit" disabled={loading}>
-              {loading ? t("reset.saving") : t("reset.save")}
-            </Button>
-            <Button className="w-full" type="button" variant="outline" onClick={() => onNavigate("login")}>
-              {t("reset.back")}
-            </Button>
-          </form>
+      <form onSubmit={handleSubmit} className="space-y-4">
+        <div>
+          <Label htmlFor="newPassword">{t("reset.newPassword")}</Label>
+          <Input
+            id="newPassword"
+            type="password"
+            value={newPassword}
+            onChange={(e) => setNewPassword(e.target.value)}
+          />
         </div>
-      </div>
-    </div>
+        <div>
+          <Label htmlFor="confirmPassword">{t("reset.confirmPassword")}</Label>
+          <Input
+            id="confirmPassword"
+            type="password"
+            value={confirmPassword}
+            onChange={(e) => setConfirmPassword(e.target.value)}
+          />
+        </div>
+        <Button className="w-full" type="submit" disabled={loading}>
+          {loading ? t("reset.saving") : t("reset.save")}
+        </Button>
+        <Button className="w-full" type="button" variant="outline" onClick={() => onNavigate("login")}>
+          {t("reset.back")}
+        </Button>
+      </form>
+    </AuthCenteredCard>
   );
 }

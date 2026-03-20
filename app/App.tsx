@@ -38,7 +38,7 @@ import AdminOrdersSellerPage from "./admin-pages/orders-seller/AdminOrdersSeller
 import AdminProductsPage from "./admin-pages/products/AdminProductsPage";
 import AdminOrdersPage from "./admin-pages/orders/AdminOrdersPage";
 import AdminUsersPage from "./admin-pages/users/AdminUsersPage";
-import AdminTest from "./admin-pages/admin-test/AdminTest";
+import AdminPayment from "./admin-pages/admin-payment/AdminPayment";
 import AdminVideoCoursesPage from "./admin-pages/video-courses/AdminVideoCoursesPage";
 import AdminToolLicensesPage from "./admin-pages/tool-licenses/AdminToolLicensesPage";
 import AdminNotificationsPage from "./admin-pages/notifications/AdminNotificationsPage";
@@ -441,6 +441,22 @@ function getComboCourseQtyFromOrderInfo(raw: string | null | undefined): {
   }
 }
 
+function BlogRoutePage({
+  sellerId,
+  onNavigate,
+}: {
+  sellerId: string | null;
+  onNavigate: (page: string) => void;
+}) {
+  const { user } = useAuth();
+
+  if (!sellerId && !user?.id) {
+    return <LoginPage onNavigate={onNavigate} />;
+  }
+
+  return <BlogPage initialSellerId={sellerId} />;
+}
+
 export default function App() {
   const initialPath = usePathname() ?? "/";
   const [routeState, setRouteState] = useState<RouteState>(() => resolveRoute(initialPath));
@@ -713,7 +729,12 @@ export default function App() {
         return <ToolsPage onOpenProductDetail={handleOpenProductDetail} />;
 
       case "blog":
-        return <BlogPage initialSellerId={routeState.sellerId} />;
+        return (
+          <BlogRoutePage
+            sellerId={routeState.sellerId}
+            onNavigate={handleNavigate}
+          />
+        );
 
       case "video-courses":
         return (
@@ -841,7 +862,7 @@ export default function App() {
         return <AdminUsersPage />;
 
       case "admin-test":
-        return <AdminTest />;
+        return <AdminPayment />;
       case "admin-notifications":
         return <AdminNotificationsPage />;
       case "admin-video-courses":

@@ -3,6 +3,7 @@
 
 import { useEffect, useMemo, useRef, useState } from "react";
 import { toast } from "sonner";
+import { parseErrorMessage } from "@/app/lib/http/parseErrorMessage";
 
 type Level = "beginner" | "advanced" | "pro";
 
@@ -136,14 +137,6 @@ function formatMoney(value: number | string | null | undefined) {
   const n = typeof value === "string" ? Number(value) : typeof value === "number" ? value : NaN;
   if (!Number.isFinite(n)) return "-";
   return `$${n.toFixed(2)}`;
-}
-
-function parseErrorMessage(data: unknown, fallback: string): string {
-  if (typeof data === "object" && data !== null && "error" in data) {
-    const v = (data as { error?: unknown }).error;
-    if (typeof v === "string" && v.trim()) return v;
-  }
-  return fallback;
 }
 
 function toDateTimeLocalValue(value: string | null | undefined): string {

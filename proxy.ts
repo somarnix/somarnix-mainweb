@@ -87,9 +87,6 @@ export function proxy(request: NextRequest) {
     // Get IP from headers (Next.js middleware doesn't have request.ip)
     const forwardedFor = request.headers.get('x-forwarded-for');
     const ip = forwardedFor?.split(',')[0] || request.headers.get('x-real-ip') || 'unknown';
-    const rateLimitKey = `rate:${ip}`;
-    
-    // Simple in-memory rate limiting
     const rateLimitHeader = request.headers.get('X-RateLimit-Remaining');
     
     if (rateLimitHeader === '0') {

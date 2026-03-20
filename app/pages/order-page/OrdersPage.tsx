@@ -2,6 +2,7 @@ import { useEffect, useMemo, useState } from "react";
 import { Package, RefreshCw } from "lucide-react";
 import { useLanguage } from "../../contexts/LanguageContext";
 import { useCurrency } from "../../contexts/CurrencyContext";
+import { useAuth } from "../../contexts/AuthContext";
 import { Button } from "../../components/ui/button";
 import { Pagination } from "../../components/Pagination";
 import { ScrollableChipTabs } from "../../components/ScrollableChipTabs";
@@ -51,20 +52,33 @@ const ITEMS_PER_PAGE = 5;
 export function OrdersPage({ onNavigate, onOpenOrderDetail }: OrdersPageProps) {
   const { language } = useLanguage();
   const { formatPrice } = useCurrency();
+  const { user, loading } = useAuth();
 
   const [orders, setOrders] = useState<Order[]>([]);
-  const [loading, setLoading] = useState(true);
+  const [loadingOrders, setLoadingOrders] = useState(true);
   const [activeTab, setActiveTab] = useState<OrderStatus>("pending");
   const [currentPage, setCurrentPage] = useState(1);
 
+  // Redirect to login if not authenticated
+  useEffect(() => {
+    if (!loading && !user) {
+      onNavigate("login");
+    }
+  }, [user, loading, onNavigate]);
+
   const loadOrders = async () => {
-    setLoading(true);
+    setLoadingOrders(true);
     try {
       const res = await fetch("/api/orders", {
         credentials: "include",
         cache: "no-store",
       });
       const data = await res.json();
+
+      if (res.status === 401) {
+        onNavigate("login");
+        return;
+      }
 
       if (!res.ok) {
         setOrders([]);
@@ -73,7 +87,7 @@ export function OrdersPage({ onNavigate, onOpenOrderDetail }: OrdersPageProps) {
 
       setOrders((data.orders ?? []) as Order[]);
     } finally {
-      setLoading(false);
+      setLoadingOrders(false);
     }
   };
 
@@ -169,7 +183,7 @@ export function OrdersPage({ onNavigate, onOpenOrderDetail }: OrdersPageProps) {
           />
         </div>
 
-        {loading ? (
+        {loadingOrders ? (
           <div className="bg-white dark:bg-gray-800 rounded-xl shadow-sm p-8 text-gray-600 dark:text-gray-400">
             {language === "km" ? "កំពុងផ្ទុក..." : "Loading..."}
           </div>

@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useState } from "react";
 import { useAuth } from "@/app/contexts/AuthContext";
 import { toast } from "sonner";
 
@@ -12,6 +12,7 @@ import { AuthBrand } from "../../components/AuthBrand";
 import { AuthPageControls } from "../../components/AuthPageControls";
 import { Mail, Lock, Eye, EyeOff } from "lucide-react";
 import { useLanguage } from "../../contexts/LanguageContext";
+import { GoogleSignInButton } from "../shared/GoogleSignInButton";
 
 type LoginPageProps = {
   onNavigate: (page: string) => void;
@@ -30,11 +31,21 @@ export default function LoginPage({ onNavigate }: LoginPageProps) {
   const [verificationCode, setVerificationCode] = useState("");
   const [submitting, setSubmitting] = useState(false);
   const [resendingCode, setResendingCode] = useState(false);
-  const [googleReady, setGoogleReady] = useState(false);
-  const googleButtonRef = useRef<HTMLDivElement | null>(null);
 
   useEffect(() => {
     setHasMounted(true);
+  }, []);
+
+  useEffect(() => {
+    if (typeof window === "undefined") return;
+    const url = new URL(window.location.href);
+    const googleError = url.searchParams.get("googleError");
+    if (!googleError) return;
+
+    toast.error(googleError);
+    url.searchParams.delete("googleError");
+    const nextUrl = `${url.pathname}${url.search}${url.hash}`;
+    window.history.replaceState(window.history.state, "", nextUrl);
   }, []);
 
   // Redirect after login
@@ -43,100 +54,6 @@ export default function LoginPage({ onNavigate }: LoginPageProps) {
       onNavigate("home");
     }
   }, [isAuthenticated, onNavigate]);
-
-  useEffect(() => {
-    if (typeof window === "undefined") return;
-    if (window.google?.accounts?.id) {
-      setGoogleReady(true);
-      return;
-    }
-
-    const existing = document.getElementById("google-gsi-script") as HTMLScriptElement | null;
-    if (existing) {
-      const handleLoad = () => setGoogleReady(true);
-      existing.addEventListener("load", handleLoad);
-      return () => {
-        existing.removeEventListener("load", handleLoad);
-      };
-    }
-
-    let active = true;
-    const script = document.createElement("script");
-    script.id = "google-gsi-script";
-    script.src = "https://accounts.google.com/gsi/client";
-    script.async = true;
-    script.defer = true;
-    script.onload = () => {
-      if (active) setGoogleReady(true);
-    };
-    document.head.appendChild(script);
-
-    return () => {
-      active = false;
-    };
-  }, []);
-
-  useEffect(() => {
-    if (
-      googleReady &&
-      typeof window !== "undefined" &&
-      !window.google?.accounts?.id
-    ) {
-      setGoogleReady(false);
-    }
-  }, [googleReady]);
-
-  useEffect(() => {
-    const clientId = process.env.NEXT_PUBLIC_GOOGLE_CLIENT_ID;
-    if (
-      !googleReady ||
-      !clientId ||
-      typeof window === "undefined" ||
-      !window.google?.accounts?.id ||
-      !googleButtonRef.current
-    ) {
-      return;
-    }
-
-    const container = googleButtonRef.current;
-    container.innerHTML = "";
-
-    window.google.accounts.id.initialize({
-      client_id: clientId,
-      use_fedcm_for_prompt: false,
-      callback: async (response: { credential?: string }) => {
-        const credential = typeof response?.credential === "string" ? response.credential : "";
-        if (!credential) {
-          toast.error(t("login.errors.googleFailed"));
-          return;
-        }
-        const result = await loginWithGoogle(credential);
-        if (!result.success) {
-          toast.error(result.message || t("login.errors.googleFailed"));
-          return;
-        }
-        toast.success(t("login.success"));
-      },
-    });
-
-    const buttonWidth = Math.min(Math.max(container.offsetWidth || 280, 220), 360);
-    const googleIdApi = window.google.accounts.id as unknown as {
-      renderButton: (
-        parent: HTMLElement,
-        options: Record<string, string | number>
-      ) => void;
-    };
-
-    googleIdApi.renderButton(container, {
-      type: "standard",
-      theme: "outline",
-      size: "large",
-      shape: "rectangular",
-      text: "continue_with",
-      width: buttonWidth,
-      logo_alignment: "left",
-    });
-  }, [googleReady, loginWithGoogle, t]);
 
   const handleLogin = async (e: React.FormEvent<HTMLFormElement>) => {
     e.preventDefault();
@@ -291,25 +208,22 @@ export default function LoginPage({ onNavigate }: LoginPageProps) {
           </div>
 
           {/* FORM */}
-          <div className="mb-5">
-            <div className="overflow-hidden rounded-xl border-2 border-gray-200 bg-white p-1 dark:border-gray-700 dark:bg-gray-900">
-              {process.env.NEXT_PUBLIC_GOOGLE_CLIENT_ID ? (
-                <div
-                  ref={googleButtonRef}
-                  className="flex min-h-11 w-full items-center justify-center"
-                >
-                  {!googleReady ? (
-                    <span className="text-sm text-gray-500 dark:text-gray-400">
-                      {t("login.googleLoading")}
-                    </span>
-                  ) : null}
-                </div>
-              ) : (
-                <Button type="button" variant="outline" className="w-full border-0" disabled>
-                  {t("login.google")}
-                </Button>
-              )}
-            </div>
+          <div className="mb-6 w-full max-w-full">
+            <GoogleSignInButton
+              clientId={process.env.NEXT_PUBLIC_GOOGLE_CLIENT_ID}
+              text="signin_with"
+              loadingLabel={t("login.googleLoading")}
+              unavailableLabel={t("login.google")}
+              onCredential={async (credential) => {
+                const result = await loginWithGoogle(credential);
+                if (!result.success) {
+                  toast.error(result.message || t("login.errors.googleFailed"));
+                  return;
+                }
+                toast.success(t("login.success"));
+                onNavigate("home");
+              }}
+            />
           </div>
           <form onSubmit={handleLogin} className="space-y-6" aria-busy={submitting} autoComplete="off">
             {/* EMAIL */}

@@ -4,26 +4,14 @@ import { useEffect, useMemo, useState } from "react";
 import type { OrderStatus } from "@/lib/order-status";
 import { getStatusLabel } from "@/app/pages/order-page/orderStatusConfig";
 import PaginationNext from "@/app/components/PaginationNext";
+import { MONTH_OPTIONS, getYearMonthKey } from "@/app/lib/admin/dateFilters";
+import { exportHtmlTableAsExcel } from "@/app/lib/export/exportHtmlTableAsExcel";
 
 /* ================= TYPES ================= */
 
 type OrderState = OrderStatus;
 type OrderResult = "none" | "done" | "failed";
 type PaymentStateFilter = "all" | "waiting" | "approved" | "declined";
-const MONTH_OPTIONS = [
-  { value: "1", label: "January" },
-  { value: "2", label: "February" },
-  { value: "3", label: "March" },
-  { value: "4", label: "April" },
-  { value: "5", label: "May" },
-  { value: "6", label: "June" },
-  { value: "7", label: "July" },
-  { value: "8", label: "August" },
-  { value: "9", label: "September" },
-  { value: "10", label: "October" },
-  { value: "11", label: "November" },
-  { value: "12", label: "December" },
-];
 
 type Order = {
   id: number;
@@ -326,22 +314,6 @@ export default function AdminOrdersPage() {
 
   /* ================= FILTER ================= */
 
-  const getYearMonthKey = (value?: string | null) => {
-    const raw = String(value || "").trim();
-    if (!raw) return { year: "", month: "" };
-    const dt = new Date(raw);
-    if (!Number.isNaN(dt.getTime())) {
-      const year = String(dt.getFullYear());
-      const month = String(dt.getMonth() + 1).padStart(2, "0");
-      return { year, month: `${year}-${month}` };
-    }
-    const m = raw.match(/(\d{4})-(\d{2})/);
-    if (m) {
-      return { year: m[1], month: `${m[1]}-${m[2]}` };
-    }
-    return { year: "", month: "" };
-  };
-
   const categoryOptions = useMemo(() => {
     const base = ["all", "product", "ai", "game", "program", "tools", "video-course"];
     const set = new Set(base);
@@ -619,14 +591,6 @@ export default function AdminOrdersPage() {
     await load();
   };
 
-  const escapeHtml = (value: unknown) =>
-    String(value ?? "")
-      .replace(/&/g, "&amp;")
-      .replace(/</g, "&lt;")
-      .replace(/>/g, "&gt;")
-      .replace(/"/g, "&quot;")
-      .replace(/'/g, "&#39;");
-
   const exportFilteredToExcel = () => {
     const headers = [
       "Order",
@@ -653,35 +617,6 @@ export default function AdminOrdersPage() {
       [o.delivery_title || "", o.delivery_message || ""].filter(Boolean).join("\n") || "-",
       formatDate(o.created_at),
     ]);
-
-    const tableHeader = `<tr>${headers
-      .map((h, index) => {
-        const centerCols = new Set([0, 1, 6, 9]);
-        const align = centerCols.has(index) ? "center" : "left";
-        return `<th style="background:#0f766e;color:#ffffff;font-weight:700;text-align:${align};padding:9px 10px;border:1px solid #cbd5e1;">${escapeHtml(h)}</th>`;
-      })
-      .join("")}</tr>`;
-    const tableBody = rows
-      .map(
-        (row, rowIndex) =>
-          `<tr>${row
-            .map((cell, colIndex) => {
-              const centerCols = new Set([0, 1, 6, 9]);
-              const align = centerCols.has(colIndex) ? "center" : "left";
-              const background = rowIndex % 2 === 0 ? "#ffffff" : "#f8fafc";
-              return `<td style="vertical-align:top;text-align:${align};padding:8px 10px;border:1px solid #e2e8f0;background:${background};">${escapeHtml(cell).replace(/\n/g, "<br/>")}</td>`;
-            })
-            .join("")}</tr>`
-      )
-      .join("");
-
-    const generatedAt = new Date().toLocaleString("en-US", {
-      year: "numeric",
-      month: "short",
-      day: "2-digit",
-      hour: "2-digit",
-      minute: "2-digit",
-    });
     const filterSummary = [
       `State: ${filterState}`,
       `Payment: ${filterPayment}`,
@@ -690,50 +625,18 @@ export default function AdminOrdersPage() {
       `Year: ${yearFilter}`,
       `Search: ${search.trim() || "-"}`,
     ].join(" | ");
-
-    const html = `
-<html>
-  <head>
-    <meta charset="utf-8" />
-  </head>
-  <body style="background:#ffffff;margin:16px;">
-    <div style="font-family:Calibri,Arial,sans-serif;">
-      <h2 style="margin:0 0 4px 0;color:#0f172a;">Orders Report</h2>
-      <p style="margin:0 0 2px 0;color:#475569;font-size:12px;">Generated: ${escapeHtml(generatedAt)}</p>
-      <p style="margin:0 0 10px 0;color:#475569;font-size:12px;">${escapeHtml(filterSummary)}</p>
-    </div>
-    <table border="1" cellspacing="0" cellpadding="0" style="border-collapse:collapse;font-family:Calibri,Arial,sans-serif;font-size:12px;min-width:1500px;">
-      <colgroup>
-        <col style="width:90px;" />
-        <col style="width:140px;" />
-        <col style="width:220px;" />
-        <col style="width:130px;" />
-        <col style="width:140px;" />
-        <col style="width:100px;" />
-        <col style="width:95px;" />
-        <col style="width:120px;" />
-        <col style="width:360px;" />
-        <col style="width:170px;" />
-      </colgroup>
-      ${tableHeader}
-      ${tableBody}
-    </table>
-  </body>
-</html>`;
-
-    const blob = new Blob([`\uFEFF${html}`], {
-      type: "application/vnd.ms-excel;charset=utf-8;",
-    });
-    const url = URL.createObjectURL(blob);
-    const a = document.createElement("a");
     const monthPart = monthFilter !== "all" ? `_${monthFilter}` : "";
     const yearPart = yearFilter !== "all" ? `_${yearFilter}` : "";
-    a.href = url;
-    a.download = `orders${monthPart}${yearPart}.xls`;
-    document.body.appendChild(a);
-    a.click();
-    a.remove();
-    URL.revokeObjectURL(url);
+    exportHtmlTableAsExcel({
+      title: "Orders Report",
+      headers,
+      rows,
+      centeredColumns: [0, 1, 6, 9],
+      filterSummary,
+      minWidth: "1500px",
+      columnWidths: ["90px", "140px", "220px", "130px", "140px", "100px", "95px", "120px", "360px", "170px"],
+      fileName: `orders${monthPart}${yearPart}.xls`,
+    });
   };
 
   /* ================= RENDER ================= */
