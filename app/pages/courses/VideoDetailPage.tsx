@@ -77,6 +77,7 @@ type ApiCourse = {
   slug: string;
   posted_by?: number | null;
   posted_by_username?: string | null;
+  telegram_url?: string | null;
   description: string | null;
   level: string;
   category: string | null;
@@ -345,6 +346,11 @@ export function VideoDetailPage({
   const uploadDate = course?.upload_date ? new Date(course.upload_date) : null;
   const heroImage =
     course?.hero_url || course?.thumbnail_url || "/placeholder.png";
+  const courseContactUrl =
+    (typeof course?.telegram_url === "string" && course.telegram_url.trim()
+      ? course.telegram_url.trim()
+      : null) ||
+    (process.env.NEXT_PUBLIC_TELEGRAM_SUPPORT_URL || "/support");
 
   const selectedCoursePlan = useMemo(() => {
     if (!plans.length) return null;
@@ -665,6 +671,20 @@ export function VideoDetailPage({
                     path={`/courses/${encodeURIComponent(course.slug)}`}
                     title={course.title}
                     text={course.description || course.title}
+                    imageUrl={heroImage}
+                    price={minCoursePrice}
+                    sellerName={
+                      (typeof course.posted_by_username === "string" &&
+                      course.posted_by_username.trim().length > 0
+                        ? course.posted_by_username.trim()
+                        : "") ||
+                      course.author_name ||
+                      t("labels.instructor")
+                    }
+                    sellerLogoUrl={course.author_avatar_url}
+                    stockBadge="Available"
+                    buyUrl={`/courses/${encodeURIComponent(course.slug)}`}
+                    contactUrl={courseContactUrl}
                     label={t("share.button")}
                     className="inline-flex h-10 items-center justify-center rounded-xl border border-white/15 bg-white/10 px-4 text-sm font-semibold text-white shadow-sm backdrop-blur transition hover:bg-white/15"
                     iconClassName="h-4 w-4"

@@ -15,6 +15,11 @@ type ProductShareRow = RowDataPacket & {
   image_url: string | null;
   category: string | null;
   min_price: number | string | null;
+  compare_price: number | string | null;
+  seller_name: string | null;
+  seller_avatar_url: string | null;
+  is_unlimited_stock: number | null;
+  stock_qty: number | null;
 };
 
 type CourseShareRow = RowDataPacket & {
@@ -26,6 +31,9 @@ type CourseShareRow = RowDataPacket & {
   author_name: string | null;
   category: string | null;
   price: number | string | null;
+  compare_price: number | string | null;
+  seller_name: string | null;
+  seller_avatar_url: string | null;
 };
 
 type ToolShareRow = RowDataPacket & {
@@ -35,6 +43,11 @@ type ToolShareRow = RowDataPacket & {
   image_url: string | null;
   tool_category: string;
   min_price: number | string | null;
+  compare_price: number | string | null;
+  seller_name: string | null;
+  seller_avatar_url: string | null;
+  is_unlimited_stock: number | null;
+  stock_qty: number | null;
 };
 
 type BlogShareRow = RowDataPacket & {
@@ -82,6 +95,17 @@ function formatPrice(value: string | number | null | undefined) {
   return `$${num.toFixed(2)}`;
 }
 
+function formatShareLabel(value: string | null | undefined, fallback: string) {
+  const raw = typeof value === "string" ? value.trim().toLowerCase() : "";
+  if (!raw) return fallback;
+  if (raw === "program" || raw === "programs") return "Programs";
+  if (raw === "game" || raw === "games") return "Games";
+  if (raw === "course" || raw === "courses" || raw === "video") return "Courses";
+  if (raw === "tool" || raw === "tools") return "Tools";
+  if (raw === "ai") return "AI";
+  return raw.charAt(0).toUpperCase() + raw.slice(1);
+}
+
 function buildShareMetadata({
   title,
   description,
@@ -90,6 +114,10 @@ function buildShareMetadata({
   kind,
   label,
   price,
+  comparePrice,
+  sellerName,
+  sellerLogo,
+  stockBadge,
 }: {
   title: string;
   description: string;
@@ -98,6 +126,10 @@ function buildShareMetadata({
   kind: string;
   label?: string | null;
   price?: string | null;
+  comparePrice?: string | null;
+  sellerName?: string | null;
+  sellerLogo?: string | null;
+  stockBadge?: string | null;
 }): Metadata {
   const siteUrl = getSiteUrl();
   const canonicalPath = normalizePath(path).replace(/\/+$/, "") || "/";
@@ -109,8 +141,14 @@ function buildShareMetadata({
   ogImageUrl.searchParams.set("title", title);
   ogImageUrl.searchParams.set("subtitle", description);
   ogImageUrl.searchParams.set("image", sourceImageUrl);
+  ogImageUrl.searchParams.set("url", canonicalUrl);
+  ogImageUrl.searchParams.set("domain", new URL(canonicalUrl).hostname.replace(/^www\./i, "").toUpperCase());
   if (label) ogImageUrl.searchParams.set("label", label);
   if (price) ogImageUrl.searchParams.set("price", price);
+  if (comparePrice) ogImageUrl.searchParams.set("comparePrice", comparePrice);
+  if (sellerName) ogImageUrl.searchParams.set("sellerName", sellerName);
+  if (sellerLogo) ogImageUrl.searchParams.set("sellerLogo", toAbsoluteImageUrl(sellerLogo, siteUrl));
+  if (stockBadge) ogImageUrl.searchParams.set("stockBadge", stockBadge);
   const generatedImageUrl = ogImageUrl.toString();
   const openGraphImages: NonNullable<Metadata["openGraph"]>["images"] = [];
 
@@ -173,13 +211,23 @@ export async function resolveDynamicShareMetadata(slugs: string[]): Promise<Meta
           p.description,
           p.image_url,
           c.name AS category,
+          COALESCE(NULLIF(u.username, ''), NULLIF(CONCAT_WS(' ', u.first_name, u.last_name), ''), u.email) AS seller_name,
+          u.avatar_url AS seller_avatar_url,
+          p.is_unlimited_stock,
+          p.stock_qty,
           (
             SELECT MIN(pv.price)
             FROM product_variants pv
             WHERE pv.product_id = p.id AND pv.is_active = 1
-          ) AS min_price
+          ) AS min_price,
+          (
+            SELECT MAX(NULLIF(pv.original_price, 0))
+            FROM product_variants pv
+            WHERE pv.product_id = p.id AND pv.is_active = 1
+          ) AS compare_price
         FROM products p
         LEFT JOIN product_categories c ON c.id = p.category_id
+        LEFT JOIN users u ON u.id = p.posted_by
         WHERE p.slug = ? AND p.is_active = 1
         LIMIT 1
         `,
@@ -187,17 +235,31 @@ export async function resolveDynamicShareMetadata(slugs: string[]): Promise<Meta
       );
       if (!rows.length) return null;
       const product = rows[0];
+      const productPrice = formatPrice(product.min_price);
+      const productComparePrice = formatPrice(product.compare_price);
+      const productCategory = formatShareLabel(product.category, "Product");
+      const stockBadge =
+        Number(product.is_unlimited_stock ?? 0) === 1
+          ? "Unlimited stock"
+          : Number(product.stock_qty ?? 0) > 0
+          ? "In stock"
+          : "Out of stock";
       return buildShareMetadata({
         title: product.title,
         description: summarize(
           product.description,
-          `${product.title}${formatPrice(product.min_price) ? ` from ${formatPrice(product.min_price)}` : ""}${product.category ? ` in ${product.category}` : ""} on ${SITE_NAME}.`
+          `${product.title}${productPrice ? ` for ${productPrice}` : ""}${productCategory ? ` in ${productCategory}` : ""}. Buy now on ${SITE_NAME}.`
         ),
         image: product.image_url,
         path: `/product/${encodeURIComponent(product.slug)}`,
         kind: "product",
-        label: product.category || "Product",
-        price: formatPrice(product.min_price),
+        label: productCategory,
+        price: productPrice,
+        comparePrice:
+          productComparePrice && productComparePrice !== productPrice ? productComparePrice : null,
+        sellerName: product.seller_name,
+        sellerLogo: product.seller_avatar_url,
+        stockBadge,
       });
     }
 
@@ -211,14 +273,21 @@ export async function resolveDynamicShareMetadata(slugs: string[]): Promise<Meta
           vc.thumbnail_url,
           vc.hero_url,
           vc.author_name,
+          COALESCE(NULLIF(u.username, ''), NULLIF(CONCAT_WS(' ', u.first_name, u.last_name), ''), u.email) AS seller_name,
+          COALESCE(NULLIF(u.avatar_url, ''), NULLIF(vc.author_avatar_url, '')) AS seller_avatar_url,
           vc.category,
           (
             SELECT MIN(vcp.price)
             FROM video_course_plans vcp
             WHERE vcp.course_id = vc.id AND vcp.is_active = 1
-          ) AS price
-        FROM video_courses
-        vc
+          ) AS price,
+          (
+            SELECT MAX(NULLIF(vcp.original_price, 0))
+            FROM video_course_plans vcp
+            WHERE vcp.course_id = vc.id AND vcp.is_active = 1
+          ) AS compare_price
+        FROM video_courses vc
+        LEFT JOIN users u ON u.id = vc.posted_by
         WHERE vc.slug = ? AND vc.is_active = 1
         LIMIT 1
         `,
@@ -226,17 +295,23 @@ export async function resolveDynamicShareMetadata(slugs: string[]): Promise<Meta
       );
       if (!rows.length) return null;
       const course = rows[0];
+      const coursePrice = formatPrice(course.price);
+      const courseComparePrice = formatPrice(course.compare_price);
+      const courseCategory = formatShareLabel(course.category, "Courses");
       return buildShareMetadata({
         title: course.title,
         description: summarize(
           course.description,
-          `${course.title}${formatPrice(course.price) ? ` from ${formatPrice(course.price)}` : ""} video course${course.author_name ? ` by ${course.author_name}` : ""} on ${SITE_NAME}.`
+          `${course.title}${coursePrice ? ` for ${coursePrice}` : ""}${course.author_name ? ` by ${course.author_name}` : ""}. Learn with this video course on ${SITE_NAME}.`
         ),
         image: course.hero_url || course.thumbnail_url,
         path: `/courses/${encodeURIComponent(course.slug)}`,
         kind: "course",
-        label: course.category || "Course",
-        price: formatPrice(course.price),
+        label: courseCategory,
+        price: coursePrice,
+        comparePrice: courseComparePrice && courseComparePrice !== coursePrice ? courseComparePrice : null,
+        sellerName: course.seller_name || course.author_name,
+        sellerLogo: course.seller_avatar_url,
       });
     }
 
@@ -249,13 +324,23 @@ export async function resolveDynamicShareMetadata(slugs: string[]): Promise<Meta
           td.short_description,
           p.image_url,
           td.tool_category,
+          COALESCE(NULLIF(u.username, ''), NULLIF(CONCAT_WS(' ', u.first_name, u.last_name), ''), u.email) AS seller_name,
+          u.avatar_url AS seller_avatar_url,
+          p.is_unlimited_stock,
+          p.stock_qty,
           (
             SELECT MIN(pv.price)
             FROM product_variants pv
             WHERE pv.product_id = p.id AND pv.is_active = 1
-          ) AS min_price
+          ) AS min_price,
+          (
+            SELECT MAX(NULLIF(pv.original_price, 0))
+            FROM product_variants pv
+            WHERE pv.product_id = p.id AND pv.is_active = 1
+          ) AS compare_price
         FROM tool_definitions td
         JOIN products p ON p.id = td.product_id
+        LEFT JOIN users u ON u.id = p.posted_by
         WHERE td.canonical_slug = ?
           AND td.is_active = 1
           AND p.is_active = 1
@@ -265,17 +350,30 @@ export async function resolveDynamicShareMetadata(slugs: string[]): Promise<Meta
       );
       if (!rows.length) return null;
       const tool = rows[0];
+      const toolPrice = formatPrice(tool.min_price);
+      const toolComparePrice = formatPrice(tool.compare_price);
+      const toolCategory = formatShareLabel(tool.tool_category, "Tools");
+      const stockBadge =
+        Number(tool.is_unlimited_stock ?? 0) === 1
+          ? "Unlimited stock"
+          : Number(tool.stock_qty ?? 0) > 0
+          ? "In stock"
+          : "Out of stock";
       return buildShareMetadata({
         title: tool.display_name,
         description: summarize(
           tool.short_description,
-          `${tool.display_name}${formatPrice(tool.min_price) ? ` from ${formatPrice(tool.min_price)}` : ""} is available now on ${SITE_NAME}.`
+          `${tool.display_name}${toolPrice ? ` for ${toolPrice}` : ""}. Use this ${toolCategory.toLowerCase()} on ${SITE_NAME}.`
         ),
         image: tool.image_url,
         path: `/tools-ai/${encodeURIComponent(tool.canonical_slug)}`,
         kind: "tool",
-        label: tool.tool_category || "Tool",
-        price: formatPrice(tool.min_price),
+        label: toolCategory,
+        price: toolPrice,
+        comparePrice: toolComparePrice && toolComparePrice !== toolPrice ? toolComparePrice : null,
+        sellerName: tool.seller_name,
+        sellerLogo: tool.seller_avatar_url,
+        stockBadge,
       });
     }
 

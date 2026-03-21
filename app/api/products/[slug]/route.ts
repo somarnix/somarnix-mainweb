@@ -20,6 +20,7 @@ type ProductDetailRow = RowDataPacket & {
   is_unlimited_stock: 0 | 1;
   mode: "license" | "inventory";
   image_url: string | null;
+  telegram_url?: string | null;
   is_active: 0 | 1;
   order_fields_json: string | null;
   created_at: string;

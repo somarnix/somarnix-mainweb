@@ -27,6 +27,20 @@ async function hasColumn(tableName: string, columnName: string): Promise<boolean
   return rows.length > 0;
 }
 
+async function ensureTelegramUrlColumn(): Promise<boolean> {
+  const exists = await hasColumn("products", "telegram_url");
+  if (exists) return true;
+  try {
+    await db.query(`
+      ALTER TABLE products
+      ADD COLUMN telegram_url VARCHAR(2000) NULL AFTER image_url
+    `);
+    return true;
+  } catch {
+    return false;
+  }
+}
+
 /* =========================
    PUT: UPDATE PRODUCT (ADMIN)
 ========================= */
@@ -156,6 +170,25 @@ export async function PUT(
 
       sets.push("image_url = ?");
       values.push(imageUrl);
+    }
+
+    if ("telegram_url" in b) {
+      const hasTelegramUrl = await ensureTelegramUrlColumn();
+      if (!hasTelegramUrl) {
+        return Response.json({ error: "products.telegram_url column is missing" }, { status: 400 });
+      }
+      if (!(typeof b.telegram_url === "string" || b.telegram_url === null)) {
+        return Response.json({ error: "Invalid telegram_url" }, { status: 400 });
+      }
+      const telegramUrl =
+        b.telegram_url === null
+          ? null
+          : b.telegram_url.trim()
+            ? b.telegram_url.trim()
+            : null;
+
+      sets.push("telegram_url = ?");
+      values.push(telegramUrl);
     }
 
     if ("order_fields_json" in b) {

@@ -11,6 +11,9 @@ type ProductLike = {
   is_unlimited_stock: 0 | 1 | null;
   students: number;
   rating: number;
+  posted_by_username?: string | null;
+  posted_by_avatar?: string | null;
+  telegram_url?: string | null;
 };
 
 function toNullableNumber(value: unknown): number | null {
@@ -53,5 +56,17 @@ export function normalizeProductListResponse(input: unknown): ProductLike[] {
           : (toNumber(item.is_unlimited_stock) > 0 ? 1 : 0),
       students: toNumber(item.students ?? item.buyers_count),
       rating: toNumber(item.rating ?? item.avg_rating),
+      posted_by_username:
+        item.posted_by_username === null || item.posted_by_username === undefined
+          ? null
+          : String(item.posted_by_username),
+      posted_by_avatar:
+        item.posted_by_avatar === null || item.posted_by_avatar === undefined
+          ? null
+          : String(item.posted_by_avatar),
+      telegram_url:
+        item.telegram_url === null || item.telegram_url === undefined
+          ? null
+          : String(item.telegram_url),
     }));
 }

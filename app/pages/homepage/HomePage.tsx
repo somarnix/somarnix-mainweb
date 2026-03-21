@@ -29,6 +29,9 @@ type DbProduct = {
   min_original_price: number | null;
   stock_qty: number | null;
   is_unlimited_stock: 0 | 1 | null;
+  posted_by_username?: string | null;
+  posted_by_avatar?: string | null;
+  telegram_url?: string | null;
 };
 
 type PromotionItem = {
@@ -262,6 +265,9 @@ export default function HomePage({ onNavigate, onOpenProductDetail }: HomePagePr
                   originalPrice={p.min_original_price}
                   stockQty={p.stock_qty}
                   isUnlimitedStock={p.is_unlimited_stock}
+                  sellerName={p.posted_by_username}
+                  sellerLogoUrl={p.posted_by_avatar}
+                  contactUrl={p.telegram_url}
                   onViewDetails={() => onOpenProductDetail(p.slug)}
                 />
               ))}

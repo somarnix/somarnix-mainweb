@@ -18,6 +18,7 @@ type CourseRow = RowDataPacket & {
   level: string;
   author_name: string | null;
   author_avatar_url: string | null;
+  telegram_url: string | null;
   rating: number | string | null;
   rating_count: number | null;
   students_count: number | null;
@@ -198,6 +199,16 @@ export async function GET(
     `
   );
   const hasLearningOutcomesColumn = learningOutcomesColumnRows.length > 0;
+  const [telegramUrlColumnRows] = await db.query<RowDataPacket[]>(
+    `
+    SELECT COUNT(*) AS cnt
+    FROM INFORMATION_SCHEMA.COLUMNS
+    WHERE TABLE_SCHEMA = DATABASE()
+      AND TABLE_NAME = 'video_courses'
+      AND COLUMN_NAME = 'telegram_url'
+    `
+  );
+  const hasTelegramUrlColumn = Number(telegramUrlColumnRows[0]?.cnt ?? 0) > 0;
 
   const [orderStateColumnRows] = await db.query<RowDataPacket[]>(
     `
@@ -243,6 +254,7 @@ export async function GET(
       level,
       author_name,
       author_avatar_url,
+      ${hasTelegramUrlColumn ? "telegram_url," : "NULL AS telegram_url,"}
       rating,
       rating_count,
       students_count,

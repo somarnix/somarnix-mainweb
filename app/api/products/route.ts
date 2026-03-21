@@ -17,6 +17,9 @@ type ProductRow = RowDataPacket & {
   category: string;
   posted_by_email: string;
   posted_by_id: number;
+  posted_by_username: string | null;
+  posted_by_avatar: string | null;
+  telegram_url: string | null;
   avg_rating: number | null; // may come as string depending mysql2 config
   rating_count: number;
   buyers_count: number;
@@ -68,9 +71,11 @@ export async function GET(req: Request) {
 
     const where = whereParts.join(" AND ");
     const hasProductsMode = await hasColumn("products", "mode");
+    const hasTelegramUrl = await hasColumn("products", "telegram_url");
     const modeExpr = hasProductsMode
       ? "CASE WHEN p.mode IN ('license','inventory') THEN p.mode ELSE 'inventory' END"
       : "'inventory'";
+    const telegramExpr = hasTelegramUrl ? "p.telegram_url" : "NULL";
 
     const sql = `
       SELECT
@@ -79,6 +84,9 @@ export async function GET(req: Request) {
         c.name AS category,
         u.email AS posted_by_email,
         u.id AS posted_by_id,
+        u.username AS posted_by_username,
+        u.avatar_url AS posted_by_avatar,
+        ${telegramExpr} AS telegram_url,
 
         -- rating
         ROUND(AVG(r.rating), 2) AS avg_rating,

@@ -17,6 +17,7 @@ type VideoCourse = {
   level: Level;
   author_name?: string | null;
   author_avatar_url?: string | null;
+  telegram_url?: string | null;
   rating?: number | string | null;
   rating_count?: number | null;
   students_count?: number | null;
@@ -1549,6 +1550,16 @@ export default function AdminVideoCoursesPage({
                       )
                     }
                     placeholder="Author avatar URL or @username"
+                  />
+                  <input
+                    className="border rounded-lg px-3 py-2 text-sm"
+                    value={editCourse?.telegram_url ?? ""}
+                    onChange={(e) =>
+                      setEditCourse((prev) =>
+                        prev ? { ...prev, telegram_url: e.target.value } : prev
+                      )
+                    }
+                    placeholder="Telegram link"
                   />
                   <select
                     className="border rounded-lg px-3 py-2 text-sm"

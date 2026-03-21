@@ -21,6 +21,7 @@ type CreateToolBody = {
   category_id?: unknown;
   description?: unknown;
   image_url?: unknown;
+  telegram_url?: unknown;
   status?: unknown;
   template_type?: unknown;
   price?: unknown;
@@ -116,6 +117,16 @@ async function ensureToolDefinitionSchema(connection: PoolConnection): Promise<b
   );
   const names = new Set(rows.map((row) => String(row.table_name)));
   return names.has("tool_definitions") && names.has("tool_route_aliases");
+}
+
+async function ensureProductsTelegramUrlColumn(connection: PoolConnection): Promise<boolean> {
+  const exists = await hasColumn(connection, "products", "telegram_url");
+  if (exists) return true;
+  await connection.query(`
+    ALTER TABLE products
+    ADD COLUMN telegram_url VARCHAR(2000) NULL AFTER image_url
+  `);
+  return true;
 }
 
 async function ensureUniqueSlug(connection: PoolConnection, title: string): Promise<string> {
@@ -366,6 +377,7 @@ export async function POST(req: Request) {
   const title = readString(body.title);
   const description = readString(body.description);
   const imageUrl = readString(body.image_url);
+  const telegramUrl = readString(body.telegram_url);
   const status = isOneOf(body.status, ["draft", "published"], "draft") as ToolStatus;
   const templateType = isOneOf(body.template_type, VALID_TEMPLATE_TYPES, "downloadable_exe");
   const planType = isOneOf(body.plan_type, VALID_PLAN_TYPES, "one_time");
@@ -487,6 +499,9 @@ export async function POST(req: Request) {
 
     const hasDescription = await hasColumn(connection, "products", "description");
     const hasImageUrl = await hasColumn(connection, "products", "image_url");
+    const hasTelegramUrl = telegramUrl
+      ? await ensureProductsTelegramUrlColumn(connection)
+      : await hasColumn(connection, "products", "telegram_url");
     const hasMode = await hasColumn(connection, "products", "mode");
 
     const productColumns = ["title", "slug", "category_id", "posted_by", "is_active"];
@@ -499,6 +514,10 @@ export async function POST(req: Request) {
     if (hasImageUrl) {
       productColumns.push("image_url");
       productValues.push(imageUrl || null);
+    }
+    if (hasTelegramUrl) {
+      productColumns.push("telegram_url");
+      productValues.push(telegramUrl || null);
     }
     if (hasMode) {
       productColumns.push("mode");
@@ -606,4 +625,3 @@ export async function POST(req: Request) {
     connection.release();
   }
 }
-

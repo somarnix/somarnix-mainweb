@@ -20,6 +20,20 @@ async function hasColumn(tableName: string, columnName: string): Promise<boolean
   return rows.length > 0;
 }
 
+async function ensureTelegramUrlColumn(): Promise<boolean> {
+  const exists = await hasColumn("products", "telegram_url");
+  if (exists) return true;
+  try {
+    await db.query(`
+      ALTER TABLE products
+      ADD COLUMN telegram_url VARCHAR(2000) NULL AFTER image_url
+    `);
+    return true;
+  } catch {
+    return false;
+  }
+}
+
 /* =========================
    GET: LIST PRODUCTS (ADMIN)
 ========================= */
@@ -31,9 +45,11 @@ export async function GET(req: Request) {
     }
 
     const hasProductsMode = await hasColumn("products", "mode");
+    const hasTelegramUrl = await hasColumn("products", "telegram_url");
     const modeSelectExpr = hasProductsMode
       ? "CASE WHEN p.mode IN ('license','inventory') THEN p.mode ELSE 'inventory' END AS mode,"
       : "'inventory' AS mode,";
+    const telegramSelectExpr = hasTelegramUrl ? "p.telegram_url," : "NULL AS telegram_url,";
 
     let rows: RowDataPacket[] = [];
     try {
@@ -45,6 +61,7 @@ export async function GET(req: Request) {
           p.slug,
           p.category_id,
           p.image_url,
+          ${telegramSelectExpr}
           p.level,
           p.stock_qty,
           p.is_unlimited_stock,
@@ -86,6 +103,7 @@ export async function GET(req: Request) {
           p.slug,
           p.category_id,
           p.image_url,
+          ${telegramSelectExpr}
           p.level,
           p.stock_qty,
           p.is_unlimited_stock,
@@ -139,6 +157,10 @@ export async function POST(req: Request) {
     const slug = typeof b.slug === "string" ? b.slug.trim() : "";
     const categoryId = Number(b.category_id);
     const requestedMode = typeof b.mode === "string" ? b.mode.trim().toLowerCase() : null;
+    const telegramUrl =
+      typeof b.telegram_url === "string" && b.telegram_url.trim()
+        ? b.telegram_url.trim()
+        : null;
 
     if (!title || !slug || !Number.isFinite(categoryId) || categoryId <= 0) {
       return Response.json({ error: "Invalid title, slug, or category" }, { status: 400 });
@@ -163,20 +185,25 @@ export async function POST(req: Request) {
     const finalMode =
       requestedMode === "license" || requestedMode === "inventory" ? requestedMode : fallbackMode;
     const hasProductsMode = await hasColumn("products", "mode");
+    const hasTelegramUrl = await ensureTelegramUrlColumn();
+
+    const columns = ["title", "slug", "category_id", "posted_by", "is_active"];
+    const values: Array<string | number | null> = [title, slug, categoryId, auth.userId, 1];
+    if (hasProductsMode) {
+      columns.push("mode");
+      values.push(finalMode);
+    }
+    if (hasTelegramUrl) {
+      columns.push("telegram_url");
+      values.push(telegramUrl);
+    }
 
     const [result] = await db.query<ResultSetHeader>(
-      hasProductsMode
-        ? `
-          INSERT INTO products
-            (title, slug, category_id, posted_by, is_active, mode)
-          VALUES (?, ?, ?, ?, 1, ?)
-          `
-        : `
-          INSERT INTO products
-            (title, slug, category_id, posted_by, is_active)
-          VALUES (?, ?, ?, ?, 1)
-          `,
-      hasProductsMode ? [title, slug, categoryId, auth.userId, finalMode] : [title, slug, categoryId, auth.userId]
+      `
+      INSERT INTO products (${columns.join(", ")})
+      VALUES (${columns.map(() => "?").join(", ")})
+      `,
+      values
     );
 
     return Response.json({ success: true, productId: result.insertId });

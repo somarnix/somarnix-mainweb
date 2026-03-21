@@ -22,6 +22,9 @@ type DbProgram = {
   is_unlimited_stock: 0 | 1 | null;
   students: number;
   rating: number;
+  posted_by_username?: string | null;
+  posted_by_avatar?: string | null;
+  telegram_url?: string | null;
 };
 
 export function ProgramsPage({ onOpenProductDetail }: { onOpenProductDetail: (slug: string) => void }) {
@@ -183,6 +186,9 @@ export function ProgramsPage({ onOpenProductDetail }: { onOpenProductDetail: (sl
                     category={p.category}
                     stockQty={p.stock_qty}
                     isUnlimitedStock={p.is_unlimited_stock}
+                    sellerName={p.posted_by_username}
+                    sellerLogoUrl={p.posted_by_avatar}
+                    contactUrl={p.telegram_url}
                     onViewDetails={handleViewDetails}
                     favoriteType="program"
                     favoriteLabel={t("nav.programs")}

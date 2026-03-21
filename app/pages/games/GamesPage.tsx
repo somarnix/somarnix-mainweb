@@ -22,6 +22,9 @@ type DbGame = {
   is_unlimited_stock: 0 | 1 | null;
   students: number;
   rating: number;
+  posted_by_username?: string | null;
+  posted_by_avatar?: string | null;
+  telegram_url?: string | null;
 };
 
 export function GamesPage({ onOpenProductDetail }: { onOpenProductDetail: (slug: string) => void }) {
@@ -183,6 +186,9 @@ export function GamesPage({ onOpenProductDetail }: { onOpenProductDetail: (slug:
                     category={g.category}
                     stockQty={g.stock_qty}
                     isUnlimitedStock={g.is_unlimited_stock}
+                    sellerName={g.posted_by_username}
+                    sellerLogoUrl={g.posted_by_avatar}
+                    contactUrl={g.telegram_url}
                     onViewDetails={handleViewDetails}
                   />
                 ))}

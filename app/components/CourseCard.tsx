@@ -24,6 +24,9 @@ export interface CourseCardProps {
   ctaLabel?: string;
   ctaIcon?: "cart" | "play";
   shareHref?: string;
+  sellerName?: string | null;
+  sellerLogoUrl?: string | null;
+  contactUrl?: string | null;
 }
 
 export function CourseCard({
@@ -41,6 +44,9 @@ export function CourseCard({
   ctaLabel,
   ctaIcon = "cart",
   shareHref,
+  sellerName,
+  sellerLogoUrl,
+  contactUrl,
 }: CourseCardProps) {
   const { t } = useLanguage();
   const { formatPrice } = useCurrency();
@@ -69,6 +75,14 @@ export function CourseCard({
           path={detailHref}
           title={title}
           text={category ? `${title} - ${category}` : title}
+          imageUrl={image}
+          price={price}
+          comparePrice={originalPrice}
+          sellerName={sellerName}
+          sellerLogoUrl={sellerLogoUrl}
+          stockBadge={isOutOfStock ? "Out of stock" : "In stock"}
+          buyUrl={detailHref}
+          contactUrl={contactUrl || process.env.NEXT_PUBLIC_TELEGRAM_SUPPORT_URL || "/support"}
           className="absolute right-3 top-14 z-10 flex h-10 w-10 items-center justify-center rounded-2xl bg-white/92 text-slate-500 shadow-[0_12px_26px_rgba(15,23,42,0.18)] backdrop-blur transition hover:-translate-y-0.5 hover:text-blue-600"
         />
         <FavoriteToggleButton

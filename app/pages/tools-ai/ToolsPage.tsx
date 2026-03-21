@@ -23,6 +23,9 @@ type DbTool = {
   is_unlimited_stock: 0 | 1 | null;
   students: number;
   rating: number;
+  posted_by_username?: string | null;
+  posted_by_avatar?: string | null;
+  telegram_url?: string | null;
 };
 
 export function ToolsPage({ onOpenProductDetail }: { onOpenProductDetail: (slug: string) => void }) {
@@ -183,6 +186,9 @@ export function ToolsPage({ onOpenProductDetail }: { onOpenProductDetail: (slug:
                     category={tool.category}
                     stockQty={tool.stock_qty}
                     isUnlimitedStock={tool.is_unlimited_stock}
+                    sellerName={tool.posted_by_username}
+                    sellerLogoUrl={tool.posted_by_avatar}
+                    contactUrl={tool.telegram_url}
                     onViewDetails={handleViewDetails}
                     id={tool.id}
                     favoriteType="tool"

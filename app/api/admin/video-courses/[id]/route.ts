@@ -14,6 +14,7 @@ type CourseRow = RowDataPacket & {
   level: string;
   author_name: string | null;
   author_avatar_url: string | null;
+  telegram_url: string | null;
   rating: number | string | null;
   rating_count: number | null;
   students_count: number | null;
@@ -28,6 +29,35 @@ type CourseRow = RowDataPacket & {
   posted_by_name?: string | null;
   posted_by_username?: string | null;
 };
+
+async function hasColumn(tableName: string, columnName: string): Promise<boolean> {
+  const [rows] = await db.query<RowDataPacket[]>(
+    `
+    SELECT 1
+    FROM information_schema.columns
+    WHERE table_schema = DATABASE()
+      AND table_name = ?
+      AND column_name = ?
+    LIMIT 1
+    `,
+    [tableName, columnName]
+  );
+  return rows.length > 0;
+}
+
+async function ensureTelegramUrlColumn(): Promise<boolean> {
+  const exists = await hasColumn("video_courses", "telegram_url");
+  if (exists) return true;
+  try {
+    await db.query(`
+      ALTER TABLE video_courses
+      ADD COLUMN telegram_url VARCHAR(2000) NULL AFTER author_avatar_url
+    `);
+    return true;
+  } catch {
+    return false;
+  }
+}
 
 export async function GET(req: Request, ctx: { params: Promise<{ id?: string }> }) {
   const auth = await getAuthUser(req);
@@ -52,6 +82,7 @@ export async function GET(req: Request, ctx: { params: Promise<{ id?: string }> 
     `
   );
   const hasLearningOutcomesColumn = learningOutcomesColumnRows.length > 0;
+  const hasTelegramUrlColumn = await hasColumn("video_courses", "telegram_url");
   const [postedByColumnRows] = await db.query<RowDataPacket[]>(
     `
     SELECT 1 AS ok
@@ -88,6 +119,7 @@ export async function GET(req: Request, ctx: { params: Promise<{ id?: string }> 
       vc.level,
       vc.author_name,
       vc.author_avatar_url,
+      ${hasTelegramUrlColumn ? "vc.telegram_url," : "NULL AS telegram_url,"}
       vc.rating,
       vc.rating_count,
       vc.students_count,
@@ -146,6 +178,8 @@ export async function PUT(req: Request, ctx: { params: Promise<{ id?: string }> 
     typeof data.author_name === "string" ? data.author_name.trim() : null;
   const authorAvatar =
     typeof data.author_avatar_url === "string" ? data.author_avatar_url.trim() : null;
+  const telegramUrl =
+    typeof data.telegram_url === "string" ? data.telegram_url.trim() : null;
   const rating =
     typeof data.rating === "number" ? data.rating : Number(data.rating);
   const ratingCount =
@@ -181,8 +215,11 @@ export async function PUT(req: Request, ctx: { params: Promise<{ id?: string }> 
     `
   );
   const hasLearningOutcomesColumn = learningOutcomesColumnRows.length > 0;
+  const hasTelegramUrlColumn = await ensureTelegramUrlColumn();
   const updateLearningOutcomesSql = hasLearningOutcomesColumn ? "learning_outcomes = ?," : "";
   const updateLearningOutcomesParams = hasLearningOutcomesColumn ? [learningOutcomes] : [];
+  const updateTelegramSql = hasTelegramUrlColumn ? "telegram_url = ?," : "";
+  const updateTelegramParams = hasTelegramUrlColumn ? [telegramUrl] : [];
 
   const [result] = await db.query<ResultSetHeader>(
     `
@@ -202,6 +239,7 @@ export async function PUT(req: Request, ctx: { params: Promise<{ id?: string }> 
       upload_date = ?,
       thumbnail_url = ?,
       hero_url = ?,
+      ${updateTelegramSql}
       ${updateLearningOutcomesSql}
       preview_mode = COALESCE(?, preview_mode),
       preview_count = COALESCE(?, preview_count),
@@ -223,6 +261,7 @@ export async function PUT(req: Request, ctx: { params: Promise<{ id?: string }> 
       uploadDate,
       thumbnailUrl,
       heroUrl,
+      ...updateTelegramParams,
       ...updateLearningOutcomesParams,
       previewMode,
       Number.isFinite(previewCount) ? previewCount : null,

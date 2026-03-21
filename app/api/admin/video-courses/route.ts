@@ -14,6 +14,7 @@ type CourseRow = RowDataPacket & {
   level: string;
   author_name: string | null;
   author_avatar_url: string | null;
+  telegram_url: string | null;
   rating: number | string | null;
   rating_count: number | null;
   students_count: number | null;
@@ -31,6 +32,35 @@ type CourseRow = RowDataPacket & {
   posted_by_name?: string | null;
   posted_by_username?: string | null;
 };
+
+async function hasColumn(tableName: string, columnName: string): Promise<boolean> {
+  const [rows] = await db.query<RowDataPacket[]>(
+    `
+    SELECT 1
+    FROM information_schema.columns
+    WHERE table_schema = DATABASE()
+      AND table_name = ?
+      AND column_name = ?
+    LIMIT 1
+    `,
+    [tableName, columnName]
+  );
+  return rows.length > 0;
+}
+
+async function ensureTelegramUrlColumn(): Promise<boolean> {
+  const exists = await hasColumn("video_courses", "telegram_url");
+  if (exists) return true;
+  try {
+    await db.query(`
+      ALTER TABLE video_courses
+      ADD COLUMN telegram_url VARCHAR(2000) NULL AFTER author_avatar_url
+    `);
+    return true;
+  } catch {
+    return false;
+  }
+}
 
 export async function GET(req: Request) {
   const auth = await getAuthUser(req);
@@ -50,6 +80,7 @@ export async function GET(req: Request) {
       `
     );
     const hasLearningOutcomesColumn = learningOutcomesColumnRows.length > 0;
+    const hasTelegramUrlColumn = await hasColumn("video_courses", "telegram_url");
     const [postedByColumnRows] = await db.query<RowDataPacket[]>(
       `
       SELECT 1 AS ok
@@ -88,6 +119,7 @@ export async function GET(req: Request) {
           vc.level,
           vc.author_name,
           vc.author_avatar_url,
+          ${hasTelegramUrlColumn ? "vc.telegram_url," : "NULL AS telegram_url,"}
           vc.rating,
           vc.rating_count,
           vc.students_count,
@@ -134,6 +166,7 @@ export async function GET(req: Request) {
           vc.level,
           vc.author_name,
           vc.author_avatar_url,
+          ${hasTelegramUrlColumn ? "vc.telegram_url," : "NULL AS telegram_url,"}
           vc.rating,
           vc.rating_count,
           vc.students_count,
@@ -189,6 +222,10 @@ export async function POST(req: Request) {
     const title = typeof data.title === "string" ? data.title.trim() : "";
     const slug = typeof data.slug === "string" ? data.slug.trim() : "";
     const level = typeof data.level === "string" ? data.level : "beginner";
+    const telegramUrl =
+      typeof data.telegram_url === "string" && data.telegram_url.trim()
+        ? data.telegram_url.trim()
+        : null;
 
     if (!title) return Response.json({ error: "Title is required" }, { status: 400 });
     if (!slug) return Response.json({ error: "Slug is required" }, { status: 400 });
@@ -204,21 +241,26 @@ export async function POST(req: Request) {
       `
     );
     const hasPostedByColumn = postedByColumnRows.length > 0;
+    const hasTelegramUrlColumn = await ensureTelegramUrlColumn();
 
     const [result] = hasPostedByColumn
       ? await db.query<ResultSetHeader>(
           `
-          INSERT INTO video_courses (title, slug, level, posted_by)
-          VALUES (?,?,?,?)
+          INSERT INTO video_courses (title, slug, level, posted_by${hasTelegramUrlColumn ? ", telegram_url" : ""})
+          VALUES (?,?,?,?${hasTelegramUrlColumn ? ",?" : ""})
           `,
-          [title, slug, level, auth.userId]
+          hasTelegramUrlColumn
+            ? [title, slug, level, auth.userId, telegramUrl]
+            : [title, slug, level, auth.userId]
         )
       : await db.query<ResultSetHeader>(
           `
-          INSERT INTO video_courses (title, slug, level)
-          VALUES (?,?,?)
+          INSERT INTO video_courses (title, slug, level${hasTelegramUrlColumn ? ", telegram_url" : ""})
+          VALUES (?,?,?${hasTelegramUrlColumn ? ",?" : ""})
           `,
-          [title, slug, level]
+          hasTelegramUrlColumn
+            ? [title, slug, level, telegramUrl]
+            : [title, slug, level]
         );
 
     return Response.json({ success: true, id: result.insertId });

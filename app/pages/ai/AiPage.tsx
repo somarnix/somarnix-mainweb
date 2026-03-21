@@ -24,6 +24,9 @@ type DbCourse = {
   is_unlimited_stock: 0 | 1 | null;
   students: number;
   rating: number;
+  posted_by_username?: string | null;
+  posted_by_avatar?: string | null;
+  telegram_url?: string | null;
 };
 
 export function AiPage({ onOpenProductDetail }: { onOpenProductDetail: (slug: string) => void }) { 
@@ -183,6 +186,9 @@ export function AiPage({ onOpenProductDetail }: { onOpenProductDetail: (slug: st
                       category={c.category}
                       stockQty={c.stock_qty}
                       isUnlimitedStock={c.is_unlimited_stock}
+                      sellerName={c.posted_by_username}
+                      sellerLogoUrl={c.posted_by_avatar}
+                      contactUrl={c.telegram_url}
                       onViewDetails={handleViewDetails}
                     />
                   ))}

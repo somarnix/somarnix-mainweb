@@ -3,6 +3,8 @@ import type { Metadata } from "next";
 
 import { resolveDynamicShareMetadata } from "../lib/dynamicShareMetadata";
 
+export const dynamic = "force-dynamic";
+
 export async function generateMetadata({
   params,
 }: {

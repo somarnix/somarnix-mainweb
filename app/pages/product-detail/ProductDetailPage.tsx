@@ -69,6 +69,7 @@ type ProductDetail = {
   level?: ProductLevel | null;
 
   image_url?: string | null;
+  telegram_url?: string | null;
   order_fields_json?: string | null;
 
   stock_qty?: number | null;
@@ -560,6 +561,11 @@ export default function ProductDetailPage({
       ? product.posted_by_name
       : null) ||
     "Seller";
+  const contactTelegramUrl =
+    (typeof product.telegram_url === "string" && product.telegram_url.trim()
+      ? product.telegram_url.trim()
+      : null) ||
+    (process.env.NEXT_PUBLIC_TELEGRAM_SUPPORT_URL || "/support");
 
   const openProduct = (s: string) => {
     if (onOpenProduct) {
@@ -686,6 +692,14 @@ export default function ProductDetailPage({
               path={`/product/${encodeURIComponent(product.slug)}`}
               title={product.title}
               text={product.description || product.title}
+              imageUrl={imageSrc}
+              price={mainPrice}
+              comparePrice={mainOriginal}
+              sellerName={postedByName}
+              sellerLogoUrl={product.posted_by_avatar}
+              stockBadge={isOutOfStock ? "Out of stock" : stockText}
+              buyUrl={`/product/${encodeURIComponent(product.slug)}`}
+              contactUrl={contactTelegramUrl}
               label={t("share.button")}
               className="inline-flex h-10 items-center justify-center rounded-xl border border-gray-200 bg-white px-4 text-sm font-semibold text-gray-700 shadow-sm transition hover:border-blue-200 hover:text-blue-600 dark:border-gray-700 dark:bg-gray-900 dark:text-gray-100"
               iconClassName="h-4 w-4"

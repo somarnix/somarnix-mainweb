@@ -29,6 +29,16 @@ type ToolDefinitionApiResponse = {
   error?: string;
 };
 
+type ToolShareMeta = {
+  imageUrl?: string | null;
+  price?: number | null;
+  comparePrice?: number | null;
+  sellerName?: string | null;
+  sellerLogoUrl?: string | null;
+  stockBadge?: string | null;
+  contactUrl?: string | null;
+};
+
 export default function ToolRuntimePage({
   slug,
   onOpenProductDetail,
@@ -39,6 +49,7 @@ export default function ToolRuntimePage({
   const [definition, setDefinition] = useState<ToolDefinitionClientRecord | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+  const [shareMeta, setShareMeta] = useState<ToolShareMeta | null>(null);
 
   useEffect(() => {
     let alive = true;
@@ -47,6 +58,7 @@ export default function ToolRuntimePage({
       setLoading(true);
       setDefinition(null);
       setError(null);
+      setShareMeta(null);
 
       try {
         const res = await fetch(`/api/tools/definition?slug=${encodeURIComponent(slug)}`, {
@@ -129,6 +141,62 @@ export default function ToolRuntimePage({
     };
   }, [slug]);
 
+  useEffect(() => {
+    if (!definition?.productSlug) {
+      setShareMeta(null);
+      return;
+    }
+
+    let alive = true;
+    void (async () => {
+      try {
+        const res = await fetch(`/api/products/${encodeURIComponent(definition.productSlug)}`, {
+          cache: "no-store",
+        });
+        const data = await res.json().catch(() => ({}));
+        if (!alive || !res.ok || !data?.product) return;
+        const product = data.product as Record<string, unknown>;
+        const sellerName =
+          (typeof product.posted_by_username === "string" && product.posted_by_username.trim()) ||
+          (typeof product.posted_by_name === "string" && product.posted_by_name.trim()) ||
+          null;
+        const minPrice =
+          typeof product.min_price === "number"
+            ? product.min_price
+            : Number(product.min_price ?? NaN);
+        const minOriginalPrice =
+          typeof product.min_original_price === "number"
+            ? product.min_original_price
+            : Number(product.min_original_price ?? NaN);
+        const stockQty =
+          typeof product.stock_qty === "number"
+            ? product.stock_qty
+            : Number(product.stock_qty ?? NaN);
+        const unlimitedStock = Number(product.is_unlimited_stock ?? 0) === 1;
+        setShareMeta({
+          imageUrl: typeof product.image_url === "string" ? product.image_url : null,
+          price: Number.isFinite(minPrice) ? minPrice : null,
+          comparePrice: Number.isFinite(minOriginalPrice) ? minOriginalPrice : null,
+          sellerName,
+          sellerLogoUrl: typeof product.posted_by_avatar === "string" ? product.posted_by_avatar : null,
+          stockBadge:
+            unlimitedStock || !Number.isFinite(stockQty) || stockQty > 0 ? "In stock" : "Out of stock",
+          contactUrl:
+            (typeof product.telegram_url === "string" && product.telegram_url.trim()) ||
+            process.env.NEXT_PUBLIC_TELEGRAM_SUPPORT_URL ||
+            "/support",
+        });
+      } catch {
+        if (!alive) return;
+        setShareMeta(null);
+      }
+    })();
+
+    return () => {
+      alive = false;
+    };
+  }, [definition?.productSlug]);
+
   const renderedTool = useMemo(() => {
     if (!definition) return null;
     return renderToolHandler({
@@ -158,6 +226,14 @@ export default function ToolRuntimePage({
             path={`/tools-ai/${encodeURIComponent(slug)}`}
             title={definition.productTitle || slug}
             text={definition.productTitle || slug}
+            imageUrl={shareMeta?.imageUrl}
+            price={shareMeta?.price}
+            comparePrice={shareMeta?.comparePrice}
+            sellerName={shareMeta?.sellerName}
+            sellerLogoUrl={shareMeta?.sellerLogoUrl}
+            stockBadge={shareMeta?.stockBadge}
+            buyUrl={`/product/${encodeURIComponent(definition.productSlug || slug)}`}
+            contactUrl={shareMeta?.contactUrl}
             className="flex h-12 w-12 items-center justify-center rounded-full bg-white/95 text-slate-600 shadow-[0_16px_32px_rgba(15,23,42,0.24)] backdrop-blur transition hover:-translate-y-0.5 hover:text-blue-600"
           />
         </div>

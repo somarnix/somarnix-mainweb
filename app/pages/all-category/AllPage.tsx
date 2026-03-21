@@ -22,6 +22,9 @@ type DbProduct = {
   is_unlimited_stock: 0 | 1 | null;
   students: number;
   rating: number;
+  posted_by_username?: string | null;
+  posted_by_avatar?: string | null;
+  telegram_url?: string | null;
 };
 
 export function AllPage({ onOpenProductDetail }: { onOpenProductDetail: (slug: string) => void }) {
@@ -251,6 +254,9 @@ export function AllPage({ onOpenProductDetail }: { onOpenProductDetail: (slug: s
                       category={item.category}
                       stockQty={item.stock_qty}
                       isUnlimitedStock={item.is_unlimited_stock}
+                      sellerName={item.posted_by_username}
+                      sellerLogoUrl={item.posted_by_avatar}
+                      contactUrl={item.telegram_url}
                       onViewDetails={handleViewDetails}
                     />
                   ))}

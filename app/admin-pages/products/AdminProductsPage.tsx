@@ -43,6 +43,7 @@ type Product = {
   is_unlimited_stock?: number | null;
 
   image_url?: string | null;
+  telegram_url?: string | null;
   order_fields_json?: string | null;
 
   min_price?: number | string | null;
@@ -245,6 +246,7 @@ export default function AdminProductsPage({
   const [cCategoryId, setCCategoryId] = useState<number>(0);
   const [cDescription, setCDescription] = useState("");
   const [cImageUrl, setCImageUrl] = useState("");
+  const [cTelegramUrl, setCTelegramUrl] = useState("");
   const [cImageUploading, setCImageUploading] = useState(false);
   const [cTemplateType, setCTemplateType] = useState<ToolTemplateType>("downloadable_exe");
   const [cStatus, setCStatus] = useState<ToolStatus>("draft");
@@ -294,6 +296,7 @@ export default function AdminProductsPage({
   const [fStockQty, setFStockQty] = useState<number>(0);
   const [fUnlimitedStock, setFUnlimitedStock] = useState<number>(0);
   const [fImageUrl, setFImageUrl] = useState<string>("");
+  const [fTelegramUrl, setFTelegramUrl] = useState<string>("");
   const [fOrderFieldsJson, setFOrderFieldsJson] = useState<string>("");
   const [fOrderFields, setFOrderFields] = useState<OrderField[]>([]);
 
@@ -385,6 +388,7 @@ export default function AdminProductsPage({
         const is_unlimited_stock = toNumberOrNull(r.is_unlimited_stock);
 
         const image_url = typeof r.image_url === "string" ? r.image_url : null;
+        const telegram_url = typeof r.telegram_url === "string" ? r.telegram_url : null;
         const order_fields_json =
           typeof r.order_fields_json === "string" ? r.order_fields_json : null;
 
@@ -404,6 +408,7 @@ export default function AdminProductsPage({
           stock_qty,
           is_unlimited_stock,
           image_url,
+          telegram_url,
           order_fields_json,
           min_price,
           variant_count,
@@ -558,6 +563,7 @@ export default function AdminProductsPage({
     setCCategoryId(scopedCategories[0].id);
     setCDescription("");
     setCImageUrl("");
+    setCTelegramUrl("");
     setCImageUploading(false);
     setCTemplateType("downloadable_exe");
     setCStatus("draft");
@@ -619,6 +625,7 @@ export default function AdminProductsPage({
           category_id: Number(cCategoryId),
           description: cDescription.trim(),
           image_url: cImageUrl.trim() || null,
+          telegram_url: cTelegramUrl.trim() || null,
           status: cStatus,
           template_type: cTemplateType,
           price: Number(cPrice),
@@ -669,6 +676,7 @@ export default function AdminProductsPage({
           slug,
           category_id: Number(cCategoryId),
           image_url: cImageUrl.trim() || null,
+          telegram_url: cTelegramUrl.trim() || null,
         };
 
         const res = await fetch("/api/admin/products", {
@@ -1006,6 +1014,7 @@ export default function AdminProductsPage({
     setFUnlimitedStock(p.is_unlimited_stock ? 1 : 0);
 
     setFImageUrl(typeof p.image_url === "string" ? p.image_url : "");
+    setFTelegramUrl(typeof p.telegram_url === "string" ? p.telegram_url : "");
     const rawOrderFields =
       typeof p.order_fields_json === "string" ? p.order_fields_json : "";
     setFOrderFieldsJson(rawOrderFields);
@@ -1040,6 +1049,7 @@ export default function AdminProductsPage({
     setEditing(null);
     setSaving(false);
     setUploading(false);
+    setFTelegramUrl("");
     setFOrderFieldsJson("");
     setFOrderFields([]);
 
@@ -1128,6 +1138,7 @@ export default function AdminProductsPage({
         stock_qty: Number(fStockQty),
         is_unlimited_stock: fUnlimitedStock ? 1 : 0,
         image_url: fImageUrl && fImageUrl.trim() ? fImageUrl.trim() : null,
+        telegram_url: fTelegramUrl && fTelegramUrl.trim() ? fTelegramUrl.trim() : null,
         order_fields_json: serializeOrderFields(fOrderFields),
       };
 
@@ -1156,6 +1167,7 @@ export default function AdminProductsPage({
                 stock_qty: payload.stock_qty,
                 is_unlimited_stock: payload.is_unlimited_stock,
                 image_url: payload.image_url,
+                telegram_url: payload.telegram_url,
                 order_fields_json: payload.order_fields_json,
               }
             : x
@@ -1946,7 +1958,8 @@ export default function AdminProductsPage({
                       accept="image/*"
                       className="hidden"
                       onChange={async (e) => {
-                        const file = e.target.files?.[0];
+                        const input = e.currentTarget;
+                        const file = input.files?.[0];
                         if (!file) return;
                         try {
                           setCImageUploading(true);
@@ -1956,7 +1969,7 @@ export default function AdminProductsPage({
                           alert(getErrorMessage(err));
                         } finally {
                           setCImageUploading(false);
-                          e.currentTarget.value = "";
+                          input.value = "";
                         }
                       }}
                     />
@@ -1977,6 +1990,16 @@ export default function AdminProductsPage({
                     </div>
                   </div>
                 ) : null}
+              </div>
+
+              <div className="md:col-span-2">
+                <label className="text-xs text-gray-600">Telegram Link</label>
+                <input
+                  value={cTelegramUrl ?? ""}
+                  onChange={(e) => setCTelegramUrl(e.target.value)}
+                  className="mt-1 w-full rounded-lg border px-3 py-2 text-sm"
+                  placeholder="https://t.me/your_username or https://telegram.me/..."
+                />
               </div>
                 </div>
 
@@ -2121,7 +2144,8 @@ export default function AdminProductsPage({
                                 accept="image/*"
                                 className="hidden"
                                 onChange={async (e) => {
-                                  const file = e.target.files?.[0];
+                                  const input = e.currentTarget;
+                                  const file = input.files?.[0];
                                   if (!file) return;
                                   try {
                                     setCImageUploading(true);
@@ -2131,7 +2155,7 @@ export default function AdminProductsPage({
                                     alert(getErrorMessage(err));
                                   } finally {
                                     setCImageUploading(false);
-                                    e.currentTarget.value = "";
+                                    input.value = "";
                                   }
                                 }}
                               />
@@ -2309,7 +2333,8 @@ export default function AdminProductsPage({
                                     type="file"
                                     className="hidden"
                                     onChange={async (e) => {
-                                      const file = e.target.files?.[0];
+                                      const input = e.currentTarget;
+                                      const file = input.files?.[0];
                                       if (!file) return;
                                       try {
                                         setCToolAssetUploading(true);
@@ -2319,7 +2344,7 @@ export default function AdminProductsPage({
                                         alert(getErrorMessage(err));
                                       } finally {
                                         setCToolAssetUploading(false);
-                                        e.currentTarget.value = "";
+                                        input.value = "";
                                       }
                                     }}
                                   />
@@ -2850,7 +2875,8 @@ export default function AdminProductsPage({
                     accept="image/*"
                     disabled={uploading}
                     onChange={async (e) => {
-                      const file = e.target.files?.[0];
+                      const input = e.currentTarget;
+                      const file = input.files?.[0];
                       if (!file || !editing) return;
 
                       try {
@@ -2867,7 +2893,7 @@ export default function AdminProductsPage({
                         alert(getErrorMessage(err));
                       } finally {
                         setUploading(false);
-                        e.currentTarget.value = "";
+                        input.value = "";
                       }
                     }}
                   />
@@ -2924,6 +2950,16 @@ export default function AdminProductsPage({
                     No image uploaded
                   </div>
                 )}
+              </div>
+
+              <div className="md:col-span-2">
+                <label className="text-xs text-gray-600">Telegram Link</label>
+                <input
+                  value={fTelegramUrl ?? ""}
+                  onChange={(e) => setFTelegramUrl(e.target.value)}
+                  placeholder="https://t.me/your_username or https://telegram.me/..."
+                  className="mt-1 w-full rounded-lg border px-3 py-2 text-sm"
+                />
               </div>
 
               {/* ================= VARIANTS SECTION ================= */}
