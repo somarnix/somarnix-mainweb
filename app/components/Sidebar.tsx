@@ -196,6 +196,7 @@ export function Sidebar({
     { id: "admin-video-courses", label: t("admin.videoCourses"), page: "admin-video-courses" },
     { id: "admin-video-courses-promotions", label: t("admin.promotions"), page: "admin-video-courses-promotions" },
     { id: "admin-notifications", label: t("admin.notifications"), page: "admin-notifications" },
+    { id: "admin-support-faq", label: "Support FAQ", page: "admin-support-faq" },
     { id: "admin-orders", label: t("admin.orders"), page: "admin-orders" },
     { id: "admin-users", label: t("admin.users"), page: "admin-users" },
     { id: "admin-test", label: t("admin.payments"), page: "admin-test" },

@@ -401,13 +401,13 @@ export function BlogPage({ initialSellerId }: BlogPageProps) {
 
   return (
     <div
-      className={`min-h-full bg-gradient-to-br from-amber-50 via-slate-100 to-emerald-50 dark:from-slate-950 dark:via-slate-950 dark:to-slate-900 ${
+      className={`min-h-full overflow-x-hidden bg-gradient-to-br from-amber-50 via-slate-100 to-emerald-50 dark:from-slate-950 dark:via-slate-950 dark:to-slate-900 ${
         isAppShell ? "pb-8 pt-2 sm:pt-4" : ""
       }`}
     >
-      <div className="mx-auto w-full max-w-7xl px-2 py-3 sm:px-5 sm:py-8 lg:px-8 lg:py-10">
-        <section className="mb-4 overflow-hidden rounded-[1.5rem] border border-slate-200/80 bg-white/95 shadow-[0_24px_60px_-36px_rgba(15,23,42,0.45)] backdrop-blur dark:border-slate-800 dark:bg-slate-900/95 sm:mb-8 sm:rounded-[2rem]">
-          <div className="relative h-28 sm:h-44 lg:h-48">
+      <div className="mx-auto w-full max-w-7xl overflow-x-hidden px-2 py-2 sm:px-5 sm:py-8 lg:px-8 lg:py-10">
+        <section className="mb-3 overflow-hidden rounded-[1.25rem] border border-slate-200/80 bg-white/95 shadow-[0_24px_60px_-36px_rgba(15,23,42,0.45)] backdrop-blur dark:border-slate-800 dark:bg-slate-900/95 sm:mb-8 sm:rounded-[2rem]">
+          <div className="relative h-24 sm:h-44 lg:h-48">
             <ProfileCoverArt
               src={sellerCoverSrc}
               alt={`${sellerName} cover`}
@@ -420,19 +420,19 @@ export function BlogPage({ initialSellerId }: BlogPageProps) {
             <div className="absolute inset-0 bg-gradient-to-br from-slate-950/25 via-blue-900/10 to-violet-900/20" />
           </div>
 
-          <div className="px-3 pb-4 pt-0 sm:px-6 sm:pb-6">
-            <div className="flex flex-col gap-3 sm:gap-4">
-              <div className="flex flex-col gap-3 sm:flex-row sm:items-end sm:justify-between">
-                <div className="flex min-w-0 items-start gap-3 sm:gap-4">
+          <div className="px-2.5 pb-3 pt-0 sm:px-6 sm:pb-6">
+            <div className="flex flex-col gap-2 sm:gap-4">
+              <div className="flex flex-col gap-2.5 sm:flex-row sm:items-end sm:justify-between">
+                <div className="flex min-w-0 items-start gap-2 sm:gap-4">
                   <div className="shrink-0">
-                    <div className="-mt-8 rounded-[1.5rem] bg-white p-1 shadow-[0_12px_30px_rgba(15,23,42,0.12)] ring-1 ring-slate-200/70 dark:bg-slate-900 dark:ring-slate-700 sm:-mt-12 sm:p-2 sm:rounded-[1.75rem]">
+                    <div className="-mt-6 rounded-[1.25rem] bg-white p-1 shadow-[0_12px_30px_rgba(15,23,42,0.12)] ring-1 ring-slate-200/70 dark:bg-slate-900 dark:ring-slate-700 sm:-mt-12 sm:p-2 sm:rounded-[1.75rem]">
                       <div className="relative">
                         <ProfileAvatar
                           src={profile?.seller.avatarUrl}
                           alt={sellerName}
                           fallback={avatarInitials}
                           borderUrl={sellerAvatarBorderUrl}
-                          className="h-16 w-16 sm:h-24 sm:w-24"
+                          className="h-14 w-14 sm:h-24 sm:w-24"
                           contentClassName={
                             sellerAvatarBorderUrl
                               ? "shadow-lg"
@@ -443,12 +443,12 @@ export function BlogPage({ initialSellerId }: BlogPageProps) {
                         <UserOnlineStatus
                           online={sellerPresence.online}
                           showLabel={false}
-                          className="absolute bottom-1 right-1"
-                          dotClassName="h-4 w-4 border-2 border-white shadow-none dark:border-slate-900 sm:h-5 sm:w-5"
+                          className="absolute bottom-0.5 right-0.5 sm:bottom-1 sm:right-1"
+                          dotClassName="h-3.5 w-3.5 border-2 border-white shadow-none dark:border-slate-900 sm:h-5 sm:w-5"
                         />
                       </div>
                     </div>
-                    <div className="mt-2 flex justify-center">
+                    <div className="mt-1 flex justify-center">
                       <UserOnlineStatus
                         online={sellerPresence.online}
                         onlineLabel="Online"
@@ -457,9 +457,9 @@ export function BlogPage({ initialSellerId }: BlogPageProps) {
                     </div>
                   </div>
 
-                  <div className="min-w-0 pt-2 sm:pt-0">
+                  <div className="min-w-0 pt-0.5 sm:pt-0">
                     <div className="flex items-center gap-2">
-                      <div className="truncate text-lg font-semibold tracking-tight text-slate-900 dark:text-white sm:text-2xl md:text-3xl">
+                      <div className="truncate text-base font-semibold tracking-tight text-slate-900 dark:text-white sm:text-2xl md:text-3xl">
                         {sellerName}
                       </div>
                       {sellerHasLevelPerks ? (
@@ -470,10 +470,10 @@ export function BlogPage({ initialSellerId }: BlogPageProps) {
                         />
                       ) : null}
                     </div>
-                    <div className="mt-1 text-xs text-slate-500 dark:text-slate-300 sm:text-sm">
+                    <div className="mt-0.5 text-[10px] text-slate-500 dark:text-slate-300 sm:mt-1 sm:text-sm">
                       {sellerMeta}
                     </div>
-                    <div className="mt-2">
+                    <div className="mt-1 sm:mt-2">
                       <UserLevelBadge
                         userId={profile?.seller.id ?? sellerId}
                         size="sm"
@@ -485,11 +485,11 @@ export function BlogPage({ initialSellerId }: BlogPageProps) {
                   </div>
                 </div>
 
-                <div className="grid grid-cols-2 gap-2 sm:flex sm:justify-end">
+                <div className="grid w-full grid-cols-2 gap-2 sm:w-auto sm:flex sm:justify-end">
                   <button
                     onClick={handleToggleFollow}
                     disabled={!profile?.viewer.canFollow || followLoading}
-                    className={`min-h-10 rounded-full px-4 py-2 text-xs font-semibold transition sm:text-sm ${
+                    className={`min-h-9 rounded-full px-3 py-2 text-[11px] font-semibold transition sm:min-h-10 sm:px-4 sm:text-sm ${
                       profile?.viewer.isFollowing
                         ? "bg-slate-200 text-slate-700 hover:bg-slate-300 dark:bg-slate-800 dark:text-slate-200"
                         : "bg-blue-600 text-white hover:bg-blue-700"
@@ -501,7 +501,7 @@ export function BlogPage({ initialSellerId }: BlogPageProps) {
                         ? t("blog.following")
                         : t("blog.follow")}
                   </button>
-                  <button className="min-h-10 rounded-full border border-slate-900 bg-slate-900 px-4 py-2 text-xs font-semibold text-white transition hover:bg-slate-800 dark:border-slate-600 dark:bg-slate-800 dark:text-white dark:hover:bg-slate-700 sm:text-sm">
+                  <button className="min-h-9 rounded-full border border-slate-900 bg-slate-900 px-3 py-2 text-[11px] font-semibold text-white transition hover:bg-slate-800 dark:border-slate-600 dark:bg-slate-800 dark:text-white dark:hover:bg-slate-700 sm:min-h-10 sm:px-4 sm:text-sm">
                     {t("blog.message")}
                   </button>
                 </div>
@@ -516,11 +516,11 @@ export function BlogPage({ initialSellerId }: BlogPageProps) {
           </div>
         </section>
 
-        <div className="grid gap-4 xl:grid-cols-[280px_minmax(0,1fr)]">
+        <div className="grid gap-3 sm:gap-4 xl:grid-cols-[280px_minmax(0,1fr)]">
           <aside className="space-y-4 xl:sticky xl:top-20 xl:self-start">
-            <section className="rounded-[1.5rem] border border-slate-200/70 bg-white/90 p-4 shadow-[0_18px_45px_-36px_rgba(15,23,42,0.55)] backdrop-blur dark:border-slate-800 dark:bg-slate-900 sm:rounded-[1.75rem] sm:p-6">
-              <div className="mb-3 flex justify-center sm:mb-5">
-                <div className="relative h-14 w-14 shrink-0 sm:h-24 sm:w-24">
+            <section className="overflow-hidden rounded-[1.25rem] border border-slate-200/70 bg-white/90 p-3 shadow-[0_18px_45px_-36px_rgba(15,23,42,0.55)] backdrop-blur dark:border-slate-800 dark:bg-slate-900 sm:rounded-[1.75rem] sm:p-6">
+              <div className="mb-3 flex items-center gap-3 sm:mb-5 sm:flex-col sm:justify-center">
+                <div className="relative h-12 w-12 shrink-0 sm:h-24 sm:w-24">
                   <Image
                     src={sellerBadgeAssetSrc}
                     alt={`Level ${sellerLevel} badge`}
@@ -530,52 +530,60 @@ export function BlogPage({ initialSellerId }: BlogPageProps) {
                     unoptimized
                   />
                 </div>
+                <div className="min-w-0 sm:text-center">
+                  <div className="text-sm font-semibold text-slate-900 dark:text-white sm:text-lg">
+                    Level {sellerLevel}
+                  </div>
+                  <div className="text-[11px] text-slate-500 dark:text-slate-400 sm:text-sm">
+                    Current badge
+                  </div>
+                </div>
               </div>
 
               <div className="grid grid-cols-2 gap-2 text-center sm:gap-3">
-                <div className="rounded-xl border border-slate-100 bg-slate-50/60 px-2 py-3 dark:border-slate-800 dark:bg-slate-950/40 sm:rounded-2xl sm:px-3 sm:py-4">
-                  <div className="text-lg font-bold text-slate-900 dark:text-white sm:text-xl">
+                <div className="rounded-xl border border-slate-100 bg-slate-50/60 px-2 py-2.5 dark:border-slate-800 dark:bg-slate-950/40 sm:rounded-2xl sm:px-3 sm:py-4">
+                  <div className="text-base font-bold text-slate-900 dark:text-white sm:text-xl">
                     {formatCompact(profile?.stats.followers ?? 0)}
                   </div>
                   <div className="mt-1 text-[10px] text-slate-500 sm:text-xs">{t("blog.followersLabel")}</div>
                 </div>
-                <div className="rounded-xl border border-slate-100 bg-slate-50/60 px-2 py-3 dark:border-slate-800 dark:bg-slate-950/40 sm:rounded-2xl sm:px-3 sm:py-4">
-                  <div className="text-lg font-bold text-slate-900 dark:text-white sm:text-xl">
+                <div className="rounded-xl border border-slate-100 bg-slate-50/60 px-2 py-2.5 dark:border-slate-800 dark:bg-slate-950/40 sm:rounded-2xl sm:px-3 sm:py-4">
+                  <div className="text-base font-bold text-slate-900 dark:text-white sm:text-xl">
                     {formatCompact(profile?.stats.following ?? 0)}
                   </div>
                   <div className="mt-1 text-[10px] text-slate-500 sm:text-xs">{t("blog.followingLabel")}</div>
                 </div>
               </div>
 
-              <div className="mt-3 space-y-1.5 text-[11px] text-slate-600 dark:text-slate-300 sm:mt-5 sm:space-y-3 sm:text-sm">
-                <div className="flex items-center justify-between border-b border-slate-100 pb-2 text-[11px] dark:border-slate-800 sm:text-xs">
-                  <span>{t("blog.memberSince")}</span>
-                  <span className="font-semibold text-slate-900 dark:text-white">
+              <div className="mt-2.5 space-y-1.5 text-[10px] text-slate-600 dark:text-slate-300 sm:mt-5 sm:space-y-3 sm:text-sm">
+                <div className="grid grid-cols-[minmax(0,1fr)_auto] items-start gap-2 border-b border-slate-100 pb-2 text-[10px] dark:border-slate-800 sm:flex sm:items-center sm:justify-between sm:text-xs">
+                  <span className="min-w-0">{t("blog.memberSince")}</span>
+                  <span className="text-right font-semibold text-slate-900 dark:text-white">
                     {formatMemberSince(profile?.seller.memberSince ?? null, language)}
                   </span>
                 </div>
-                <div className="flex items-center justify-between border-b border-slate-100 pb-2 text-[11px] dark:border-slate-800 sm:text-xs">
-                  <span>{t("blog.successfulDelivery")}</span>
-                  <span className="font-semibold text-emerald-600">
+                <div className="grid grid-cols-[minmax(0,1fr)_auto] items-start gap-2 border-b border-slate-100 pb-2 text-[10px] dark:border-slate-800 sm:flex sm:items-center sm:justify-between sm:text-xs">
+                  <span className="min-w-0">{t("blog.successfulDelivery")}</span>
+                  <span className="text-right font-semibold text-emerald-600">
                     {(profile?.stats.successfulDelivery ?? 0).toFixed(2)}%
                   </span>
                 </div>
-                <div className="flex items-center justify-between border-b border-slate-100 pb-2 text-[11px] dark:border-slate-800 sm:text-xs">
-                  <span>{t("blog.totalLifetimeOrders")}</span>
-                  <span className="font-semibold text-slate-900 dark:text-white">
+                <div className="grid grid-cols-[minmax(0,1fr)_auto] items-start gap-2 border-b border-slate-100 pb-2 text-[10px] dark:border-slate-800 sm:flex sm:items-center sm:justify-between sm:text-xs">
+                  <span className="min-w-0">{t("blog.totalLifetimeOrders")}</span>
+                  <span className="text-right font-semibold text-slate-900 dark:text-white">
                     {formatCompact(profile?.stats.totalLifetimeOrders ?? 0)}
                   </span>
                 </div>
-                <div className="flex items-center justify-between text-[11px] sm:text-xs">
-                  <span>{t("blog.allTimeRating")}</span>
-                  <span className="font-semibold text-emerald-600">
+                <div className="grid grid-cols-[minmax(0,1fr)_auto] items-start gap-2 text-[10px] sm:flex sm:items-center sm:justify-between sm:text-xs">
+                  <span className="min-w-0">{t("blog.allTimeRating")}</span>
+                  <span className="text-right font-semibold text-emerald-600">
                     {(profile?.stats.allTimeRating ?? 0).toFixed(2)}
                   </span>
                 </div>
               </div>
             </section>
 
-            <section className="rounded-[1.5rem] border border-slate-200 bg-white p-4 shadow-[0_18px_45px_-36px_rgba(15,23,42,0.55)] dark:border-slate-800 dark:bg-slate-900 sm:rounded-[1.75rem] sm:p-6">
+            <section className="overflow-hidden rounded-[1.25rem] border border-slate-200 bg-white p-3 shadow-[0_18px_45px_-36px_rgba(15,23,42,0.55)] dark:border-slate-800 dark:bg-slate-900 sm:rounded-[1.75rem] sm:p-6">
               <div className="text-sm font-semibold text-slate-900 dark:text-white sm:text-base">
                 {t("blog.description")}
               </div>
@@ -585,8 +593,8 @@ export function BlogPage({ initialSellerId }: BlogPageProps) {
             </section>
           </aside>
 
-          <section className="space-y-4 sm:space-y-6">
-            <div className="rounded-[1.5rem] border border-slate-200 bg-white p-3 shadow-[0_18px_45px_-36px_rgba(15,23,42,0.55)] dark:border-slate-800 dark:bg-slate-900 sm:rounded-[1.75rem] sm:p-6">
+          <section className="min-w-0 space-y-4 sm:space-y-6">
+            <div className="overflow-hidden rounded-[1.25rem] border border-slate-200 bg-white p-3 shadow-[0_18px_45px_-36px_rgba(15,23,42,0.55)] dark:border-slate-800 dark:bg-slate-900 sm:rounded-[1.75rem] sm:p-6">
               <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
                 <div className="flex flex-col gap-1">
                   <div className="text-sm font-semibold text-slate-900 dark:text-white sm:text-base">
@@ -597,8 +605,8 @@ export function BlogPage({ initialSellerId }: BlogPageProps) {
                   </div>
                 </div>
 
-                <div className="flex items-center gap-3 rounded-2xl border border-blue-100 bg-gradient-to-br from-blue-50 via-indigo-50 to-violet-50 px-3 py-2.5 shadow-sm dark:border-slate-700 dark:from-slate-900 dark:via-slate-900 dark:to-slate-800">
-                  <div className="relative h-11 w-11 shrink-0">
+                <div className="flex w-full items-center gap-2.5 rounded-2xl border border-blue-100 bg-gradient-to-br from-blue-50 via-indigo-50 to-violet-50 px-3 py-2 shadow-sm dark:border-slate-700 dark:from-slate-900 dark:via-slate-900 dark:to-slate-800 sm:w-auto">
+                  <div className="relative h-9 w-9 shrink-0 sm:h-11 sm:w-11">
                     <Image
                       src={sellerBadgeAssetSrc}
                       alt={`Level ${sellerLevel} badge`}
@@ -609,18 +617,18 @@ export function BlogPage({ initialSellerId }: BlogPageProps) {
                     />
                   </div>
                   <div className="min-w-0">
-                    <div className="text-[11px] font-semibold uppercase tracking-[0.18em] text-blue-600 dark:text-blue-300">
+                    <div className="text-[10px] font-semibold uppercase tracking-[0.14em] text-blue-600 dark:text-blue-300 sm:text-[11px] sm:tracking-[0.18em]">
                       Badge Collection
                     </div>
-                    <div className="mt-1 text-xs font-medium text-slate-600 dark:text-slate-300 sm:text-sm">
+                    <div className="mt-0.5 text-[11px] font-medium text-slate-600 dark:text-slate-300 sm:mt-1 sm:text-sm">
                       Current reward badge
                     </div>
                   </div>
                 </div>
               </div>
 
-              <div className="-mx-1 mt-4 overflow-x-auto pb-1 sm:mt-5">
-                <div className="flex min-w-max items-center gap-1.5 px-1 text-xs sm:text-sm">
+              <div className="mt-4 w-full overflow-x-auto pb-1 sm:mt-5">
+                <div className="flex w-max min-w-full items-center gap-1.5 pr-1 text-xs sm:text-sm">
                   {serviceTabs.map((tab) => {
                     const active = tab === activeServiceTab;
 

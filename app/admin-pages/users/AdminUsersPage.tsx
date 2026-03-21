@@ -6,8 +6,16 @@ import PaginationNext from "@/app/components/PaginationNext";
 type AdminUser = {
   id: number;
   email: string;
+  username?: string | null;
   role: "user" | "admin";
   is_active: number;
+  level?: number | null;
+  buying_score?: number | null;
+  selling_score?: number | null;
+  purchase_count?: number | null;
+  purchase_total?: number | null;
+  sales_count?: number | null;
+  sales_total?: number | null;
   max_devices?: number | null;
   login_device_count?: number | null;
   deleted_at?: string | null;
@@ -34,6 +42,7 @@ type UserStats = {
 const PAGE_SIZE = 10;
 const PRESENCE_WINDOW_MS = 5 * 60 * 1000;
 const FILTERS_STORAGE_KEY = "admin_users_filters_v1";
+const LIVE_REFRESH_MS = 15000;
 const MONTH_OPTIONS = [
   { value: "all", label: "All month" },
   { value: "1", label: "January" },
@@ -54,6 +63,11 @@ function fmtDate(value?: string | null): string {
   if (!value) return "-";
   const d = new Date(value);
   return Number.isNaN(d.getTime()) ? value : d.toLocaleString();
+}
+
+function fmtMoney(value?: number | null): string {
+  const num = Number(value ?? 0);
+  return Number.isFinite(num) ? `$${num.toFixed(2)}` : "$0.00";
 }
 
 function cardClass(color: "blue" | "green" | "orange" | "red" | "purple"): string {
@@ -200,6 +214,13 @@ export default function AdminUsersPage() {
     void load();
   }, []);
 
+  useEffect(() => {
+    const timer = window.setInterval(() => {
+      void load();
+    }, LIVE_REFRESH_MS);
+    return () => window.clearInterval(timer);
+  }, []);
+
   const filteredUsers = useMemo(() => {
     const q = search.trim().toLowerCase();
     return users.filter((u) => {
@@ -217,7 +238,11 @@ export default function AdminUsersPage() {
       if (presenceFilter === "online" && !online) return false;
       if (presenceFilter === "offline" && online) return false;
       if (!q) return true;
-      return String(u.email || "").toLowerCase().includes(q) || String(u.id).includes(q);
+      return (
+        String(u.email || "").toLowerCase().includes(q) ||
+        String(u.username || "").toLowerCase().includes(q) ||
+        String(u.id).includes(q)
+      );
     });
   }, [users, search, roleFilter, statusFilter, presenceFilter, monthFilter, yearFilter]);
 
@@ -345,15 +370,30 @@ export default function AdminUsersPage() {
         ? "All"
         : `${monthFilter === "all" ? "All months" : MONTH_OPTIONS.find((m) => m.value === monthFilter)?.label || monthFilter} ${yearFilter === "all" ? "All years" : yearFilter}`;
 
-    const headers = ["ID", "Email", "Role", "Status", "Presence", "Devices used/max", "Joined", "Ban Until"];
+    const headers = [
+      "ID",
+      "User",
+      "Role",
+      "Level",
+      "Buy",
+      "Sell",
+      "Status",
+      "Presence",
+      "Devices used/max",
+      "Joined",
+      "Ban Until",
+    ];
     const rows = filteredUsers.map((u) => {
       const status =
         u.status ?? (u.deleted_at ? "deleted" : Number(u.is_active) === 1 ? "active" : "banned");
       const presence = isPresenceOnline(u) ? "online" : "offline";
       return [
         `#${u.id}`,
-        u.email,
+        u.username ? `${u.username} (${u.email})` : u.email,
         u.role,
+        `L${Number(u.level ?? 1)} | buy score ${Number(u.buying_score ?? 0).toFixed(2)} | sell score ${Number(u.selling_score ?? 0).toFixed(2)}`,
+        `${Number(u.purchase_count ?? 0)} orders | ${fmtMoney(Number(u.purchase_total ?? 0))}`,
+        `${Number(u.sales_count ?? 0)} orders | ${fmtMoney(Number(u.sales_total ?? 0))}`,
         status,
         presence,
         `${Number.isFinite(Number(u.login_device_count)) ? Math.max(0, Number(u.login_device_count)) : 0}/${Number.isFinite(Number(u.max_devices)) ? Math.max(1, Number(u.max_devices)) : 10}`,
@@ -433,7 +473,7 @@ export default function AdminUsersPage() {
     <div className="max-w-7xl mx-auto px-4 py-12 space-y-5">
       <div>
         <h1 className="text-2xl font-bold">Users</h1>
-        <p className="text-sm text-gray-500">Manage roles, status, and create users.</p>
+        <p className="text-sm text-gray-500">Manage roles, status, level, and live buy/sell activity.</p>
       </div>
 
       <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-8">
@@ -532,7 +572,7 @@ export default function AdminUsersPage() {
           <input
             value={search}
             onChange={(e) => setSearch(e.target.value)}
-            placeholder="Search email or id"
+            placeholder="Search email, username or id"
             className="border rounded-lg px-3 py-2 text-sm grow min-w-50"
           />
           <select
@@ -593,8 +633,11 @@ export default function AdminUsersPage() {
             <thead className="bg-gray-50">
               <tr className="border-b">
                 <th className="p-3 text-left">ID</th>
-                <th className="p-3 text-left">Email</th>
+                <th className="p-3 text-left">User</th>
                 <th className="p-3 text-left">Role</th>
+                <th className="p-3 text-left">Level</th>
+                <th className="p-3 text-left">Buy</th>
+                <th className="p-3 text-left">Sell</th>
                 <th className="p-3 text-left">Status</th>
                 <th className="p-3 text-left">Presence</th>
                 <th className="p-3 text-left">Devices</th>
@@ -605,7 +648,7 @@ export default function AdminUsersPage() {
             <tbody>
               {pagedUsers.length === 0 ? (
                 <tr>
-                  <td colSpan={8} className="p-6 text-center text-gray-500">
+                  <td colSpan={11} className="p-6 text-center text-gray-500">
                     No users found
                   </td>
                 </tr>
@@ -619,7 +662,14 @@ export default function AdminUsersPage() {
                     return (
                   <tr key={u.id} className="border-b">
                     <td className="p-3">#{u.id}</td>
-                    <td className="p-3">{u.email}</td>
+                    <td className="p-3">
+                      <div className="flex flex-col">
+                        <span className="font-medium text-gray-900">
+                          {u.username ? `@${u.username}` : "-"}
+                        </span>
+                        <span className="text-xs text-gray-500">{u.email}</span>
+                      </div>
+                    </td>
                     <td className="p-3">
                       {u.role === "admin" ? (
                         <span className="inline-flex items-center rounded-full border border-violet-200 bg-violet-50 px-2 py-0.5 text-xs font-semibold text-violet-700">
@@ -630,6 +680,32 @@ export default function AdminUsersPage() {
                           user
                         </span>
                       )}
+                    </td>
+                    <td className="p-3">
+                      <div className="flex flex-col gap-1">
+                        <span className="inline-flex w-fit items-center rounded-full border border-amber-200 bg-amber-50 px-2 py-0.5 text-xs font-semibold text-amber-700">
+                          Level {Number(u.level ?? 1)}
+                        </span>
+                        <span className="text-[11px] text-gray-500">
+                          buy {Number(u.buying_score ?? 0).toFixed(2)} | sell {Number(u.selling_score ?? 0).toFixed(2)}
+                        </span>
+                      </div>
+                    </td>
+                    <td className="p-3">
+                      <div className="flex flex-col gap-1">
+                        <span className="inline-flex w-fit items-center rounded-full border border-blue-200 bg-blue-50 px-2 py-0.5 text-xs font-semibold text-blue-700">
+                          {Number(u.purchase_count ?? 0)} buys
+                        </span>
+                        <span className="text-[11px] text-gray-500">{fmtMoney(Number(u.purchase_total ?? 0))}</span>
+                      </div>
+                    </td>
+                    <td className="p-3">
+                      <div className="flex flex-col gap-1">
+                        <span className="inline-flex w-fit items-center rounded-full border border-violet-200 bg-violet-50 px-2 py-0.5 text-xs font-semibold text-violet-700">
+                          {Number(u.sales_count ?? 0)} sells
+                        </span>
+                        <span className="text-[11px] text-gray-500">{fmtMoney(Number(u.sales_total ?? 0))}</span>
+                      </div>
                     </td>
 	                    <td className="p-3">
 	                      {status === "active" ? (

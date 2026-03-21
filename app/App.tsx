@@ -43,6 +43,7 @@ import AdminPayment from "./admin-pages/admin-payment/AdminPayment";
 import AdminVideoCoursesPage from "./admin-pages/video-courses/AdminVideoCoursesPage";
 import AdminToolLicensesPage from "./admin-pages/tool-licenses/AdminToolLicensesPage";
 import AdminNotificationsPage from "./admin-pages/notifications/AdminNotificationsPage";
+import AdminSupportFaqPage from "./admin-pages/support-faq/AdminSupportFaqPage";
 
 import ProductDetailPage from "./pages/product-detail/ProductDetailPage";
 import { ChatPage } from "./pages/chat/ChatPage";
@@ -86,6 +87,7 @@ type AppPage =
   | "admin-users"
   | "admin-test"
   | "admin-notifications"
+  | "admin-support-faq"
   | "admin-video-courses"
   | "admin-video-courses-promotions"
   | "admin-video-course-detail";
@@ -135,6 +137,7 @@ const ALL_PAGES: ReadonlyArray<AppPage> = [
   "admin-users",
   "admin-test",
   "admin-notifications",
+  "admin-support-faq",
   "admin-video-courses",
   "admin-video-courses-promotions",
   "admin-video-course-detail",
@@ -171,6 +174,7 @@ const STATIC_ROUTES: Record<string, AppPage> = {
   "/admin/users": "admin-users",
   "/admin/test": "admin-test",
   "/admin/notifications": "admin-notifications",
+  "/admin/support-faq": "admin-support-faq",
   "/admin/video-courses": "admin-video-courses",
   "/admin/video-courses/promotions": "admin-video-courses-promotions",
 };
@@ -374,6 +378,8 @@ function buildPathForPage(
       return "/admin/test";
     case "admin-notifications":
       return "/admin/notifications";
+    case "admin-support-faq":
+      return "/admin/support-faq";
     case "admin-video-courses":
       return "/admin/video-courses";
     case "admin-video-courses-promotions":
@@ -861,6 +867,8 @@ export default function App() {
         return <AdminPayment />;
       case "admin-notifications":
         return <AdminNotificationsPage />;
+      case "admin-support-faq":
+        return <AdminSupportFaqPage />;
       case "admin-video-courses":
         return <AdminVideoCoursesPage />;
       case "admin-video-courses-promotions":

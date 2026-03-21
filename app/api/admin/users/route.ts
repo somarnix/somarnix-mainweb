@@ -6,8 +6,16 @@ import bcrypt from "bcryptjs";
 type UserRow = RowDataPacket & {
   id: number;
   email: string;
+  username?: string | null;
   role: "user" | "admin";
   is_active: number;
+  level?: number | null;
+  buying_score?: number | null;
+  selling_score?: number | null;
+  purchase_count?: number | null;
+  purchase_total?: number | null;
+  sales_count?: number | null;
+  sales_total?: number | null;
   max_devices?: number | null;
   login_device_count?: number | null;
   deleted_at?: string | Date | null;
@@ -84,6 +92,10 @@ export async function GET(req: Request) {
     const usersHasBannedAt = await hasColumn("users", "banned_at");
     const usersHasBanUntil = await hasColumn("users", "ban_until");
     const usersHasBanReason = await hasColumn("users", "ban_reason");
+    const usersHasUsername = await hasColumn("users", "username");
+    const usersHasLevel = await hasColumn("users", "level");
+    const usersHasBuyingScore = await hasColumn("users", "buying_score");
+    const usersHasSellingScore = await hasColumn("users", "selling_score");
     const presenceHasStatus = await hasColumn("user_presence", "status");
     const presenceHasLastActiveAt = await hasColumn("user_presence", "last_active_at");
     const hasUserPresence = presenceHasStatus || presenceHasLastActiveAt;
@@ -130,8 +142,16 @@ export async function GET(req: Request) {
       SELECT 
         u.id,
         u.email,
+        ${usersHasUsername ? "u.username," : "NULL AS username,"}
         u.role,
         u.is_active,
+        ${usersHasLevel ? "u.level," : "1 AS level,"}
+        ${usersHasBuyingScore ? "u.buying_score," : "0 AS buying_score,"}
+        ${usersHasSellingScore ? "u.selling_score," : "0 AS selling_score,"}
+        COALESCE(purchase_stats.purchase_count, 0) AS purchase_count,
+        COALESCE(purchase_stats.purchase_total, 0) AS purchase_total,
+        COALESCE(sales_stats.sales_count, 0) AS sales_count,
+        COALESCE(sales_stats.sales_total, 0) AS sales_total,
         ${
           hasUserLoginSettings && loginSettingsHasMaxDevices
             ? "settings.max_devices,"
@@ -165,6 +185,26 @@ export async function GET(req: Request) {
              ) login_devices ON login_devices.user_id = u.id`
           : ""
       }
+      LEFT JOIN (
+        SELECT
+          o.user_id,
+          COUNT(DISTINCT o.id) AS purchase_count,
+          COALESCE(SUM(COALESCE(NULLIF(o.total_amount, 0), o.total)), 0) AS purchase_total
+        FROM orders o
+        WHERE o.state IN ('approved', 'delivering', 'completed')
+        GROUP BY o.user_id
+      ) purchase_stats ON purchase_stats.user_id = u.id
+      LEFT JOIN (
+        SELECT
+          p.posted_by AS user_id,
+          COUNT(DISTINCT o.id) AS sales_count,
+          COALESCE(SUM(oi.qty * oi.unit_price), 0) AS sales_total
+        FROM order_items oi
+        JOIN orders o ON o.id = oi.order_id
+        JOIN products p ON p.id = oi.product_id
+        WHERE o.state IN ('approved', 'delivering', 'completed')
+        GROUP BY p.posted_by
+      ) sales_stats ON sales_stats.user_id = u.id
       ${hasUserPresence ? "LEFT JOIN user_presence presence ON presence.user_id = u.id" : ""}
       ORDER BY u.created_at DESC
       `
@@ -243,7 +283,23 @@ export async function GET(req: Request) {
               : "banned";
           return {
             ...u,
+            username: typeof u.username === "string" ? u.username : null,
             status,
+            level: Number.isFinite(Number(u.level)) ? Math.max(1, Math.floor(Number(u.level))) : 1,
+            buying_score: Number.isFinite(Number(u.buying_score)) ? Number(u.buying_score) : 0,
+            selling_score: Number.isFinite(Number(u.selling_score)) ? Number(u.selling_score) : 0,
+            purchase_count: Number.isFinite(Number(u.purchase_count))
+              ? Math.max(0, Math.floor(Number(u.purchase_count)))
+              : 0,
+            purchase_total: Number.isFinite(Number(u.purchase_total))
+              ? Number(u.purchase_total)
+              : 0,
+            sales_count: Number.isFinite(Number(u.sales_count))
+              ? Math.max(0, Math.floor(Number(u.sales_count)))
+              : 0,
+            sales_total: Number.isFinite(Number(u.sales_total))
+              ? Number(u.sales_total)
+              : 0,
             ban_until: u.ban_until ?? null,
             ban_reason: u.ban_reason ?? null,
             presence_status: u.presence_status ?? "offline",

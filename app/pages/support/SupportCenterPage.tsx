@@ -1,54 +1,55 @@
 "use client";
 
-import { FormEvent, useMemo, useRef, useState } from "react";
+import { FormEvent, useEffect, useMemo, useRef, useState } from "react";
 import { Bot, LifeBuoy, MessageSquare, Search, Sparkles } from "lucide-react";
+import { useLanguage } from "../../contexts/LanguageContext";
+import {
+  type SupportFaqRecord,
+  getEmbedVideoUrl,
+  getSupportFaqAnswer,
+  getSupportFaqQuestion,
+  getSupportFaqSearchText,
+} from "../../lib/support-faq";
 
-type FaqItem = {
-  id: number;
-  question: string;
-  answer: string;
-  keywords: string[];
-};
-
-const FAQ_ITEMS: FaqItem[] = [
+const FALLBACK_FAQ_ITEMS: SupportFaqRecord[] = [
   {
     id: 1,
-    question: "How do I buy a product?",
-    answer:
-      "Open any product, choose a plan, click confirm, then complete payment from checkout.",
-    keywords: ["buy", "purchase", "order", "checkout", "payment"],
+    questionEn: "How do I buy a product?",
+    questionKm: "តើខ្ញុំទិញផលិតផលដោយរបៀបណា?",
+    answerEn: "Open any product, choose a plan, click confirm, then complete payment from checkout.",
+    answerKm: "បើកផលិតផលណាមួយ ជ្រើសគម្រោង ចុចបញ្ជាក់ ហើយបញ្ចប់ការទូទាត់ពី checkout។",
+    videoUrl: null,
+    sortOrder: 1,
+    isActive: true,
   },
   {
     id: 2,
-    question: "Why is product out of stock?",
-    answer:
+    questionEn: "Why is product out of stock?",
+    questionKm: "ហេតុអ្វីផលិតផលអស់ស្តុក?",
+    answerEn:
       "Out of stock means current quantity is reserved or sold. It will return when seller restocks or cancelled orders release stock.",
-    keywords: ["out of stock", "stock", "sold out", "restock"],
+    answerKm:
+      "អស់ស្តុកមានន័យថាបរិមាណបច្ចុប្បន្នត្រូវបានបម្រុងទុក ឬលក់រួច។ វានឹងត្រឡប់មកវិញនៅពេលអ្នកលក់បន្ថែមស្តុក ឬមានការលុបចោលការបញ្ជាទិញ។",
+    videoUrl: null,
+    sortOrder: 2,
+    isActive: true,
   },
   {
     id: 3,
-    question: "Where can I see my orders?",
-    answer:
-      "Go to Orders from left sidebar or profile menu. You can open details and chat with seller/admin there.",
-    keywords: ["orders", "my order", "order detail", "history"],
-  },
-  {
-    id: 4,
-    question: "How do I contact support?",
-    answer:
-      "Use the Contact Human button in this page. Include your order ID and issue so team can help quickly.",
-    keywords: ["support", "contact", "human", "help"],
-  },
-  {
-    id: 5,
-    question: "How to access video course after payment?",
-    answer:
-      "After order approval/completion, open Courses and enter your purchased course. Access is controlled by your plan.",
-    keywords: ["video", "course", "access", "plan", "subscription"],
+    questionEn: "Where can I see my orders?",
+    questionKm: "តើខ្ញុំអាចមើលការបញ្ជាទិញរបស់ខ្ញុំនៅទីណា?",
+    answerEn: "Go to Orders from left sidebar or profile menu. You can open details and chat with seller/admin there.",
+    answerKm: "ចូលទៅកាន់ Orders ពី sidebar ខាងឆ្វេង ឬម៉ឺនុយ profile។ អ្នកអាចបើកលម្អិត និងជជែកជាមួយ seller/admin នៅទីនោះ។",
+    videoUrl: null,
+    sortOrder: 3,
+    isActive: true,
   },
 ];
 
 export function SupportCenterPage() {
+  const { language } = useLanguage();
+  const [faqItems, setFaqItems] = useState<SupportFaqRecord[]>([]);
+  const [faqLoading, setFaqLoading] = useState(true);
   const [searchQuery, setSearchQuery] = useState("");
   const [expandedId, setExpandedId] = useState<number | null>(null);
   const [chatInput, setChatInput] = useState("");
@@ -65,27 +66,47 @@ export function SupportCenterPage() {
     },
   ]);
 
+  useEffect(() => {
+    let active = true;
+
+    const loadFaqs = async () => {
+      try {
+        setFaqLoading(true);
+        const res = await fetch("/api/support/faq", { cache: "no-store" });
+        const data = await res.json().catch(() => ({}));
+        if (!res.ok) throw new Error("Failed to load support FAQs");
+        if (!active) return;
+        const nextItems = Array.isArray(data.items) ? data.items : [];
+        setFaqItems(nextItems);
+      } catch {
+        if (!active) return;
+        setFaqItems([]);
+      } finally {
+        if (active) setFaqLoading(false);
+      }
+    };
+
+    void loadFaqs();
+    return () => {
+      active = false;
+    };
+  }, []);
+
   const filteredFaqs = useMemo(() => {
     const q = searchQuery.trim().toLowerCase();
-    if (!q) return FAQ_ITEMS;
-    return FAQ_ITEMS.filter((item) => {
-      const source = `${item.question} ${item.answer} ${item.keywords.join(" ")}`.toLowerCase();
-      return source.includes(q);
-    });
-  }, [searchQuery]);
+    if (!q) return faqItems;
+    return faqItems.filter((item) => getSupportFaqSearchText(item).includes(q));
+  }, [faqItems, searchQuery]);
 
   const findBestFaq = (query: string) => {
     const q = query.trim().toLowerCase();
     if (!q) return null;
-    let best: { item: FaqItem; score: number } | null = null;
+    let best: { item: SupportFaqRecord; score: number } | null = null;
 
-    for (const item of FAQ_ITEMS) {
-      const source = `${item.question} ${item.answer} ${item.keywords.join(" ")}`.toLowerCase();
+    for (const item of faqItems) {
+      const source = getSupportFaqSearchText(item);
       let score = 0;
       if (source.includes(q)) score += 5;
-      for (const keyword of item.keywords) {
-        if (q.includes(keyword) || keyword.includes(q)) score += 3;
-      }
       for (const token of q.split(/\s+/).filter(Boolean)) {
         if (source.includes(token)) score += 1;
       }
@@ -113,7 +134,7 @@ export function SupportCenterPage() {
         id: nextMessageId(),
         role: "bot",
         text: matched
-          ? `${matched.question}\n${matched.answer}`
+          ? `${getSupportFaqQuestion(matched, language)}\n${getSupportFaqAnswer(matched, language)}`
           : "I could not find a clear answer. Please contact human support.",
       },
     ]);
@@ -174,30 +195,63 @@ export function SupportCenterPage() {
               Tap a question to view answer.
             </p>
             <div className="mt-4 space-y-3">
-              {filteredFaqs.length === 0 && (
+              {faqLoading && (
+                <p className="rounded-xl border border-dashed border-slate-300 p-4 text-sm text-slate-500 dark:border-slate-700 dark:text-slate-300">
+                  Loading FAQ...
+                </p>
+              )}
+              {!faqLoading && filteredFaqs.length === 0 && (
                 <p className="rounded-xl border border-dashed border-slate-300 p-4 text-sm text-slate-500 dark:border-slate-700 dark:text-slate-300">
                   No FAQ found for this search.
                 </p>
               )}
               {filteredFaqs.map((item) => {
                 const expanded = expandedId === item.id;
+                const question = getSupportFaqQuestion(item, language);
+                const answer = getSupportFaqAnswer(item, language);
+                const embedVideoUrl = getEmbedVideoUrl(item.videoUrl);
+
                 return (
                   <button
                     key={item.id}
                     type="button"
                     onClick={() => {
                       setExpandedId(expanded ? null : item.id);
-                      askBot(item.question);
+                      askBot(question);
                     }}
                     className="w-full rounded-xl border border-slate-200 bg-slate-50 p-4 text-left transition hover:border-blue-300 hover:bg-white dark:border-slate-700 dark:bg-slate-800"
                   >
                     <div className="text-sm font-semibold text-slate-900 dark:text-slate-100">
-                      {item.question}
+                      {question}
                     </div>
                     {expanded && (
-                      <p className="mt-2 text-sm leading-6 text-slate-600 dark:text-slate-300">
-                        {item.answer}
-                      </p>
+                      <div className="mt-2 space-y-3">
+                        <p className="text-sm leading-6 text-slate-600 dark:text-slate-300">
+                          {answer}
+                        </p>
+                        {item.videoUrl ? (
+                          embedVideoUrl ? (
+                            <div className="overflow-hidden rounded-xl border border-slate-200 bg-black dark:border-slate-700">
+                              <iframe
+                                src={embedVideoUrl}
+                                title={question}
+                                className="aspect-video w-full"
+                                allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture"
+                                allowFullScreen
+                              />
+                            </div>
+                          ) : (
+                            <a
+                              href={item.videoUrl}
+                              target="_blank"
+                              rel="noreferrer"
+                              className="inline-flex text-sm font-medium text-blue-600 hover:underline dark:text-blue-300"
+                            >
+                              Open support video
+                            </a>
+                          )
+                        ) : null}
+                      </div>
                     )}
                   </button>
                 );
@@ -223,7 +277,9 @@ export function SupportCenterPage() {
                   key={message.id}
                   className={`flex ${message.role === "user" ? "justify-end" : "justify-start"}`}
                 >
-                  <div className={`flex max-w-[92%] items-end gap-2 ${message.role === "user" ? "flex-row-reverse" : ""}`}>
+                  <div
+                    className={`flex max-w-[92%] items-end gap-2 ${message.role === "user" ? "flex-row-reverse" : ""}`}
+                  >
                     <div
                       className={`flex h-7 w-7 shrink-0 items-center justify-center rounded-full text-[11px] font-bold ${
                         message.role === "user"

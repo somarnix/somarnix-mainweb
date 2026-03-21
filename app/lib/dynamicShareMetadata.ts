@@ -14,6 +14,7 @@ type ProductShareRow = RowDataPacket & {
   description: string | null;
   image_url: string | null;
   category: string | null;
+  min_price: number | string | null;
 };
 
 type CourseShareRow = RowDataPacket & {
@@ -23,6 +24,8 @@ type CourseShareRow = RowDataPacket & {
   thumbnail_url: string | null;
   hero_url: string | null;
   author_name: string | null;
+  category: string | null;
+  price: number | string | null;
 };
 
 type ToolShareRow = RowDataPacket & {
@@ -30,6 +33,8 @@ type ToolShareRow = RowDataPacket & {
   display_name: string;
   short_description: string | null;
   image_url: string | null;
+  tool_category: string;
+  min_price: number | string | null;
 };
 
 type BlogShareRow = RowDataPacket & {
@@ -70,25 +75,67 @@ function summarize(value: string | null | undefined, fallback: string) {
   return text.length > 180 ? `${text.slice(0, 177).trimEnd()}...` : text;
 }
 
+function formatPrice(value: string | number | null | undefined) {
+  if (value === null || value === undefined || value === "") return null;
+  const num = typeof value === "number" ? value : Number(value);
+  if (!Number.isFinite(num)) return null;
+  return `$${num.toFixed(2)}`;
+}
+
 function buildShareMetadata({
   title,
   description,
   image,
   path,
+  kind,
+  label,
+  price,
 }: {
   title: string;
   description: string;
   image?: string | null;
   path: string;
+  kind: string;
+  label?: string | null;
+  price?: string | null;
 }): Metadata {
   const siteUrl = getSiteUrl();
   const canonicalPath = normalizePath(path).replace(/\/+$/, "") || "/";
   const canonicalUrl = canonicalPath === "/" ? siteUrl : `${siteUrl}${canonicalPath}`;
-  const socialTitle = title === SITE_NAME ? SITE_NAME : `${title} | ${SITE_NAME}`;
-  const imageUrl = toAbsoluteImageUrl(image, siteUrl);
+  const fallbackImageUrl = `${siteUrl}${DEFAULT_OG_IMAGE}`;
+  const sourceImageUrl = toAbsoluteImageUrl(image, siteUrl);
+  const ogImageUrl = new URL("/api/og", siteUrl);
+  ogImageUrl.searchParams.set("kind", kind);
+  ogImageUrl.searchParams.set("title", title);
+  ogImageUrl.searchParams.set("subtitle", description);
+  ogImageUrl.searchParams.set("image", sourceImageUrl);
+  if (label) ogImageUrl.searchParams.set("label", label);
+  if (price) ogImageUrl.searchParams.set("price", price);
+  const generatedImageUrl = ogImageUrl.toString();
+  const openGraphImages: NonNullable<Metadata["openGraph"]>["images"] = [];
+
+  openGraphImages.push({
+    url: generatedImageUrl,
+    alt: title,
+    width: 1200,
+    height: 630,
+  });
+
+  if (sourceImageUrl && sourceImageUrl !== fallbackImageUrl) {
+    openGraphImages.push({
+      url: sourceImageUrl,
+      alt: title,
+      width: 1200,
+      height: 630,
+    });
+  }
+
+  const primarySocialImage = generatedImageUrl;
 
   return {
-    title,
+    title: {
+      absolute: title,
+    },
     description,
     alternates: {
       canonical: canonicalPath,
@@ -96,16 +143,16 @@ function buildShareMetadata({
     openGraph: {
       type: "website",
       url: canonicalUrl,
-      title: socialTitle,
+      title,
       description,
       siteName: SITE_NAME,
-      images: [{ url: imageUrl, alt: title }],
+      images: openGraphImages,
     },
     twitter: {
       card: "summary_large_image",
-      title: socialTitle,
+      title,
       description,
-      images: [imageUrl],
+      images: [primarySocialImage],
     },
   };
 }
@@ -125,7 +172,12 @@ export async function resolveDynamicShareMetadata(slugs: string[]): Promise<Meta
           p.slug,
           p.description,
           p.image_url,
-          c.name AS category
+          c.name AS category,
+          (
+            SELECT MIN(pv.price)
+            FROM product_variants pv
+            WHERE pv.product_id = p.id AND pv.is_active = 1
+          ) AS min_price
         FROM products p
         LEFT JOIN product_categories c ON c.id = p.category_id
         WHERE p.slug = ? AND p.is_active = 1
@@ -139,19 +191,35 @@ export async function resolveDynamicShareMetadata(slugs: string[]): Promise<Meta
         title: product.title,
         description: summarize(
           product.description,
-          `${product.title} is available now on ${SITE_NAME}${product.category ? ` in ${product.category}` : ""}.`
+          `${product.title}${formatPrice(product.min_price) ? ` from ${formatPrice(product.min_price)}` : ""}${product.category ? ` in ${product.category}` : ""} on ${SITE_NAME}.`
         ),
         image: product.image_url,
         path: `/product/${encodeURIComponent(product.slug)}`,
+        kind: "product",
+        label: product.category || "Product",
+        price: formatPrice(product.min_price),
       });
     }
 
     if (section === "courses" || section === "video") {
       const [rows] = await db.query<CourseShareRow[]>(
         `
-        SELECT title, slug, description, thumbnail_url, hero_url, author_name
+        SELECT
+          vc.title,
+          vc.slug,
+          vc.description,
+          vc.thumbnail_url,
+          vc.hero_url,
+          vc.author_name,
+          vc.category,
+          (
+            SELECT MIN(vcp.price)
+            FROM video_course_plans vcp
+            WHERE vcp.course_id = vc.id AND vcp.is_active = 1
+          ) AS price
         FROM video_courses
-        WHERE slug = ? AND is_active = 1
+        vc
+        WHERE vc.slug = ? AND vc.is_active = 1
         LIMIT 1
         `,
         [value]
@@ -162,10 +230,13 @@ export async function resolveDynamicShareMetadata(slugs: string[]): Promise<Meta
         title: course.title,
         description: summarize(
           course.description,
-          `${course.title} video course${course.author_name ? ` by ${course.author_name}` : ""} on ${SITE_NAME}.`
+          `${course.title}${formatPrice(course.price) ? ` from ${formatPrice(course.price)}` : ""} video course${course.author_name ? ` by ${course.author_name}` : ""} on ${SITE_NAME}.`
         ),
         image: course.hero_url || course.thumbnail_url,
         path: `/courses/${encodeURIComponent(course.slug)}`,
+        kind: "course",
+        label: course.category || "Course",
+        price: formatPrice(course.price),
       });
     }
 
@@ -176,7 +247,13 @@ export async function resolveDynamicShareMetadata(slugs: string[]): Promise<Meta
           td.canonical_slug,
           td.display_name,
           td.short_description,
-          p.image_url
+          p.image_url,
+          td.tool_category,
+          (
+            SELECT MIN(pv.price)
+            FROM product_variants pv
+            WHERE pv.product_id = p.id AND pv.is_active = 1
+          ) AS min_price
         FROM tool_definitions td
         JOIN products p ON p.id = td.product_id
         WHERE td.canonical_slug = ?
@@ -192,10 +269,13 @@ export async function resolveDynamicShareMetadata(slugs: string[]): Promise<Meta
         title: tool.display_name,
         description: summarize(
           tool.short_description,
-          `${tool.display_name} is available now on ${SITE_NAME}.`
+          `${tool.display_name}${formatPrice(tool.min_price) ? ` from ${formatPrice(tool.min_price)}` : ""} is available now on ${SITE_NAME}.`
         ),
         image: tool.image_url,
         path: `/tools-ai/${encodeURIComponent(tool.canonical_slug)}`,
+        kind: "tool",
+        label: tool.tool_category || "Tool",
+        price: formatPrice(tool.min_price),
       });
     }
 
@@ -229,6 +309,8 @@ export async function resolveDynamicShareMetadata(slugs: string[]): Promise<Meta
         ),
         image: seller.avatar_url,
         path: `/blog/${encodeURIComponent((seller.username || value).toLowerCase())}`,
+        kind: "blog",
+        label: "Seller",
       });
     }
 

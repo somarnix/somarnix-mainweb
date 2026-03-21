@@ -29,6 +29,7 @@ type ProductDetailRow = RowDataPacket & {
   posted_by_email: string;
   posted_by_name: string | null;
   posted_by_username: string | null;
+  posted_by_level: number | null;
   posted_by_avatar: string | null;
   posted_by_avatar_border: string | null;
 
@@ -126,6 +127,7 @@ export async function GET(
         u.email AS posted_by_email,
         CONCAT_WS(' ', NULLIF(TRIM(u.first_name),''), NULLIF(TRIM(u.last_name),'')) AS posted_by_name,
         u.username AS posted_by_username,
+        u.level AS posted_by_level,
         u.avatar_url AS posted_by_avatar,
         ${postedByAvatarBorderSelect},
         ROUND((SELECT AVG(r.rating) FROM product_reviews r WHERE r.product_id = p.id), 2) AS avg_rating,
@@ -219,6 +221,9 @@ export async function GET(
       is_unlimited_stock: Number(product.is_unlimited_stock) as 0 | 1,
       mode: String(product.mode) === "license" ? "license" : "inventory",
       buyers_count: Number(product.buyers_count ?? 0),
+      posted_by_level: product.posted_by_level === null ? null : Number(product.posted_by_level),
+      posted_by_avatar_border:
+        Number(product.posted_by_level ?? 1) >= 2 ? product.posted_by_avatar_border : null,
     };
 
     const normalizedVariants = vRows.map((v) => ({

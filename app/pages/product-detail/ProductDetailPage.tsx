@@ -196,6 +196,41 @@ export default function ProductDetailPage({
   const { t, language } = useLanguage();
   const { formatPrice } = useCurrency();
   const { user } = useAuth();
+  const isKhmer = language === "km";
+
+  const translateCategoryLabel = (value?: string | null) => {
+    const normalized = String(value ?? "").trim().toLowerCase();
+    switch (normalized) {
+      case "course":
+      case "ai":
+        return t("filters.ai") || "AI";
+      case "program":
+      case "programs":
+        return t("filters.programs") || "Programs";
+      case "game":
+      case "games":
+        return t("filters.games") || "Games";
+      case "tool":
+      case "tools":
+        return t("filters.tools") || "Tools";
+      default:
+        return value || "";
+    }
+  };
+
+  const translateLevelLabel = (value?: string | null) => {
+    const normalized = String(value ?? "").trim().toLowerCase();
+    switch (normalized) {
+      case "beginner":
+        return t("filters.levelBeginner") || "Beginner";
+      case "advanced":
+        return t("filters.levelAdvanced") || "Advanced";
+      case "pro":
+        return t("filters.levelPro") || "Pro";
+      default:
+        return value || "";
+    }
+  };
 
   /* ================= STATE ================= */
   const [product, setProduct] = useState<ProductDetail | null>(null);
@@ -463,10 +498,11 @@ export default function ProductDetailPage({
 
           <div className="mt-6 rounded-2xl border bg-white dark:bg-gray-800 p-6">
             <h1 className="text-2xl font-bold text-gray-900 dark:text-white">
-              Product not found
+              {t("productDetail.notFoundTitle") || "Product not found"}
             </h1>
             <p className="text-gray-600 dark:text-gray-300 mt-2">
-              The product you&apos;re looking for doesn&apos;t exist (or was removed).
+              {t("productDetail.notFoundDesc") ||
+                "The product you're looking for doesn't exist or was removed."}
             </p>
           </div>
         </div>
@@ -482,21 +518,23 @@ export default function ProductDetailPage({
     !product.is_unlimited_stock && typeof product.stock_qty === "number"
       ? product.stock_qty <= 0
       : false;
+  const displayedProductCategory = translateCategoryLabel(product.category);
+  const displayedProductLevel = translateLevelLabel(product.level);
   const hasBuyableVariant = modalVariants.some((v) => !v.isDisabled);
   const isToolsCategory = String(product.category ?? "").toLowerCase() === "tools";
 
   const stockText = product.is_unlimited_stock
-    ? "Unlimited stock"
+    ? t("productDetail.unlimitedStock") || "Unlimited stock"
     : typeof product.stock_qty === "number"
     ? product.stock_qty > 0
-      ? `${product.stock_qty} in stock`
-      : "Out of stock"
-    : "In stock";
+      ? `${product.stock_qty} ${t("productDetail.inStock") || "In stock"}`
+      : t("productDetail.outOfStock") || "Out of stock"
+    : t("productDetail.inStock") || "In stock";
 
   const stockPill = isOutOfStock ? (
     <div className="inline-flex items-center gap-2 rounded-full border border-red-200/70 bg-red-50 px-3 py-1 text-xs font-semibold text-red-700 dark:border-red-500/40 dark:bg-red-500/10 dark:text-red-200">
       <AlertTriangle className="h-3.5 w-3.5" />
-      Out of stock
+      {t("productDetail.outOfStock") || "Out of stock"}
     </div>
   ) : (
     <div className="inline-flex items-center gap-2 rounded-full border border-emerald-200/70 bg-emerald-50 px-3 py-1 text-xs font-semibold text-emerald-700 dark:border-emerald-400/40 dark:bg-emerald-500/10 dark:text-emerald-200">
@@ -506,17 +544,21 @@ export default function ProductDetailPage({
   );
 
   const featureList: string[] = [
-    ...(product.level ? [`Level: ${product.level}`] : []),
-    "Instant access after payment",
-    "Secure checkout",
-    "Support included",
+    ...(displayedProductLevel
+      ? [`${isKhmer ? "កម្រិត" : "Level"}: ${displayedProductLevel}`]
+      : []),
+    t("productDetail.instantAccess") || "Instant access after payment",
+    t("productDetail.secureCheckout") || "Secure checkout",
+    t("productDetail.supportIncluded") || "Support included",
   ];
 
   const postedByName =
+    (product.posted_by_username && product.posted_by_username.trim().length > 0
+      ? product.posted_by_username
+      : null) ||
     (product.posted_by_name && product.posted_by_name.trim().length > 0
       ? product.posted_by_name
       : null) ||
-    product.posted_by_username ||
     "Seller";
 
   const openProduct = (s: string) => {
@@ -650,7 +692,7 @@ export default function ProductDetailPage({
             />
             {product.category && (
               <Badge variant="secondary" className="rounded-full">
-                {product.category}
+                {displayedProductCategory}
               </Badge>
             )}
             {!!discountPercent && (
@@ -685,7 +727,7 @@ export default function ProductDetailPage({
                 />
                 {isOutOfStock && (
                   <div className="absolute left-4 top-4 rounded-full border border-red-200/70 bg-red-50 px-3 py-1 text-xs font-semibold text-red-700 shadow-sm dark:border-red-500/40 dark:bg-red-500/10 dark:text-red-200">
-                    Out of stock
+                    {t("productDetail.outOfStock") || "Out of stock"}
                   </div>
                 )}
               </div>
@@ -706,12 +748,12 @@ export default function ProductDetailPage({
               <div className="flex flex-wrap gap-2 mt-4">
                 {product.level && (
                   <Badge className="rounded-full bg-gray-900 text-white dark:bg-white dark:text-gray-900">
-                    {product.level}
+                    {displayedProductLevel}
                   </Badge>
                 )}
                 {product.category && (
                   <Badge variant="outline" className="rounded-full">
-                    {product.category}
+                    {displayedProductCategory}
                   </Badge>
                 )}
               </div>
@@ -742,7 +784,9 @@ export default function ProductDetailPage({
                     />
                   </div>
                   <div>
-                    <div className="text-xs uppercase text-gray-400">Posted by</div>
+                    <div className="text-xs uppercase text-gray-400">
+                      {t("productDetail.postedBy") || "Posted by"}
+                    </div>
                     <div className="font-semibold text-gray-900 dark:text-white">{postedByName}</div>
                   </div>
                 </button>
@@ -760,7 +804,7 @@ export default function ProductDetailPage({
                 </div>
 
                 <div className="text-gray-600 dark:text-gray-300">
-                  {product.buyers_count ?? 0} buyers
+                  {product.buyers_count ?? 0} {t("productDetail.buyers") || "buyers"}
                 </div>
 
                 {stockPill}
@@ -773,7 +817,9 @@ export default function ProductDetailPage({
                   <div className="flex items-start gap-3">
                     <AlertTriangle className="mt-0.5 h-5 w-5" />
                     <div className="space-y-2">
-                      <div className="font-semibold">Currently out of stock</div>
+                      <div className="font-semibold">
+                        {t("productDetail.outOfStockTitle") || "Currently out of stock"}
+                      </div>
                       <div className="text-xs text-red-700/80 dark:text-red-200/80">
                         We’re restocking soon. Check back or get notified when it’s
                         available.
@@ -785,7 +831,7 @@ export default function ProductDetailPage({
                           className="inline-flex items-center gap-2 rounded-lg border border-red-300/60 bg-white/80 px-3 py-1.5 text-xs font-semibold text-red-700 shadow-sm hover:bg-white dark:border-red-400/40 dark:bg-transparent dark:text-red-200"
                         >
                           <Bell className="h-3.5 w-3.5" />
-                          Notify me
+                          {t("productDetail.notifyMe") || "Notify me"}
                         </button>
                         <button
                           type="button"
@@ -796,7 +842,7 @@ export default function ProductDetailPage({
                           }
                           className="rounded-lg border border-red-300/40 px-3 py-1.5 text-xs text-red-600/90 hover:border-red-300/80 dark:border-red-400/30 dark:text-red-200/80"
                         >
-                          View similar
+                          {t("productDetail.viewSimilar") || "View similar"}
                         </button>
                       </div>
                     </div>
@@ -822,7 +868,7 @@ export default function ProductDetailPage({
                     window.location.href = `/tools-ai/${product.slug}`;
                   }}
                 >
-                  Open Tool
+                  {t("productDetail.openTool") || "Open Tool"}
                 </Button>
               ) : (
                 <Button
@@ -832,7 +878,9 @@ export default function ProductDetailPage({
                   disabled={modalVariants.length === 0 || isOutOfStock || !hasBuyableVariant}
                 >
                   <ShoppingCart className="w-4 h-4 mr-2" />
-                  {isOutOfStock ? "Out of stock" : t("detail.buyNow")}
+                  {isOutOfStock
+                    ? t("productDetail.outOfStock") || "Out of stock"
+                    : t("detail.buyNow")}
                 </Button>
               )}
 
@@ -840,7 +888,7 @@ export default function ProductDetailPage({
               {variants.length > 0 && !(product.category === "tools" && toolAccess?.hasAccess) && (
                 <div className="mt-6">
                   <div className="font-semibold text-gray-900 dark:text-white mb-2">
-                    Choose an option
+                    {t("productDetail.chooseOption") || "Choose an option"}
                   </div>
 
                   <div className="space-y-2">
@@ -878,7 +926,7 @@ export default function ProductDetailPage({
                           <div className="flex items-center justify-between gap-3">
                             <div>
                               <div className="font-semibold text-gray-900 dark:text-white">
-                                {v.duration_label || "Option"}{" "}
+                                {v.duration_label || (t("productDetail.option") || "Option")}{" "}
                                 {v.duration_days ? `(${v.duration_days} days)` : ""}
                               </div>
 
@@ -889,7 +937,10 @@ export default function ProductDetailPage({
                               )}
                               {!isToolsCategory ? (
                                 <div className="text-sm text-gray-600 dark:text-gray-300 mt-1">
-                                  You get: {unitsPerQty} unit{unitsPerQty > 1 ? "s" : ""}
+                                  {t("productDetail.youGet") || "You get"}: {unitsPerQty}{" "}
+                                  {unitsPerQty > 1
+                                    ? t("productDetail.units") || "units"
+                                    : t("productDetail.unit") || "unit"}
                                 </div>
                               ) : null}
                               {isToolsCategory ? (
@@ -899,7 +950,10 @@ export default function ProductDetailPage({
                               ) : null}
                               {unavailableByUnits ? (
                                 <div className="text-sm text-red-600 mt-1">
-                                  Not enough stock (needs {unitsPerQty}, have {Number(product.stock_qty ?? 0)})
+                                  {t("productDetail.notEnoughStock") || "Not enough stock"} (
+                                  {t("productDetail.needs") || "needs"} {unitsPerQty},{" "}
+                                  {t("productDetail.have") || "have"}{" "}
+                                  {Number(product.stock_qty ?? 0)})
                                 </div>
                               ) : null}
                             </div>
@@ -929,15 +983,15 @@ export default function ProductDetailPage({
               <div className="mt-6 grid grid-cols-3 gap-2 text-xs text-gray-600 dark:text-gray-300">
                 <div className="rounded-xl border p-2 text-center bg-gray-50 dark:bg-gray-950">
                   <Truck className="w-4 h-4 mx-auto mb-1" />
-                  Delivery
+                  {t("productDetail.delivery") || "Delivery"}
                 </div>
                 <div className="rounded-xl border p-2 text-center bg-gray-50 dark:bg-gray-950">
                   <RotateCcw className="w-4 h-4 mx-auto mb-1" />
-                  Return
+                  {t("productDetail.return") || "Return"}
                 </div>
                 <div className="rounded-xl border p-2 text-center bg-gray-50 dark:bg-gray-950">
                   <ShieldCheck className="w-4 h-4 mx-auto mb-1" />
-                  Secure
+                  {t("productDetail.secure") || "Secure"}
                 </div>
               </div>
             </div>
@@ -949,13 +1003,13 @@ export default function ProductDetailPage({
           <Tabs defaultValue="overview">
             <TabsList className="flex bg-white dark:bg-gray-900 border rounded-xl p-1">
               <TabsTrigger value="overview" className="flex-1">
-                Overview
+                {t("productDetail.overview") || "Overview"}
               </TabsTrigger>
               <TabsTrigger value="options" className="flex-1">
-                Options
+                {t("productDetail.options") || "Options"}
               </TabsTrigger>
               <TabsTrigger value="reviews" className="flex-1">
-                Reviews
+                {t("productDetail.reviews") || "Reviews"}
               </TabsTrigger>
             </TabsList>
 
@@ -965,7 +1019,7 @@ export default function ProductDetailPage({
               className="mt-4 rounded-2xl border bg-white dark:bg-gray-900 p-6"
             >
               <h2 className="text-xl font-bold text-gray-900 dark:text-white">
-                About This Product
+                {t("productDetail.aboutThisProduct") || "About This Product"}
               </h2>
 
               <div className="mt-3">
@@ -975,14 +1029,14 @@ export default function ProductDetailPage({
                   </p>
                 ) : (
                   <p className="text-gray-600 dark:text-gray-300">
-                    No description yet.
+                    {t("productDetail.noDescription") || "No description yet."}
                   </p>
                 )}
               </div>
 
               <div className="mt-6">
                 <h3 className="text-lg font-bold text-gray-900 dark:text-white">
-                  Key Features / Specifications
+                  {t("productDetail.keyFeatures") || "Key Features / Specifications"}
                 </h3>
 
                 <ul className="mt-3 space-y-3">
@@ -1008,24 +1062,36 @@ export default function ProductDetailPage({
                 <div className="flex items-start gap-3 border rounded-xl p-4 flex-1">
                   <Truck className="w-5 h-5" />
                   <div>
-                    <div className="font-semibold">Delivery</div>
-                    <div className="text-sm">Instant / 1-3 days</div>
+                    <div className="font-semibold">
+                      {t("productDetail.delivery") || "Delivery"}
+                    </div>
+                    <div className="text-sm">
+                      {t("productDetail.deliveryEstimate") || "Instant / 1-3 days"}
+                    </div>
                   </div>
                 </div>
 
                 <div className="flex items-start gap-3 border rounded-xl p-4 flex-1">
                   <RotateCcw className="w-5 h-5" />
                   <div>
-                    <div className="font-semibold">Return</div>
-                    <div className="text-sm">7-30 days</div>
+                    <div className="font-semibold">
+                      {t("productDetail.return") || "Return"}
+                    </div>
+                    <div className="text-sm">
+                      {t("productDetail.returnPolicy") || "7-30 days"}
+                    </div>
                   </div>
                 </div>
 
                 <div className="flex items-start gap-3 border rounded-xl p-4 flex-1">
                   <ShieldCheck className="w-5 h-5" />
                   <div>
-                    <div className="font-semibold">Secure</div>
-                    <div className="text-sm">Protected</div>
+                    <div className="font-semibold">
+                      {t("productDetail.secure") || "Secure"}
+                    </div>
+                    <div className="text-sm">
+                      {t("productDetail.protected") || "Protected"}
+                    </div>
                   </div>
                 </div>
               </div>
@@ -1079,7 +1145,10 @@ export default function ProductDetailPage({
                           : t("course.addReview") || "Submit review"}
                       </Button>
                       <span className="text-sm text-gray-500 dark:text-gray-400">
-                        {reviews.length} {reviews.length === 1 ? "review" : "reviews"}
+                        {reviews.length}{" "}
+                        {reviews.length === 1
+                          ? t("productDetail.review") || "review"
+                          : t("productDetail.reviewPlural") || "reviews"}
                       </span>
                     </div>
                   </form>
@@ -1182,9 +1251,13 @@ export default function ProductDetailPage({
         {/* RELATED PRODUCTS (FULL WIDTH) */}
         <div id="related-products" className="mt-10">
           <div className="flex items-center justify-between gap-3 mb-4">
-            <h2 className="text-2xl font-bold">Related Products</h2>
+            <h2 className="text-2xl font-bold">
+              {t("productDetail.relatedProducts") || "Related Products"}
+            </h2>
             {relatedLoading && (
-              <div className="text-sm text-gray-500">Loading related...</div>
+              <div className="text-sm text-gray-500">
+                {t("productDetail.loadingRelated") || "Loading related..."}
+              </div>
             )}
           </div>
 
@@ -1204,7 +1277,9 @@ export default function ProductDetailPage({
                 <div className="p-3 text-left">
                   <div className="font-semibold line-clamp-2">{p.title}</div>
                   <div className="text-sm mt-1">
-                    {p.min_price ? formatPrice(p.min_price) : "Free"}
+                    {p.min_price
+                      ? formatPrice(p.min_price)
+                      : t("course.free") || "Free"}
                   </div>
                 </div>
               </button>

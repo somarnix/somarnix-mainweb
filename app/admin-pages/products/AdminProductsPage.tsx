@@ -181,6 +181,23 @@ function isToolsCategoryName(name: string | null | undefined): boolean {
   return (name ?? "").trim().toLowerCase() === "tools";
 }
 
+function getCategoryLabel(name: string | null | undefined): string {
+  const normalized = (name ?? "").trim().toLowerCase();
+  switch (normalized) {
+    case "course":
+    case "ai":
+      return "AI";
+    case "program":
+      return "Programs";
+    case "game":
+      return "Games";
+    case "tools":
+      return "Tools";
+    default:
+      return name?.trim() || "-";
+  }
+}
+
 function normalizeToolSlugInput(value: string): string {
   return value
     .toLowerCase()
@@ -651,6 +668,7 @@ export default function AdminProductsPage({
           title: cTitle.trim(),
           slug,
           category_id: Number(cCategoryId),
+          image_url: cImageUrl.trim() || null,
         };
 
         const res = await fetch("/api/admin/products", {
@@ -1299,7 +1317,7 @@ export default function AdminProductsPage({
         `#${p.id}`,
         p.title || "-",
         p.slug || "-",
-        p.category_name || "-",
+        getCategoryLabel(p.category_name),
         p.min_price == null ? "No price" : formatMoney(p.min_price),
         stockLabel,
         p.is_active ? "Active" : "Disabled",
@@ -1450,14 +1468,14 @@ export default function AdminProductsPage({
 
         <div className="grid grid-cols-1 gap-2 sm:grid-cols-2 lg:flex lg:flex-wrap lg:items-center">
           <input
-            value={q}
+                value={q ?? ""}
             onChange={(e) => setQ(e.target.value)}
             placeholder="Search title / slug / category…"
             className="w-full rounded-lg border px-3 py-2 text-sm sm:col-span-2 lg:w-[320px]"
           />
 
           <select
-            value={status}
+                value={status ?? "all"}
             onChange={(e) => {
               const v = e.target.value;
               if (isStatusFilter(v)) setStatus(v);
@@ -1470,7 +1488,7 @@ export default function AdminProductsPage({
           </select>
 
           <select
-            value={stockFilter}
+                value={stockFilter ?? "all"}
             onChange={(e) => {
               const v = e.target.value;
               if (isStockFilter(v)) setStockFilter(v);
@@ -1484,7 +1502,7 @@ export default function AdminProductsPage({
           </select>
 
           <select
-            value={slugFilter}
+                value={slugFilter ?? "all"}
             onChange={(e) => setSlugFilter(e.target.value)}
             className="w-full rounded-lg border px-3 py-2 text-sm sm:col-span-2 lg:w-[320px]"
           >
@@ -1500,7 +1518,7 @@ export default function AdminProductsPage({
 
           {!isToolsMode ? (
             <select
-              value={categoryFilter}
+                value={categoryFilter ?? "all"}
               onChange={(e) => setCategoryFilter(e.target.value)}
               className="w-full rounded-lg border px-3 py-2 text-sm capitalize lg:w-[220px]"
             >
@@ -1509,14 +1527,14 @@ export default function AdminProductsPage({
                 .filter((c) => c !== "all")
                 .map((c) => (
                   <option key={c} value={c} className="capitalize">
-                    {c}
+                    {getCategoryLabel(c)}
                   </option>
                 ))}
             </select>
           ) : null}
 
           <select
-            value={sort}
+                value={sort ?? "newest"}
             onChange={(e) => {
               const v = e.target.value;
               if (isSortMode(v)) setSort(v);
@@ -1617,7 +1635,7 @@ export default function AdminProductsPage({
                   </td>
 
                   <td className="p-3 text-sm text-gray-700">
-                    {p.category_name || <span className="text-gray-400">-</span>}
+                    {p.category_name ? getCategoryLabel(p.category_name) : <span className="text-gray-400">-</span>}
                     {typeof p.variant_count === "number" ? (
                       <div className="text-xs text-gray-500">Variants: {p.variant_count}</div>
                     ) : null}
@@ -1750,7 +1768,7 @@ export default function AdminProductsPage({
                   <div className="rounded-lg border bg-gray-50 p-3">
                     <div className="text-xs text-gray-500">Category</div>
                     <div className="mt-1 font-medium text-gray-900">
-                      {p.category_name || <span className="text-gray-400">-</span>}
+                      {p.category_name ? getCategoryLabel(p.category_name) : <span className="text-gray-400">-</span>}
                     </div>
                     {typeof p.variant_count === "number" ? (
                       <div className="mt-1 text-xs text-gray-500">Variants: {p.variant_count}</div>
@@ -1831,13 +1849,14 @@ export default function AdminProductsPage({
 
       {/* ================= CREATE MODAL ================= */}
       {createOpen ? (
-        <div className="fixed inset-0 z-50 flex items-start justify-center bg-black/40 p-2 sm:items-center sm:p-4">
-          <div
-            className={cls(
-              "flex w-full flex-col overflow-hidden rounded-2xl bg-white shadow-lg max-h-[calc(100vh-2rem)]",
-              isToolsMode ? "max-w-5xl" : "max-w-xl"
-            )}
-          >
+        <div className="fixed inset-0 z-50 overflow-y-auto bg-black/40 p-0 sm:p-4">
+          <div className="flex min-h-full items-start justify-center sm:items-center">
+            <div
+              className={cls(
+                "flex h-[100dvh] max-h-[100dvh] w-full flex-col overflow-hidden bg-white shadow-lg sm:h-auto sm:min-h-0 sm:max-h-[calc(100dvh-2rem)] sm:rounded-2xl",
+                isToolsMode ? "sm:max-w-5xl" : "sm:max-w-xl"
+              )}
+            >
             <div className="p-4 border-b flex items-center justify-between">
               <div>
                 <div className="text-lg font-semibold">
@@ -1859,11 +1878,11 @@ export default function AdminProductsPage({
 
             {!isToolsMode ? (
               <>
-                <div className="grid min-h-0 flex-1 grid-cols-1 gap-3 overflow-x-hidden overflow-y-auto overscroll-contain p-4 md:grid-cols-2">
+                <div className="grid min-h-0 flex-1 grid-cols-1 gap-3 overflow-x-hidden overflow-y-auto overscroll-contain touch-pan-y p-4 pb-24 md:grid-cols-2 sm:pb-4">
               <div className="md:col-span-2">
                 <label className="text-xs text-gray-600">Title</label>
                 <input
-                  value={cTitle}
+                  value={cTitle ?? ""}
                   onChange={(e) => setCTitle(e.target.value)}
                   className="mt-1 w-full border rounded-lg px-3 py-2 text-sm"
                 />
@@ -1872,7 +1891,7 @@ export default function AdminProductsPage({
               <div className="md:col-span-2">
                 <label className="text-xs text-gray-600">Slug</label>
                 <input
-                  value={cSlug}
+                  value={cSlug ?? ""}
                   onChange={(e) =>
                     setCSlug(isToolsMode ? normalizeToolSlugInput(e.target.value) : e.target.value)
                   }
@@ -1890,7 +1909,7 @@ export default function AdminProductsPage({
               <div className="md:col-span-2">
                 <label className="text-xs text-gray-600">Category</label>
                 <select
-                  value={String(cCategoryId)}
+                  value={String(cCategoryId ?? 0)}
                   onChange={(e) => setCCategoryId(Number(e.target.value))}
                   className="mt-1 w-full border rounded-lg px-3 py-2 text-sm"
                 >
@@ -1899,11 +1918,65 @@ export default function AdminProductsPage({
                   ) : (
                     scopedCategories.map((c) => (
                       <option key={c.id} value={String(c.id)}>
-                        {c.name}
+                        {getCategoryLabel(c.name)}
                       </option>
                     ))
                   )}
                 </select>
+              </div>
+
+              <div className="md:col-span-2">
+                <div className="flex items-center justify-between gap-3">
+                  <label className="text-xs text-gray-600">Product Image URL</label>
+                  {cImageUploading ? (
+                    <span className="text-[11px] text-gray-500">Uploading image...</span>
+                  ) : null}
+                </div>
+                <div className="mt-1 flex flex-col gap-2 md:flex-row">
+                  <input
+                    value={cImageUrl ?? ""}
+                    onChange={(e) => setCImageUrl(e.target.value)}
+                    className="w-full rounded-lg border px-3 py-2 text-sm"
+                    placeholder="/productimg/my-product.jpg or https://..."
+                  />
+                  <label className="cursor-pointer rounded-lg border px-3 py-2 text-sm hover:bg-gray-50">
+                    Upload image
+                    <input
+                      type="file"
+                      accept="image/*"
+                      className="hidden"
+                      onChange={async (e) => {
+                        const file = e.target.files?.[0];
+                        if (!file) return;
+                        try {
+                          setCImageUploading(true);
+                          const url = await uploadImage(file);
+                          setCImageUrl(url);
+                        } catch (err) {
+                          alert(getErrorMessage(err));
+                        } finally {
+                          setCImageUploading(false);
+                          e.currentTarget.value = "";
+                        }
+                      }}
+                    />
+                  </label>
+                </div>
+                {cImageUrl ? (
+                  <div className="mt-3 flex items-start gap-3">
+                    <img
+                      src={cImageUrl}
+                      alt="Product image preview"
+                      width={96}
+                      height={96}
+                      className="h-24 w-24 rounded-lg border object-cover"
+                    />
+                    <div className="min-w-0 text-xs text-gray-500">
+                      <div>Image preview</div>
+                      <div className="mt-1 break-all text-gray-400">{cImageUrl}</div>
+                    </div>
+                  </div>
+                ) : null}
               </div>
                 </div>
 
@@ -1936,7 +2009,7 @@ export default function AdminProductsPage({
 
             {isToolsMode ? (
               <>
-                <div className="grid min-h-0 flex-1 grid-cols-1 gap-4 overflow-x-hidden overflow-y-auto overscroll-contain p-4 lg:grid-cols-[1.3fr_0.7fr]">
+                <div className="grid min-h-0 flex-1 grid-cols-1 gap-4 overflow-x-hidden overflow-y-auto overscroll-contain touch-pan-y p-4 pb-24 sm:pb-4 lg:grid-cols-[1.3fr_0.7fr]">
                   <div className="space-y-4">
                     <section className="rounded-2xl border border-gray-200 p-4">
                       <div className="text-sm font-semibold text-gray-900">1. Choose Template</div>
@@ -1971,7 +2044,7 @@ export default function AdminProductsPage({
                         <div className="md:col-span-2">
                           <label className="text-xs text-gray-600">Tool Name</label>
                           <input
-                            value={cTitle}
+                            value={cTitle ?? ""}
                             onChange={(e) => setCTitle(e.target.value)}
                             className="mt-1 w-full rounded-lg border px-3 py-2 text-sm"
                             placeholder="Video Editor Pro"
@@ -1981,7 +2054,7 @@ export default function AdminProductsPage({
                         <div className="md:col-span-2">
                           <label className="text-xs text-gray-600">Short Description</label>
                           <textarea
-                            value={cDescription}
+                            value={cDescription ?? ""}
                             onChange={(e) => setCDescription(e.target.value)}
                             rows={3}
                             className="mt-1 w-full rounded-lg border px-3 py-2 text-sm"
@@ -1992,7 +2065,7 @@ export default function AdminProductsPage({
                         <div>
                           <label className="text-xs text-gray-600">Category</label>
                           <select
-                            value={String(cCategoryId)}
+                            value={String(cCategoryId ?? 0)}
                             onChange={(e) => setCCategoryId(Number(e.target.value))}
                             className="mt-1 w-full rounded-lg border px-3 py-2 text-sm"
                           >
@@ -2001,7 +2074,7 @@ export default function AdminProductsPage({
                             ) : (
                               scopedCategories.map((c) => (
                                 <option key={c.id} value={String(c.id)}>
-                                  {c.name}
+                                  {getCategoryLabel(c.name)}
                                 </option>
                               ))
                             )}
@@ -2011,7 +2084,7 @@ export default function AdminProductsPage({
                         <div>
                           <label className="text-xs text-gray-600">Status</label>
                           <select
-                            value={cStatus}
+                            value={cStatus ?? "draft"}
                             onChange={(e) => setCStatus(e.target.value as ToolStatus)}
                             className="mt-1 w-full rounded-lg border px-3 py-2 text-sm"
                           >
@@ -2036,7 +2109,7 @@ export default function AdminProductsPage({
                           </div>
                           <div className="mt-1 flex flex-col gap-2 md:flex-row">
                             <input
-                              value={cImageUrl}
+                              value={cImageUrl ?? ""}
                               onChange={(e) => setCImageUrl(e.target.value)}
                               className="w-full rounded-lg border px-3 py-2 text-sm"
                               placeholder="/productimg/my-tool.jpg or https://..."
@@ -2074,7 +2147,7 @@ export default function AdminProductsPage({
                         <div>
                           <label className="text-xs text-gray-600">Plan Type</label>
                           <select
-                            value={cPlanType}
+                            value={cPlanType ?? "one_time"}
                             onChange={(e) => setCPlanType(e.target.value as ToolPlanType)}
                             className="mt-1 w-full rounded-lg border px-3 py-2 text-sm"
                           >
@@ -2087,7 +2160,7 @@ export default function AdminProductsPage({
                         <div>
                           <label className="text-xs text-gray-600">Duration (days)</label>
                           <input
-                            value={cDurationDays}
+                            value={cDurationDays ?? ""}
                             onChange={(e) => setCDurationDays(e.target.value)}
                             type="number"
                             min="1"
@@ -2099,7 +2172,7 @@ export default function AdminProductsPage({
                         <div>
                           <label className="text-xs text-gray-600">Price</label>
                           <input
-                            value={cPrice}
+                            value={cPrice ?? ""}
                             onChange={(e) => setCPrice(e.target.value)}
                             type="number"
                             min="0"
@@ -2112,7 +2185,7 @@ export default function AdminProductsPage({
                         <div>
                           <label className="text-xs text-gray-600">Original Price</label>
                           <input
-                            value={cOriginalPrice}
+                            value={cOriginalPrice ?? ""}
                             onChange={(e) => setCOriginalPrice(e.target.value)}
                             type="number"
                             min="0"
@@ -2127,7 +2200,7 @@ export default function AdminProductsPage({
                             Max Devices (1-{MAX_TOOL_DEVICES})
                           </label>
                           <input
-                            value={cMaxDevices}
+                            value={cMaxDevices ?? ""}
                             onChange={(e) => setCMaxDevices(e.target.value)}
                             type="number"
                             min="1"
@@ -2139,7 +2212,7 @@ export default function AdminProductsPage({
                         <div>
                           <label className="text-xs text-gray-600">License Type</label>
                           <select
-                            value={cLicenseType}
+                            value={cLicenseType ?? "single_device"}
                             onChange={(e) => setCLicenseType(e.target.value as ToolLicenseType)}
                             className="mt-1 w-full rounded-lg border px-3 py-2 text-sm"
                           >
@@ -2195,7 +2268,7 @@ export default function AdminProductsPage({
                             <div>
                               <label className="text-xs text-gray-600">Primary Platform</label>
                               <select
-                                value={cPlatform}
+                                value={cPlatform ?? "Windows"}
                                 onChange={(e) => setCPlatform(e.target.value)}
                                 className="mt-1 w-full rounded-lg border px-3 py-2 text-sm"
                               >
@@ -2209,7 +2282,7 @@ export default function AdminProductsPage({
                             <div>
                               <label className="text-xs text-gray-600">Version</label>
                               <input
-                                value={cVersion}
+                                value={cVersion ?? ""}
                                 onChange={(e) => setCVersion(e.target.value)}
                                 className="mt-1 w-full rounded-lg border px-3 py-2 text-sm"
                                 placeholder="1.0.0"
@@ -2225,7 +2298,7 @@ export default function AdminProductsPage({
                               </div>
                               <div className="mt-1 flex flex-col gap-2 md:flex-row">
                                 <input
-                                  value={cToolAssetUrl}
+                                  value={cToolAssetUrl ?? ""}
                                   onChange={(e) => setCToolAssetUrl(e.target.value)}
                                   className="w-full rounded-lg border px-3 py-2 text-sm"
                                   placeholder="Upload a file or paste an external download URL"
@@ -2257,7 +2330,7 @@ export default function AdminProductsPage({
                             <div className="md:col-span-2">
                               <label className="text-xs text-gray-600">Installation Instructions</label>
                               <textarea
-                                value={cInstallInstructions}
+                                value={cInstallInstructions ?? ""}
                                 onChange={(e) => setCInstallInstructions(e.target.value)}
                                 rows={3}
                                 className="mt-1 w-full rounded-lg border px-3 py-2 text-sm"
@@ -2267,7 +2340,7 @@ export default function AdminProductsPage({
                             <div className="md:col-span-2">
                               <label className="text-xs text-gray-600">Release Notes</label>
                               <textarea
-                                value={cReleaseNotes}
+                                value={cReleaseNotes ?? ""}
                                 onChange={(e) => setCReleaseNotes(e.target.value)}
                                 rows={3}
                                 className="mt-1 w-full rounded-lg border px-3 py-2 text-sm"
@@ -2290,7 +2363,7 @@ export default function AdminProductsPage({
                             <div>
                               <label className="text-xs text-gray-600">Run Mode</label>
                               <select
-                                value={cRunMode}
+                                value={cRunMode ?? "external_url"}
                                 onChange={(e) => setCRunMode(e.target.value as ToolRunMode)}
                                 className="mt-1 w-full rounded-lg border px-3 py-2 text-sm"
                               >
@@ -2302,7 +2375,7 @@ export default function AdminProductsPage({
                             <div>
                               <label className="text-xs text-gray-600">Launch URL</label>
                               <input
-                                value={cLaunchUrl}
+                                value={cLaunchUrl ?? ""}
                                 onChange={(e) => setCLaunchUrl(e.target.value)}
                                 className="mt-1 w-full rounded-lg border px-3 py-2 text-sm"
                                 placeholder="https://tool.example.com"
@@ -2312,7 +2385,7 @@ export default function AdminProductsPage({
                             <div className="md:col-span-2">
                               <label className="text-xs text-gray-600">Intro Text</label>
                               <textarea
-                                value={cIntroText}
+                                value={cIntroText ?? ""}
                                 onChange={(e) => setCIntroText(e.target.value)}
                                 rows={3}
                                 className="mt-1 w-full rounded-lg border px-3 py-2 text-sm"
@@ -2322,7 +2395,7 @@ export default function AdminProductsPage({
                             <div className="md:col-span-2">
                               <label className="text-xs text-gray-600">Usage Instructions</label>
                               <textarea
-                                value={cUsageInstructions}
+                                value={cUsageInstructions ?? ""}
                                 onChange={(e) => setCUsageInstructions(e.target.value)}
                                 rows={3}
                                 className="mt-1 w-full rounded-lg border px-3 py-2 text-sm"
@@ -2345,7 +2418,7 @@ export default function AdminProductsPage({
                             <div className="md:col-span-2">
                               <label className="text-xs text-gray-600">Activation Instructions</label>
                               <textarea
-                                value={cActivationInstructions}
+                                value={cActivationInstructions ?? ""}
                                 onChange={(e) => setCActivationInstructions(e.target.value)}
                                 rows={3}
                                 className="mt-1 w-full rounded-lg border px-3 py-2 text-sm"
@@ -2355,7 +2428,7 @@ export default function AdminProductsPage({
                             <div className="md:col-span-2">
                               <label className="text-xs text-gray-600">Delivery Instructions</label>
                               <textarea
-                                value={cDeliveryInstructions}
+                                value={cDeliveryInstructions ?? ""}
                                 onChange={(e) => setCDeliveryInstructions(e.target.value)}
                                 rows={3}
                                 className="mt-1 w-full rounded-lg border px-3 py-2 text-sm"
@@ -2369,7 +2442,7 @@ export default function AdminProductsPage({
                             <div className="md:col-span-2">
                               <label className="text-xs text-gray-600">Custom Tool Type</label>
                               <select
-                                value={cCustomHandlerKey}
+                                value={cCustomHandlerKey ?? "prompt-ai-studio"}
                                 onChange={(e) =>
                                   setCCustomHandlerKey(e.target.value as EmbeddedCustomHandlerKey)
                                 }
@@ -2393,7 +2466,7 @@ export default function AdminProductsPage({
                             <div className="md:col-span-2">
                               <label className="text-xs text-gray-600">Custom Instructions</label>
                               <textarea
-                                value={cCustomInstructions}
+                                value={cCustomInstructions ?? ""}
                                 onChange={(e) => setCCustomInstructions(e.target.value)}
                                 rows={3}
                                 className="mt-1 w-full rounded-lg border px-3 py-2 text-sm"
@@ -2521,15 +2594,16 @@ export default function AdminProductsPage({
                 </div>
               </>
             ) : null}
+            </div>
           </div>
         </div>
       ) : null}
 
       {/* ================= EDIT MODAL ================= */}
       {editOpen && editing ? (
-        <div className="fixed inset-0 z-50 overflow-y-auto bg-black/40 p-2 sm:p-4 lg:p-6">
+        <div className="fixed inset-0 z-50 overflow-y-auto bg-black/40 p-0 sm:p-4 lg:p-6">
           <div className="flex min-h-full items-start justify-center lg:items-center">
-            <div className="my-2 flex w-full max-w-3xl min-h-0 flex-col overflow-hidden rounded-2xl bg-white shadow-lg sm:my-4 lg:my-6 lg:max-h-[calc(100dvh-6rem)]">
+            <div className="flex h-[100dvh] max-h-[100dvh] w-full min-w-0 flex-col overflow-hidden bg-white shadow-lg sm:my-4 sm:h-auto sm:min-h-0 sm:max-w-3xl sm:max-h-[calc(100dvh-2rem)] sm:rounded-2xl lg:my-6 lg:max-h-[calc(100dvh-6rem)]">
             <div className="shrink-0 flex items-center justify-between border-b px-4 py-3 lg:px-5 lg:py-3">
               <div>
                 <div className="text-lg font-semibold">Edit Product</div>
@@ -2545,13 +2619,13 @@ export default function AdminProductsPage({
 
             <div
               ref={editModalBodyRef}
-              className="modal-scrollbar grid min-h-0 flex-1 grid-cols-1 gap-2 overflow-x-hidden overflow-y-auto overscroll-contain p-3 pr-2 sm:p-4 sm:pr-3 md:grid-cols-2 lg:gap-3"
+              className="modal-scrollbar grid min-h-0 flex-1 grid-cols-1 gap-2 overflow-x-hidden overflow-y-auto overscroll-contain touch-pan-y p-3 pr-2 pb-24 sm:p-4 sm:pr-3 sm:pb-4 md:grid-cols-2 lg:gap-3"
               style={{ WebkitOverflowScrolling: "touch" }}
             >
               <div className="md:col-span-2">
                 <label className="text-xs text-gray-600">Title</label>
                 <input
-                  value={fTitle}
+                  value={fTitle ?? ""}
                   onChange={(e) => setFTitle(e.target.value)}
                   className="mt-1 w-full border rounded-lg px-3 py-2 text-sm"
                 />
@@ -2560,7 +2634,7 @@ export default function AdminProductsPage({
               <div className="md:col-span-2">
                 <label className="text-xs text-gray-600">Slug</label>
                 <input
-                  value={fSlug}
+                  value={fSlug ?? ""}
                   onChange={(e) =>
                     setFSlug(isToolsMode ? normalizeToolSlugInput(e.target.value) : e.target.value)
                   }
@@ -2578,13 +2652,13 @@ export default function AdminProductsPage({
               <div>
                 <label className="text-xs text-gray-600">Category</label>
                 <select
-                  value={String(fCategoryId)}
+                  value={String(fCategoryId ?? 0)}
                   onChange={(e) => setFCategoryId(Number(e.target.value))}
                   className="mt-1 w-full border rounded-lg px-3 py-2 text-sm"
                 >
                   {scopedCategories.map((c) => (
                     <option key={c.id} value={String(c.id)}>
-                      {c.name}
+                      {getCategoryLabel(c.name)}
                     </option>
                   ))}
                 </select>
@@ -2593,7 +2667,7 @@ export default function AdminProductsPage({
               <div>
                 <label className="text-xs text-gray-600">Level</label>
                 <select
-                  value={fLevel}
+                  value={fLevel ?? "beginner"}
                   onChange={(e) => setFLevel(e.target.value as Level)}
                   className="mt-1 w-full border rounded-lg px-3 py-2 text-sm"
                 >
@@ -2607,7 +2681,7 @@ export default function AdminProductsPage({
                 <label className="text-xs text-gray-600">Stock Qty</label>
                 <input
                   type="number"
-                  value={String(fStockQty)}
+                  value={String(fStockQty ?? 0)}
                   onChange={(e) => setFStockQty(Number(e.target.value))}
                   className="mt-1 w-full border rounded-lg px-3 py-2 text-sm"
                   disabled={!!fUnlimitedStock}
@@ -2645,7 +2719,7 @@ export default function AdminProductsPage({
                       className="grid grid-cols-1 md:grid-cols-5 gap-2 rounded-lg border p-3"
                     >
                       <input
-                        value={field.label}
+                        value={field.label ?? ""}
                         onChange={(e) => {
                           const nextLabel = e.target.value;
                           setFOrderFields((prev) =>
@@ -2666,7 +2740,7 @@ export default function AdminProductsPage({
                         className="border rounded-md px-2 py-1 text-xs md:col-span-2"
                       />
                       <input
-                        value={field.key}
+                        value={field.key ?? ""}
                         onChange={(e) =>
                           setFOrderFields((prev) =>
                             prev.map((f, i) =>
@@ -2678,7 +2752,7 @@ export default function AdminProductsPage({
                         className="border rounded-md px-2 py-1 text-xs md:col-span-1"
                       />
                       <select
-                        value={field.type}
+                        value={field.type ?? "text"}
                         onChange={(e) =>
                           setFOrderFields((prev) =>
                             prev.map((f, i) =>
@@ -2699,7 +2773,7 @@ export default function AdminProductsPage({
                         <label className="flex items-center gap-2 text-xs">
                           <input
                             type="checkbox"
-                            checked={field.required}
+                            checked={!!field.required}
                             onChange={(e) =>
                               setFOrderFields((prev) =>
                                 prev.map((f, i) =>
@@ -2721,7 +2795,7 @@ export default function AdminProductsPage({
                         </button>
                       </div>
                       <input
-                        value={field.placeholder}
+                        value={field.placeholder ?? ""}
                         onChange={(e) =>
                           setFOrderFields((prev) =>
                             prev.map((f, i) =>
@@ -2762,7 +2836,15 @@ export default function AdminProductsPage({
               <div className="md:col-span-2">
                 <label className="text-xs text-gray-600">Product Image</label>
 
-                <div className="mt-1 flex flex-col gap-3 sm:flex-row sm:items-center">
+                <div className="mt-1 space-y-3">
+                  <input
+                    value={fImageUrl ?? ""}
+                    onChange={(e) => setFImageUrl(e.target.value)}
+                    placeholder="/productimg/my-product.jpg or https://..."
+                    className="w-full rounded-lg border px-3 py-2 text-sm"
+                  />
+
+                  <div className="flex flex-col gap-3 sm:flex-row sm:items-center">
                   <input
                     type="file"
                     accept="image/*"
@@ -2791,6 +2873,7 @@ export default function AdminProductsPage({
                   />
 
                   {uploading ? <span className="text-sm text-gray-500">Uploading...</span> : null}
+                </div>
                 </div>
 
                 {fImageUrl ? (
@@ -2881,7 +2964,7 @@ export default function AdminProductsPage({
                         <div>
                           <label className="text-xs text-gray-600">Duration Label</label>
                           <input
-                            value={vDurationLabel}
+                            value={vDurationLabel ?? ""}
                             onChange={(e) => setVDurationLabel(e.target.value)}
                             className="mt-1 w-full border rounded-lg px-3 py-2 text-sm"
                           />
@@ -2890,7 +2973,7 @@ export default function AdminProductsPage({
                         <div>
                           <label className="text-xs text-gray-600">Duration Note</label>
                           <input
-                            value={vDurationNote}
+                            value={vDurationNote ?? ""}
                             onChange={(e) => setVDurationNote(e.target.value)}
                             className="mt-1 w-full border rounded-lg px-3 py-2 text-sm"
                           />
@@ -2900,7 +2983,7 @@ export default function AdminProductsPage({
                           <div>
                             <label className="text-xs text-gray-600">Access Type</label>
                             <select
-                              value={vAccessType}
+                            value={vAccessType ?? "months"}
                               onChange={(e) => {
                                 const next = e.target.value === "lifetime" ? "lifetime" : "months";
                                 setVAccessType(next);
@@ -2920,7 +3003,7 @@ export default function AdminProductsPage({
                             <input
                               type="number"
                               min={1}
-                              value={vDurationDays}
+                            value={vDurationDays ?? ""}
                               onChange={(e) => setVDurationDays(e.target.value)}
                               className="mt-1 w-full border rounded-lg px-3 py-2 text-sm"
                             />
@@ -2941,7 +3024,7 @@ export default function AdminProductsPage({
                             <div>
                               <label className="text-xs text-gray-600">Device Label</label>
                               <input
-                                value={vDeviceLabel}
+                            value={vDeviceLabel ?? ""}
                                 onChange={(e) => setVDeviceLabel(e.target.value)}
                                 className="mt-1 w-full border rounded-lg px-3 py-2 text-sm"
                               />
@@ -2950,7 +3033,7 @@ export default function AdminProductsPage({
                             <div>
                               <label className="text-xs text-gray-600">Device Type</label>
                               <select
-                                value={vDeviceType}
+                            value={vDeviceType ?? "any"}
                                 onChange={(e) =>
                                   setVDeviceType(
                                     e.target.value as "any" | "pc" | "phone" | "both"
@@ -2971,7 +3054,7 @@ export default function AdminProductsPage({
                                 type="number"
                                 min={1}
                                 max={GLOBAL_MAX_DEVICES}
-                                value={vDeviceLimit}
+                            value={vDeviceLimit ?? ""}
                                 onChange={(e) => {
                                   const raw = e.target.value;
                                   setVDeviceLimit(raw);
@@ -3009,7 +3092,7 @@ export default function AdminProductsPage({
                           <label className="text-xs text-gray-600">Original Price</label>
                           <input
                             type="number"
-                            value={vOriginalPrice}
+                            value={vOriginalPrice ?? ""}
                             onChange={(e) => setVOriginalPrice(e.target.value)}
                             className="mt-1 w-full border rounded-lg px-3 py-2 text-sm"
                           />
@@ -3019,7 +3102,7 @@ export default function AdminProductsPage({
                           <label className="text-xs text-gray-600">Price</label>
                           <input
                             type="number"
-                            value={vPrice}
+                            value={vPrice ?? ""}
                             onChange={(e) => setVPrice(e.target.value)}
                             className="mt-1 w-full border rounded-lg px-3 py-2 text-sm"
                           />
@@ -3031,7 +3114,7 @@ export default function AdminProductsPage({
                             <input
                               type="number"
                               min={1}
-                              value={vUnitsPerQty}
+                            value={vUnitsPerQty ?? "1"}
                               onChange={(e) => setVUnitsPerQty(e.target.value)}
                               className="mt-1 w-full border rounded-lg px-3 py-2 text-sm"
                             />

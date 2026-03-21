@@ -51,8 +51,6 @@ export function ShareButton({
 
         const url = buildAbsoluteUrl(path);
         const payload = {
-          title: title || undefined,
-          text: text || title || undefined,
           url,
         };
 
