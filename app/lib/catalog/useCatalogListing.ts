@@ -15,10 +15,16 @@ export function useCatalogListing<T extends CatalogListingItem>({
   items,
   allSlug,
   allLabel,
+  mobileGridColumns = 2,
+  tabletGridColumns = 3,
+  desktopGridColumns = 4,
 }: {
   items: T[];
   allSlug: string;
   allLabel: string;
+  mobileGridColumns?: 1 | 2;
+  tabletGridColumns?: 2 | 3;
+  desktopGridColumns?: 4 | 5;
 }) {
   const [selectedSlug, setSelectedSlug] = useState(allSlug);
   const [slugQuery, setSlugQuery] = useState("");
@@ -39,13 +45,22 @@ export function useCatalogListing<T extends CatalogListingItem>({
 
   useEffect(() => {
     const updateItemsPerPage = () => {
-      setItemsPerPage(window.innerWidth < 768 ? 3 : 6);
+      const width = window.innerWidth;
+      if (width < 768) {
+        setItemsPerPage(mobileGridColumns === 2 ? 4 : 3);
+        return;
+      }
+      if (width < 1024) {
+        setItemsPerPage(tabletGridColumns === 3 ? 6 : 4);
+        return;
+      }
+      setItemsPerPage(desktopGridColumns === 5 ? 10 : 8);
     };
 
     updateItemsPerPage();
     window.addEventListener("resize", updateItemsPerPage);
     return () => window.removeEventListener("resize", updateItemsPerPage);
-  }, []);
+  }, [desktopGridColumns, mobileGridColumns, tabletGridColumns]);
 
   const normalizedSlugQuery = useMemo(() => slugQuery.trim().toLowerCase(), [slugQuery]);
 

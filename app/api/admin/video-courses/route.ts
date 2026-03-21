@@ -27,6 +27,9 @@ type CourseRow = RowDataPacket & {
   preview_count: number;
   is_active: number;
   created_at: string;
+  posted_by?: number | null;
+  posted_by_name?: string | null;
+  posted_by_username?: string | null;
 };
 
 export async function GET(req: Request) {
@@ -47,6 +50,29 @@ export async function GET(req: Request) {
       `
     );
     const hasLearningOutcomesColumn = learningOutcomesColumnRows.length > 0;
+    const [postedByColumnRows] = await db.query<RowDataPacket[]>(
+      `
+      SELECT 1 AS ok
+      FROM information_schema.columns
+      WHERE table_schema = DATABASE()
+        AND table_name = 'video_courses'
+        AND column_name = 'posted_by'
+      LIMIT 1
+      `
+    );
+    const hasPostedByColumn = postedByColumnRows.length > 0;
+    const postedBySelect = hasPostedByColumn
+      ? `
+          vc.posted_by,
+          CONCAT_WS(' ', NULLIF(TRIM(u.first_name), ''), NULLIF(TRIM(u.last_name), '')) AS posted_by_name,
+          u.username AS posted_by_username,
+        `
+      : `
+          NULL AS posted_by,
+          NULL AS posted_by_name,
+          NULL AS posted_by_username,
+        `;
+    const postedByJoin = hasPostedByColumn ? "LEFT JOIN users u ON u.id = vc.posted_by" : "";
 
     let rows: CourseRow[] = [];
     try {
@@ -79,11 +105,13 @@ export async function GET(req: Request) {
             FROM video_course_plans vcp
             WHERE vcp.course_id = vc.id AND vcp.is_active = 1
           ) AS plan_count,
+          ${postedBySelect}
           vc.preview_mode,
           vc.preview_count,
           vc.is_active,
           vc.created_at
         FROM video_courses vc
+        ${postedByJoin}
         WHERE vc.deleted_at IS NULL
         ORDER BY vc.id DESC
         `
@@ -123,11 +151,13 @@ export async function GET(req: Request) {
             FROM video_course_plans vcp
             WHERE vcp.course_id = vc.id AND vcp.is_active = 1
           ) AS plan_count,
+          ${postedBySelect}
           vc.preview_mode,
           vc.preview_count,
           vc.is_active,
           vc.created_at
         FROM video_courses vc
+        ${postedByJoin}
         ORDER BY vc.id DESC
         `
       );

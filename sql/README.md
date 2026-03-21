@@ -25,6 +25,9 @@ Use these files:
 7. `06-user-api-keys.sql`
    Per-user encrypted API key storage.
 
+8. `16-schema-normalization-foundation.sql`
+   Optional advanced normalization foundation and redundant index cleanup.
+
 Recommended:
 
 - If you want everything at once, run `00-full-schema.sql`.
@@ -35,9 +38,11 @@ Recommended:
   4. `04-tools-and-licenses.sql`
   5. `05-defaults-and-sync.sql`
   6. `06-user-api-keys.sql`
+  7. Optional: `16-schema-normalization-foundation.sql`
 
 Important:
 
 - The old messy dated SQL files were removed from this folder.
 - The new files were rewritten around your old database structure.
 - If you already have production data, do not run the `DROP DATABASE` lines in `01-core-auth-commerce.sql`.
+- Run `16-schema-normalization-foundation.sql` only when you are ready to start app-level schema cleanup.

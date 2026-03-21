@@ -14,6 +14,7 @@ import {
 } from "lucide-react";
 import { PreviewVideoPage, PreviewLesson } from "./PreviewVideoPage";
 import { QRPaymentModal } from "../../components/QRPaymentModal";
+import { ShareButton } from "../../components/ShareButton";
 import { useAuth } from "../../contexts/AuthContext";
 import { useCurrency } from "../../contexts/CurrencyContext";
 import { useLanguage } from "../../contexts/LanguageContext";
@@ -75,6 +76,7 @@ type ApiCourse = {
   title: string;
   slug: string;
   posted_by?: number | null;
+  posted_by_username?: string | null;
   description: string | null;
   level: string;
   category: string | null;
@@ -435,13 +437,15 @@ export function VideoDetailPage({
     return t("courseDetail.maxDevices", { count: effective });
   };
 
-  const openSellerBlog = (sellerId: number | null | undefined) => {
-    if (!sellerId || sellerId <= 0) return;
+  const openSellerBlog = (sellerKey: string | number | null | undefined) => {
+    if (sellerKey === null || sellerKey === undefined) return;
+    const normalizedSellerKey = String(sellerKey).trim();
+    if (!normalizedSellerKey) return;
     if (onOpenSellerBlog) {
-      onOpenSellerBlog(sellerId);
+      onOpenSellerBlog(normalizedSellerKey);
       return;
     }
-    window.location.href = `/blog/${encodeURIComponent(String(sellerId))}`;
+    window.location.href = `/blog/${encodeURIComponent(normalizedSellerKey)}`;
   };
 
   const handlePurchase = async (
@@ -649,13 +653,23 @@ export function VideoDetailPage({
               <div className="absolute -bottom-28 -left-28 h-72 w-72 rounded-full bg-fuchsia-500/20 blur-3xl" />
 
               <div className="relative p-7 sm:p-9">
-                <button
-                  onClick={() => (onBack ? onBack() : onNavigate("blog"))}
-                  className="inline-flex items-center gap-2 text-xs text-slate-300 hover:text-white"
-                >
-                  <ArrowLeft className="w-4 h-4" />
-                  {t("courseDetail.backToVideos")}
-                </button>
+                <div className="flex flex-wrap items-center justify-between gap-3">
+                  <button
+                    onClick={() => (onBack ? onBack() : onNavigate("blog"))}
+                    className="inline-flex items-center gap-2 text-xs text-slate-300 hover:text-white"
+                  >
+                    <ArrowLeft className="w-4 h-4" />
+                    {t("courseDetail.backToVideos")}
+                  </button>
+                  <ShareButton
+                    path={`/courses/${encodeURIComponent(course.slug)}`}
+                    title={course.title}
+                    text={course.description || course.title}
+                    label={t("share.button")}
+                    className="inline-flex h-10 items-center justify-center rounded-xl border border-white/15 bg-white/10 px-4 text-sm font-semibold text-white shadow-sm backdrop-blur transition hover:bg-white/15"
+                    iconClassName="h-4 w-4"
+                  />
+                </div>
 
                 <div className="mt-5 flex flex-wrap items-center gap-2">
                   <span className="rounded-full bg-emerald-500/15 text-emerald-200 px-3 py-1 text-xs font-semibold ring-1 ring-emerald-400/20">
@@ -686,14 +700,15 @@ export function VideoDetailPage({
                   {t("courseDetail.createdBy")}{" "}
                   <button
                     type="button"
-                    onClick={() => openSellerBlog(Number(course.posted_by ?? 0))}
-                    disabled={!course.posted_by}
+                    onClick={() =>
+                      openSellerBlog(course.posted_by_username || Number(course.posted_by ?? 0))
+                    }
+                    disabled={!course.posted_by && !course.posted_by_username}
                     className="text-white font-semibold underline-offset-2 hover:underline disabled:no-underline"
                   >
                     {course.author_name || t("labels.instructor")}
                   </button>
                 </div>
-
                 <div className="mt-2 flex flex-wrap items-center gap-4 text-[11px] text-slate-300/80">
                   <span className="inline-flex items-center gap-1">
                     <Calendar className="w-3 h-3" />

@@ -1,6 +1,7 @@
 // app\pages\all-category
 import { useEffect, useState } from "react";
 import { CourseCard } from "../../components/CourseCard";
+import { DesktopGridToggle } from "../../components/DesktopGridToggle";
 import { useLanguage } from "../../contexts/LanguageContext";
 import { AllFilter } from "../../components/filters/AllFilter";
 import { Pagination } from "../../components/Pagination";
@@ -35,9 +36,20 @@ export function AllPage({ onOpenProductDetail }: { onOpenProductDetail: (slug: s
   const [searchTerm, setSearchTerm] = useState("");
   const [currentPage, setCurrentPage] = useState(1);
   const [itemsPerPage, setItemsPerPage] = useState(6);
+  const [screenWidth, setScreenWidth] = useState(1280);
+  const [mobileGridColumns, setMobileGridColumns] = useState<1 | 2>(2);
+  const [tabletGridColumns, setTabletGridColumns] = useState<2 | 3>(3);
+  const [desktopGridColumns, setDesktopGridColumns] = useState<4 | 5>(4);
   const [sortBy, setSortBy] = useState<
     "popular" | "price-low" | "price-high" | "rating"
   >("popular");
+
+  useEffect(() => {
+    const updateScreenWidth = () => setScreenWidth(window.innerWidth);
+    updateScreenWidth();
+    window.addEventListener("resize", updateScreenWidth);
+    return () => window.removeEventListener("resize", updateScreenWidth);
+  }, []);
 
   /* ================= FETCH FROM DB ================= */
   useEffect(() => {
@@ -49,12 +61,34 @@ export function AllPage({ onOpenProductDetail }: { onOpenProductDetail: (slug: s
 
   useEffect(() => {
     const updateItemsPerPage = () => {
-      setItemsPerPage(window.innerWidth < 768 ? 3 : 6);
+      const width = window.innerWidth;
+      if (width < 768) {
+        setItemsPerPage(mobileGridColumns === 2 ? 4 : 3);
+        return;
+      }
+      if (width < 1024) {
+        setItemsPerPage(tabletGridColumns === 3 ? 6 : 4);
+        return;
+      }
+      setItemsPerPage(desktopGridColumns === 5 ? 10 : 8);
     };
     updateItemsPerPage();
     window.addEventListener("resize", updateItemsPerPage);
     return () => window.removeEventListener("resize", updateItemsPerPage);
-  }, []);
+  }, [desktopGridColumns, mobileGridColumns, tabletGridColumns]);
+
+  const gridClassName =
+    screenWidth < 768
+      ? mobileGridColumns === 2
+        ? "grid grid-cols-2 gap-4"
+        : "grid grid-cols-1 gap-4"
+      : screenWidth < 1024
+      ? tabletGridColumns === 3
+        ? "grid grid-cols-2 md:grid-cols-3 gap-6"
+        : "grid grid-cols-2 gap-6"
+      : `grid grid-cols-2 gap-4 sm:gap-6 ${
+          desktopGridColumns === 5 ? "lg:grid-cols-4 xl:grid-cols-5" : "lg:grid-cols-4"
+        }`;
 
   /* ================= FILTER BY TYPE ================= */
   const filteredItems = products.filter((p) => {
@@ -143,25 +177,13 @@ export function AllPage({ onOpenProductDetail }: { onOpenProductDetail: (slug: s
 
       {/* ================= CONTENT ================= */}
       <div className="max-w-7xl mx-auto px-4 py-12">
-        <div className="grid lg:grid-cols-4 gap-8">
-          {/* ================= FILTER SIDEBAR ================= */}
-          <aside className="lg:col-span-1">
-            <AllFilter
-              contentTypes={contentTypes}
-              selectedType={selectedType}
-              onSelectType={setSelectedType}
-              sortBy={sortBy}
-              onSortChange={setSortBy}
-            />
-          </aside>
-
-          {/* ================= MAIN GRID ================= */}
-          <main className="lg:col-span-3">
+        <div className="space-y-6">
+          <main>
             {loading ? (
               <div className="text-center text-gray-500">{t("common.loading")}</div>
             ) : sortedItems.length > 0 ? (
               <>
-                <div className="mb-6 flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4">
+                <div className="mb-6 flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
                   <div>
                     <h2 className="text-2xl font-bold">
                       {selectedType === "all"
@@ -173,16 +195,50 @@ export function AllPage({ onOpenProductDetail }: { onOpenProductDetail: (slug: s
                       {sortedItems.length} {t("all.products")} {t("all.available")}
                     </p>
                   </div>
-                  <Search
-                    value={searchTerm}
-                    onChange={setSearchTerm}
-                    placeholder={t("search.slug")}
-                    className="w-full sm:w-64"
-                    inputClassName="rounded-lg shadow-sm focus:ring-blue-500"
+                  <div className="flex w-full flex-col gap-3 lg:w-[560px] sm:items-end">
+                    <div className="flex w-full flex-col gap-3 sm:flex-row sm:items-center sm:justify-end">
+                      <Search
+                        value={searchTerm}
+                        onChange={setSearchTerm}
+                        placeholder={t("search.slug")}
+                        className="w-full sm:flex-1"
+                        inputClassName="rounded-lg shadow-sm focus:ring-blue-500"
+                      />
+                      <DesktopGridToggle
+                        value={desktopGridColumns}
+                        onChange={(value) => setDesktopGridColumns(value as 4 | 5)}
+                      />
+                    </div>
+                  </div>
+                </div>
+
+                <div className="mb-6 lg:hidden">
+                  <AllFilter
+                    contentTypes={contentTypes}
+                    selectedType={selectedType}
+                    onSelectType={setSelectedType}
+                    sortBy={sortBy}
+                    onSortChange={setSortBy}
+                    mobileTrailingControl={
+                      <>
+                        <DesktopGridToggle
+                          value={mobileGridColumns}
+                          onChange={(value) => setMobileGridColumns(value as 1 | 2)}
+                          options={[1, 2]}
+                          visibilityClassName="flex md:hidden"
+                        />
+                        <DesktopGridToggle
+                          value={tabletGridColumns}
+                          onChange={(value) => setTabletGridColumns(value as 2 | 3)}
+                          options={[2, 3]}
+                          visibilityClassName="hidden md:flex lg:hidden"
+                        />
+                      </>
+                    }
                   />
                 </div>
 
-                <div className="grid sm:grid-cols-2 lg:grid-cols-3 gap-6">
+                <div className={gridClassName}>
                   {pagedItems.map((item) => (
                     <CourseCard
                       key={item.id}

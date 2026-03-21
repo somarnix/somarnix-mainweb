@@ -14,6 +14,7 @@ type AuthUser = {
   id: number;
   email: string;
   role: "user" | "admin";
+  level?: number;
 
   firstName?: string | null;
   lastName?: string | null;
@@ -25,6 +26,10 @@ type AuthUser = {
   phone?: string | null;
   avatarUrl?: string | null;
   avatarBorderUrl?: string | null;
+  coverUrl?: string | null;
+  coverPositionX?: number | null;
+  coverPositionY?: number | null;
+  coverScale?: number | null;
 
   joinedDate?: string | null;
   updatedAt?: string | null;
@@ -34,6 +39,7 @@ type ProfilePayload = {
   id: number;
   email: string;
   role: "user" | "admin";
+  level: number | null;
   firstName: string | null;
   lastName: string | null;
   username: string | null;
@@ -43,6 +49,10 @@ type ProfilePayload = {
   phone: string | null;
   avatarUrl: string | null;
   avatarBorderUrl: string | null;
+  coverUrl: string | null;
+  coverPositionX: number | null;
+  coverPositionY: number | null;
+  coverScale: number | null;
   joinedDate: string | null;
   updatedAt: string | null;
 };
@@ -57,6 +67,10 @@ type UpdateProfileInput = {
   phone?: string;
   avatarUrl?: string;
   avatarBorderUrl?: string | null;
+  coverUrl?: string | null;
+  coverPositionX?: number;
+  coverPositionY?: number;
+  coverScale?: number;
   newEmail?: string;
   newPassword?: string;
   currentPassword?: string;
@@ -69,6 +83,12 @@ type ForgotPasswordInput = {
 type ForgotPasswordResult = {
   success: boolean;
   error?: string;
+};
+
+type DeleteAccountInput = {
+  confirmText: string;
+  currentPassword?: string;
+  code: string;
 };
 
 type LoginResult = {
@@ -128,7 +148,7 @@ type AuthContextType = {
   fetchProfile: () => Promise<void>;
   updateProfile: (updates: UpdateProfileInput) => Promise<void>;
   forgotPassword: (updates: ForgotPasswordInput) => Promise<ForgotPasswordResult>;
-  deleteAccount: () => Promise<void>;
+  deleteAccount: (input: DeleteAccountInput) => Promise<void>;
 };
 
 /* ================= CONTEXT ================= */
@@ -215,6 +235,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         id: Number(u.id ?? 0),
         email: String(u.email ?? ""),
         role: u.role === "admin" ? "admin" : "user",
+        level: 1,
       });
       return true;
     } catch {
@@ -245,6 +266,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         id: u.id,
         email: u.email,
         role: u.role,
+        level: typeof u.level === "number" && Number.isFinite(u.level) ? u.level : 1,
         firstName: u.firstName,
         lastName: u.lastName,
         username: u.username,
@@ -254,6 +276,10 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         phone: u.phone,
         avatarUrl: u.avatarUrl,
         avatarBorderUrl: u.avatarBorderUrl,
+        coverUrl: u.coverUrl,
+        coverPositionX: u.coverPositionX,
+        coverPositionY: u.coverPositionY,
+        coverScale: u.coverScale,
         joinedDate: u.joinedDate,
         updatedAt: u.updatedAt,
       });
@@ -508,10 +534,17 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   };
 
   /* 🗑️ DELETE ACCOUNT */
-  const deleteAccount: AuthContextType["deleteAccount"] = async () => {
+  const deleteAccount: AuthContextType["deleteAccount"] = async (input) => {
     const res = await fetch("/api/auth/delete-account", {
       method: "POST",
+      headers: { "Content-Type": "application/json" },
       credentials: "include",
+      body: JSON.stringify({
+        mode: "confirm",
+        confirmText: input.confirmText,
+        currentPassword: input.currentPassword,
+        code: input.code,
+      }),
     });
 
     const data: unknown = await res.json().catch(() => null);

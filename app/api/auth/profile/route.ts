@@ -16,6 +16,10 @@ function cleanStr(v: unknown, max = 255): string | null {
   return s.length > max ? s.slice(0, max) : s;
 }
 
+function isValidUsername(username: string): boolean {
+  return /^[a-zA-Z0-9._]{3,30}$/.test(username);
+}
+
 function sanitizeStoredPhone(v: unknown, max = 40): string | null {
   if (typeof v !== "string") return null;
   const trimmed = v.trim();
@@ -57,6 +61,62 @@ async function hasColumn(tableName: string, columnName: string) {
   return rows.length > 0;
 }
 
+async function ensureUsersAvatarUrlLength(minLength = 2000) {
+  const [rows] = await db.query<RowDataPacket[]>(
+    `
+    SELECT data_type, character_maximum_length
+    FROM information_schema.columns
+    WHERE table_schema = DATABASE()
+      AND table_name = 'users'
+      AND column_name = 'avatar_url'
+    LIMIT 1
+    `
+  );
+
+  const row = rows[0];
+  const dataType = typeof row?.data_type === "string" ? row.data_type.toLowerCase() : "";
+  const currentLength = Number(row?.character_maximum_length ?? 0);
+
+  if (dataType === "varchar" && Number.isFinite(currentLength) && currentLength < minLength) {
+    await db.query(
+      `ALTER TABLE users MODIFY COLUMN avatar_url VARCHAR(${minLength}) NULL`
+    );
+  }
+}
+
+async function ensureUsersProfileCoverColumns() {
+  const coverColumns = [
+    {
+      name: "cover_url",
+      sql: "ALTER TABLE users ADD COLUMN cover_url VARCHAR(2000) NULL AFTER avatar_url",
+    },
+    {
+      name: "cover_position_x",
+      sql: "ALTER TABLE users ADD COLUMN cover_position_x DECIMAL(6,2) NOT NULL DEFAULT 50.00 AFTER cover_url",
+    },
+    {
+      name: "cover_position_y",
+      sql: "ALTER TABLE users ADD COLUMN cover_position_y DECIMAL(6,2) NOT NULL DEFAULT 50.00 AFTER cover_position_x",
+    },
+    {
+      name: "cover_scale",
+      sql: "ALTER TABLE users ADD COLUMN cover_scale DECIMAL(6,2) NOT NULL DEFAULT 1.00 AFTER cover_position_y",
+    },
+  ] as const;
+
+  for (const column of coverColumns) {
+    if (!(await hasColumn("users", column.name))) {
+      await db.query(column.sql);
+    }
+  }
+}
+
+function normalizeRangeNumber(value: unknown, min: number, max: number, fallback: number) {
+  const num = Number(value);
+  if (!Number.isFinite(num)) return fallback;
+  return Math.min(max, Math.max(min, Number(num.toFixed(2))));
+}
+
 /* ================= REQUEST BODY TYPE ================= */
 
 type ProfileUpdateBody = {
@@ -69,6 +129,10 @@ type ProfileUpdateBody = {
   phone?: unknown;
   avatarUrl?: unknown;
   avatarBorderUrl?: unknown;
+  coverUrl?: unknown;
+  coverPositionX?: unknown;
+  coverPositionY?: unknown;
+  coverScale?: unknown;
 
   newEmail?: unknown;
   newPassword?: unknown;
@@ -81,6 +145,7 @@ interface UserRow extends RowDataPacket {
   id: number;
   email: string;
   role: "user" | "admin";
+  level: number | null;
 
   first_name: string | null;
   last_name: string | null;
@@ -91,6 +156,10 @@ interface UserRow extends RowDataPacket {
   phone: string | null;
   avatar_url: string | null;
   avatar_border_url: string | null;
+  cover_url: string | null;
+  cover_position_x: number | null;
+  cover_position_y: number | null;
+  cover_scale: number | null;
 
   created_at: string | null;
   updated_at: string | null;
@@ -112,15 +181,33 @@ export async function GET(req: Request): Promise<Response> {
     );
   }
   const hasAvatarBorderColumn = await hasColumn("users", "avatar_border_url");
+  const hasLevelColumn = await hasColumn("users", "level");
+  const hasCoverUrlColumn = await hasColumn("users", "cover_url");
+  const hasCoverPositionXColumn = await hasColumn("users", "cover_position_x");
+  const hasCoverPositionYColumn = await hasColumn("users", "cover_position_y");
+  const hasCoverScaleColumn = await hasColumn("users", "cover_scale");
   const avatarBorderSelect = hasAvatarBorderColumn
     ? "avatar_border_url"
     : "NULL AS avatar_border_url";
+  const levelSelect = hasLevelColumn ? "level" : "1 AS level";
+  const coverUrlSelect = hasCoverUrlColumn ? "cover_url" : "NULL AS cover_url";
+  const coverPositionXSelect = hasCoverPositionXColumn
+    ? "cover_position_x"
+    : "50.00 AS cover_position_x";
+  const coverPositionYSelect = hasCoverPositionYColumn
+    ? "cover_position_y"
+    : "50.00 AS cover_position_y";
+  const coverScaleSelect = hasCoverScaleColumn ? "cover_scale" : "1.00 AS cover_scale";
 
   const [rows] = await db.query<UserRow[]>(
     `SELECT
-      id, email, role,
+      id, email, role, ${levelSelect},
       first_name, last_name, username, birth_date, place, bio, phone, avatar_url,
       ${avatarBorderSelect},
+      ${coverUrlSelect},
+      ${coverPositionXSelect},
+      ${coverPositionYSelect},
+      ${coverScaleSelect},
       created_at, updated_at,
       is_active, deleted_at
      FROM users
@@ -156,6 +243,7 @@ export async function GET(req: Request): Promise<Response> {
         id: u.id,
         email: u.email,
         role: u.role,
+        level: Number(u.level ?? 1) || 1,
 
         firstName: u.first_name,
         lastName: u.last_name,
@@ -166,7 +254,11 @@ export async function GET(req: Request): Promise<Response> {
         bio: u.bio,
         phone: sanitizeStoredPhone(u.phone),
         avatarUrl: u.avatar_url,
-        avatarBorderUrl: u.avatar_border_url,
+        avatarBorderUrl: Number(u.level ?? 1) >= 2 ? u.avatar_border_url : null,
+        coverUrl: u.cover_url,
+        coverPositionX: Number(u.cover_position_x ?? 50),
+        coverPositionY: Number(u.cover_position_y ?? 50),
+        coverScale: Number(u.cover_scale ?? 1),
 
         joinedDate: u.created_at,
         updatedAt: u.updated_at,
@@ -186,7 +278,14 @@ export async function PUT(req: Request): Promise<Response> {
     return Response.json({ error: "Unauthorized" }, { status: 401 });
   }
   console.log("[PUT /api/auth/profile] Authenticated user:", auth.userId);
+  await ensureUsersAvatarUrlLength(2000);
+  await ensureUsersProfileCoverColumns();
   const hasAvatarBorderColumn = await hasColumn("users", "avatar_border_url");
+  const hasLevelColumn = await hasColumn("users", "level");
+  const hasCoverUrlColumn = await hasColumn("users", "cover_url");
+  const hasCoverPositionXColumn = await hasColumn("users", "cover_position_x");
+  const hasCoverPositionYColumn = await hasColumn("users", "cover_position_y");
+  const hasCoverScaleColumn = await hasColumn("users", "cover_scale");
 
   const raw: unknown = await req.json().catch(() => ({}));
   const body: ProfileUpdateBody = isObject(raw) ? (raw as ProfileUpdateBody) : {};
@@ -199,11 +298,38 @@ export async function PUT(req: Request): Promise<Response> {
   const place = cleanStr(body.place, 120);
   const bio = cleanStr(body.bio, 255);
   const phone = normalizePhone(body.phone, 30);
-  const avatarUrl = cleanStr(body.avatarUrl, 255);
+  const avatarUrl = cleanStr(body.avatarUrl, 2000);
+  const coverUrl = cleanStr(body.coverUrl, 2000);
   const avatarBorderUrl =
     hasAvatarBorderColumn && isObject(body) && hasOwn(body, "avatarBorderUrl")
       ? normalizeAvatarBorderUrl(body.avatarBorderUrl)
       : undefined;
+  const coverPositionX =
+    hasCoverPositionXColumn && isObject(body) && hasOwn(body, "coverPositionX")
+      ? normalizeRangeNumber(body.coverPositionX, 0, 100, 50)
+      : undefined;
+  const coverPositionY =
+    hasCoverPositionYColumn && isObject(body) && hasOwn(body, "coverPositionY")
+      ? normalizeRangeNumber(body.coverPositionY, 0, 100, 50)
+      : undefined;
+  const coverScale =
+    hasCoverScaleColumn && isObject(body) && hasOwn(body, "coverScale")
+      ? normalizeRangeNumber(body.coverScale, 1, 3, 1)
+      : undefined;
+
+  if (hasAvatarBorderColumn && hasLevelColumn && avatarBorderUrl) {
+    const [levelRows] = await db.query<RowDataPacket[]>(
+      "SELECT level FROM users WHERE id = ? LIMIT 1",
+      [auth.userId]
+    );
+    const currentLevel = Number(levelRows[0]?.level ?? 1);
+    if (!Number.isFinite(currentLevel) || currentLevel < 2) {
+      return Response.json(
+        { error: "Avatar borders unlock at Level 2." },
+        { status: 403 }
+      );
+    }
+  }
 
   // optional email/password change fields
   const newEmail = cleanStr(body.newEmail, 255);
@@ -255,6 +381,29 @@ export async function PUT(req: Request): Promise<Response> {
     }
   };
 
+  if (hasOwn(body, "username")) {
+    if (!username) {
+      return Response.json({ error: "Username is required" }, { status: 400 });
+    }
+
+    if (!isValidUsername(username)) {
+      return Response.json(
+        {
+          error: "Username must be 3-30 characters and use only letters, numbers, dots, or underscores.",
+        },
+        { status: 400 }
+      );
+    }
+
+    const [usernameRows] = await db.query<RowDataPacket[]>(
+      "SELECT id FROM users WHERE username = ? AND id <> ? LIMIT 1",
+      [username, auth.userId]
+    );
+    if (usernameRows.length > 0) {
+      return Response.json({ error: "Username already in use" }, { status: 409 });
+    }
+  }
+
   add("first_name = ?", firstName);
   add("last_name = ?", lastName);
   add("username = ?", username);
@@ -277,6 +426,19 @@ export async function PUT(req: Request): Promise<Response> {
   add("phone = ?", phone);
   add("avatar_url = ?", avatarUrl);
   addNullable("avatar_border_url = ?", avatarBorderUrl);
+  addNullable("cover_url = ?", hasCoverUrlColumn && hasOwn(body, "coverUrl") ? coverUrl : undefined);
+  if (hasCoverPositionXColumn && coverPositionX !== undefined) {
+    sets.push("cover_position_x = ?");
+    values.push(coverPositionX);
+  }
+  if (hasCoverPositionYColumn && coverPositionY !== undefined) {
+    sets.push("cover_position_y = ?");
+    values.push(coverPositionY);
+  }
+  if (hasCoverScaleColumn && coverScale !== undefined) {
+    sets.push("cover_scale = ?");
+    values.push(coverScale);
+  }
 
   add("email = ?", newEmail);
   add("password_hash = ?", newPasswordHash);

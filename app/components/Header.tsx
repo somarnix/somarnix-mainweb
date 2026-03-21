@@ -1,12 +1,21 @@
 ﻿// app\components\Header.tsx
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
-import { ShoppingCart, Menu, X, User, Globe, Moon, Sun, LogOut, Settings, BookOpen, Wallet, DollarSign, Package, FileText, Layers, ChevronRight, Facebook, Youtube, Send, MessageCircle, Loader2, Smile, SmilePlus, Sticker, Pin, ArrowLeft, MoreVertical, Edit3, Trash2, Check, Bell, Search } from 'lucide-react';
+import { ShoppingCart, Menu, X, User, Globe, Moon, Sun, LogOut, Settings, BookOpen, Wallet, DollarSign, Package, FileText, Layers, ChevronRight, Facebook, Youtube, Send, MessageCircle, Loader2, Smile, SmilePlus, Sticker, Pin, ArrowLeft, MoreVertical, Edit3, Trash2, Check, Bell, Search, Heart } from 'lucide-react';
 import { Button } from './ui/button';
 import { ProfileAvatar } from "./ProfileAvatar";
+import { UserOnlineStatus } from "./UserOnlineStatus";
 import { useLanguage } from '../contexts/LanguageContext';
 import { useTheme } from '../contexts/ThemeContext';
 import { useAuth } from '../contexts/AuthContext';
 import { useCurrency } from '../contexts/CurrencyContext';
+import { useUserPresence } from '../lib/hooks/useUserPresence';
+import {
+  FAVORITES_CHANGED_EVENT,
+  OPEN_FAVORITES_EVENT,
+  readFavoriteItems,
+  removeFavoriteItem,
+  type FavoriteItem,
+} from "../lib/favorites";
 const PRESENCE_WINDOW_MS = 5 * 60 * 1000;
 const DESKTOP_SIDEBAR_MIN_WIDTH = 980;
 
@@ -157,6 +166,8 @@ export function Header({
   const [isDesktopSidebarViewport, setIsDesktopSidebarViewport] = useState(false);
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
   const [accountPopupOpen, setAccountPopupOpen] = useState(false);
+  const [favoriteOpen, setFavoriteOpen] = useState(false);
+  const [favoriteItems, setFavoriteItems] = useState<FavoriteItem[]>([]);
   const [notificationOpen, setNotificationOpen] = useState(false);
   const [notificationTab, setNotificationTab] = useState<"orders" | "system">("orders");
   const [notificationLoading, setNotificationLoading] = useState(false);
@@ -214,12 +225,7 @@ export function Header({
   const [chatWidgetEditingId, setChatWidgetEditingId] = useState<number | null>(null);
   const [chatWidgetEditingValue, setChatWidgetEditingValue] = useState("");
   const [chatWidgetSavingEditId, setChatWidgetSavingEditId] = useState<number | null>(null);
-  const [headerCountry, setHeaderCountry] = useState<{
-    name: string;
-    code: string;
-    flag: string;
-    dial: string;
-  } | null>(null);
+  const favoriteRef = useRef<HTMLDivElement | null>(null);
   const chatWidgetRef = useRef<HTMLDivElement | null>(null);
   const chatWidgetMessagesRef = useRef<HTMLDivElement | null>(null);
   const notificationRef = useRef<HTMLDivElement | null>(null);
@@ -261,8 +267,8 @@ export function Header({
     window.addEventListener("resize", syncSidebarMode);
     return () => window.removeEventListener("resize", syncSidebarMode);
   }, [setMobileSidebarOpen, setSidebarOpen]);
-  const fallbackAdminLabel = language === "km" ? "แขแ’แ“แ€แแ’แแ”แแแ’แแ" : "Admin";
-  const fallbackBuyerLabel = language === "km" ? "แขแแทแแทแแ“" : "Buyer";
+  const fallbackAdminLabel = language === "km" ? "អ្នកគ្រប់គ្រង" : "Admin";
+  const fallbackBuyerLabel = language === "km" ? "អ្នកទិញ" : "Buyer";
   const activeParty = chatWidgetActive
     ? isAdmin
       ? chatWidgetActive.buyer
@@ -277,6 +283,10 @@ export function Header({
     user?.firstName?.trim() ||
     user?.email?.trim() ||
     "User";
+  const userLevel = Number(user?.level ?? 1);
+  const userHasLevelPerks = userLevel >= 2;
+  const userAvatarBorderUrl = userHasLevelPerks ? user?.avatarBorderUrl ?? null : null;
+  const userPresence = useUserPresence(user?.id ?? null);
   const verifiedBadgeSrc = "/border/blue%20verify.svg";
   const unreadCancelledNotifications = useMemo(
     () => cancelledNotifications.filter((item) => !item.isRead),
@@ -296,6 +306,7 @@ export function Header({
   );
   const totalNotificationUnread = systemUnreadCount + orderUnreadCounts.total;
   const notificationHasOrderItems = totalNotificationUnread > 0;
+  const favoriteCount = favoriteItems.length;
   const orderUnreadBadge =
     orderUnreadCounts.total > 9 ? "9+" : String(Math.max(0, orderUnreadCounts.total));
   const systemUnreadBadge =
@@ -430,38 +441,7 @@ export function Header({
         return t("popup.filterAll");
     }
   };
-  const emojiQuickList = ["๐€", "๐", "๐", "๐", "๐", "๐‘", "๐”ฅ", "๐"];
-
-  useEffect(() => {
-    const readCountry = () => {
-      if (typeof window === "undefined") return;
-      try {
-        const raw = localStorage.getItem("edugroit-country");
-        if (!raw) {
-          setHeaderCountry(null);
-          return;
-        }
-        const parsed = JSON.parse(raw);
-        if (parsed?.name && parsed?.cca2 && parsed?.dial) {
-          setHeaderCountry({
-            name: String(parsed.name),
-            code: String(parsed.cca2).toUpperCase(),
-            flag: String(parsed.flag ?? "๐"),
-            dial: String(parsed.dial),
-          });
-          return;
-        }
-        setHeaderCountry(null);
-      } catch {
-        setHeaderCountry(null);
-      }
-    };
-
-    readCountry();
-    const handler = () => readCountry();
-    window.addEventListener("edugroit-country-change", handler);
-    return () => window.removeEventListener("edugroit-country-change", handler);
-  }, []);
+  const emojiQuickList = ["😀", "😂", "😍", "😎", "🙏", "👍", "🔥", "🎉"];
 
   const normalizeWidgetMessage = useCallback(
   (msg: any): HeaderChatMessage => ({
@@ -516,14 +496,6 @@ export function Header({
   });
 };
 
-const hasSelectedCountry = !!headerCountry;
-const showCountrySelector = hasSelectedCountry || isAuthenticated;
-const countryButtonTitle = hasSelectedCountry
-  ? headerCountry?.name ?? ""
-  : language === "km"
-    ? "ជ្រើសរើសប្រទេស"
-    : "Select country";
-
 const normalizeParticipant = (participant?: any): HeaderChatParticipant => {
   const rawLastActive = participant?.presence?.lastActiveAt;
   const lastActive =
@@ -572,7 +544,7 @@ const normalizeParticipant = (participant?: any): HeaderChatParticipant => {
           typeof data?.error === 'string'
             ? data.error
             : language === 'km'
-            ? 'แแทแ“แขแถแ…แ‘แถแแแ€แ€แถแแแ“แ’แ‘แ“แถแ”แถแ“แ‘แ'
+            ? 'មិនអាចផ្ទុកការជជែកបានទេ'
             : 'Unable to load chat'
         );
       }
@@ -586,7 +558,7 @@ const normalizeParticipant = (participant?: any): HeaderChatParticipant => {
         err instanceof Error
           ? err.message
           : language === 'km'
-          ? 'แแทแ“แขแถแ…แ‘แถแแแ€แ€แถแแแ“แ’แ‘แ“แถแ”แถแ“แ‘แ'
+          ? 'មិនអាចផ្ទុកការជជែកបានទេ'
           : 'Unable to load chat'
       );
     } finally {
@@ -708,7 +680,7 @@ const getChatNoteBadgeClass = (result?: string | null) => {
           typeof data?.error === 'string'
             ? data.error
             : language === 'km'
-            ? 'แแทแ“แขแถแ…แ‘แถแแแ€แ”แแ’แแธแ€แถแแแ“แ’แ‘แ“แถแ”แถแ“แ‘แ'
+            ? 'មិនអាចផ្ទុកការសន្ទនាបានទេ'
             : 'Unable to load chats'
         );
       }
@@ -745,7 +717,7 @@ const getChatNoteBadgeClass = (result?: string | null) => {
         err instanceof Error
           ? err.message
           : language === 'km'
-          ? 'แแทแ“แขแถแ…แ‘แถแแแ€แ”แแ’แแธแ€แถแแแ“แ’แ‘แ“แถแ”แถแ“แ‘แ'
+          ? 'មិនអាចផ្ទុកការសន្ទនាបានទេ'
           : 'Unable to load chats'
       );
     } finally {
@@ -785,6 +757,17 @@ const getChatNoteBadgeClass = (result?: string | null) => {
   const handleToggleNotifications = () => {
     setNotificationOpen((prev) => !prev);
     setNotificationTab("orders");
+  };
+
+  const handleToggleFavorites = () => {
+    setFavoriteOpen((prev) => !prev);
+  };
+
+  const handleOpenFavoriteItem = (item: FavoriteItem) => {
+    setFavoriteOpen(false);
+    if (typeof window !== "undefined") {
+      window.location.href = item.href;
+    }
   };
 
   const loadNotifications = useCallback(
@@ -874,6 +857,37 @@ const getChatNoteBadgeClass = (result?: string | null) => {
       window.removeEventListener("edugroit-order-notifications-changed", handleRefresh);
     };
   }, [isAuthenticated, loadNotifications, notificationOpen]);
+
+  useEffect(() => {
+    const syncFavorites = () => {
+      setFavoriteItems(readFavoriteItems());
+    };
+
+    const openFavorites = () => {
+      syncFavorites();
+      setFavoriteOpen(true);
+    };
+
+    syncFavorites();
+    window.addEventListener(FAVORITES_CHANGED_EVENT, syncFavorites);
+    window.addEventListener(OPEN_FAVORITES_EVENT, openFavorites);
+    return () => {
+      window.removeEventListener(FAVORITES_CHANGED_EVENT, syncFavorites);
+      window.removeEventListener(OPEN_FAVORITES_EVENT, openFavorites);
+    };
+  }, []);
+
+  useEffect(() => {
+    if (!favoriteOpen) return;
+    const onDocClick = (event: MouseEvent) => {
+      const target = event.target as Node;
+      if (favoriteRef.current && !favoriteRef.current.contains(target)) {
+        setFavoriteOpen(false);
+      }
+    };
+    document.addEventListener("mousedown", onDocClick);
+    return () => document.removeEventListener("mousedown", onDocClick);
+  }, [favoriteOpen]);
 
   useEffect(() => {
     if (!notificationOpen) return;
@@ -1052,7 +1066,7 @@ const getChatNoteBadgeClass = (result?: string | null) => {
         typeof data?.error === 'string'
           ? data.error
           : language === 'km'
-          ? 'แแทแ“แขแถแ…แ•แ’แแพแแถแแ”แถแ“แ‘แ'
+            ? 'មិនអាចផ្ញើសារបានទេ'
           : 'Unable to send message'
       );
     }
@@ -1077,7 +1091,7 @@ const getChatNoteBadgeClass = (result?: string | null) => {
         err instanceof Error
           ? err.message
           : language === 'km'
-          ? 'แแทแ“แขแถแ…แ•แ’แแพแแถแแ”แถแ“แ‘แ'
+          ? 'មិនអាចផ្ញើសារបានទេ'
           : 'Unable to send message'
       );
     } finally {
@@ -1096,7 +1110,7 @@ const getChatNoteBadgeClass = (result?: string | null) => {
         err instanceof Error
           ? err.message
           : language === 'km'
-          ? 'แแทแ“แขแถแ…แ•แ’แแพแแ’แ‘แธแ€แแ'
+          ? 'មិនអាចផ្ញើស្ទីគ័របានទេ'
           : 'Unable to send sticker'
       );
     } finally {
@@ -1120,7 +1134,7 @@ const getChatNoteBadgeClass = (result?: string | null) => {
           typeof data?.error === 'string'
             ? data.error
             : language === 'km'
-            ? 'แแทแ“แขแถแ…แ’แ’แแพแ”แ’แแแทแ€แแ’แแ”แถแ“แ‘แ'
+            ? 'មិនអាចដាក់ប្រតិកម្មបានទេ'
             : 'Unable to react'
         );
       }
@@ -1146,7 +1160,7 @@ const getChatNoteBadgeClass = (result?: string | null) => {
         err instanceof Error
           ? err.message
           : language === 'km'
-          ? 'แแทแ“แขแถแ…แ’แ’แแพแ”แ’แแแทแ€แแ’แแ”แถแ“แ‘แ'
+          ? 'មិនអាចដាក់ប្រតិកម្មបានទេ'
           : 'Unable to react'
       );
     } finally {
@@ -1171,7 +1185,7 @@ const getChatNoteBadgeClass = (result?: string | null) => {
           typeof data?.error === "string"
             ? data.error
             : language === "km"
-            ? "แแทแ“แขแถแ…แแปแ”แแถแ"
+            ? "មិនអាចលុបសារបានទេ"
             : "Unable to delete message"
         );
       }
@@ -1197,7 +1211,7 @@ const getChatNoteBadgeClass = (result?: string | null) => {
         err instanceof Error
           ? err.message
           : language === "km"
-          ? "แแทแ“แขแถแ…แแปแ”แแถแ"
+          ? "មិនអាចលុបសារបានទេ"
           : "Unable to delete message"
       );
     } finally {
@@ -1225,7 +1239,7 @@ const getChatNoteBadgeClass = (result?: string | null) => {
           typeof data?.error === "string"
             ? data.error
             : language === "km"
-            ? "แแทแ“แขแถแ…แ”แทแ‘แ—แ’แแถแ”แแแถแ"
+            ? "មិនអាចបិទភ្ជាប់សារបានទេ"
             : "Unable to pin message"
         );
       }
@@ -1242,7 +1256,7 @@ const getChatNoteBadgeClass = (result?: string | null) => {
         err instanceof Error
           ? err.message
           : language === "km"
-          ? "แแทแ“แขแถแ…แ”แทแ‘แ—แ’แแถแ”แแแถแ"
+          ? "មិនអាចបិទភ្ជាប់សារបានទេ"
           : "Unable to pin message"
       );
     } finally {
@@ -1267,7 +1281,7 @@ const getChatNoteBadgeClass = (result?: string | null) => {
     if (!trimmed) {
       setChatWidgetError(
         language === "km"
-          ? "แแผแแ”แแ’แ…แผแแขแแ’แแ”แ‘แแ’แแธ"
+          ? "សូមបញ្ចូលសារដែលបានកែ"
           : "Please provide the updated message."
       );
       return;
@@ -1290,7 +1304,7 @@ const getChatNoteBadgeClass = (result?: string | null) => {
           typeof data?.error === "string"
             ? data.error
             : language === "km"
-            ? "แแทแ“แขแถแ…แ€แแแถแแ”แถแ“แ‘แ"
+            ? "មិនអាចកែសារបានទេ"
             : "Unable to edit message"
         );
       }
@@ -1308,7 +1322,7 @@ const getChatNoteBadgeClass = (result?: string | null) => {
         err instanceof Error
           ? err.message
           : language === "km"
-          ? "แแทแ“แขแถแ…แ€แแแถแแ”แถแ“แ‘แ"
+          ? "មិនអាចកែសារបានទេ"
           : "Unable to edit message"
       );
     } finally {
@@ -1562,34 +1576,6 @@ const getChatNoteBadgeClass = (result?: string | null) => {
 
           {/* Right Side Actions */}
           <div className="flex shrink-0 items-center gap-1 sm:gap-2">
-            {/* Country Selector - hide for guests until a country is selected */}
-            {showCountrySelector ? (
-              <button
-                className="order-1 flex items-center justify-center rounded-lg transition-colors p-1 sm:order-none sm:p-1.5 lg:rounded-full lg:bg-gray-100 lg:dark:bg-gray-800 lg:px-2.5 lg:py-1.5 lg:gap-1.5 lg:text-xs lg:font-semibold lg:text-gray-700 lg:dark:text-gray-300 lg:hover:bg-gray-200 lg:dark:hover:bg-gray-700"
-                type="button"
-                title={countryButtonTitle}
-              >
-                <span className="flex h-7 w-7 sm:h-8 sm:w-8 lg:h-5 lg:w-5 items-center justify-center rounded-full lg:rounded-md overflow-hidden shadow-md lg:shadow-sm border border-white/50 lg:border-none">
-                  {hasSelectedCountry ? (
-                    headerCountry?.flag?.startsWith("http") ? (
-                      <img
-                        src={headerCountry.flag}
-                        alt={headerCountry.name}
-                        className="h-full w-full object-cover"
-                      />
-                    ) : (
-                      <span className="text-xl lg:text-lg">{headerCountry?.flag}</span>
-                    )
-                  ) : (
-                    <Globe className="h-4 w-4 text-gray-600 dark:text-gray-300" />
-                  )}
-                </span>
-                <span className="hidden lg:inline">
-                  {hasSelectedCountry ? headerCountry?.code : language === "km" ? "ប្រទេស" : "Country"}
-                </span>
-              </button>
-            ) : null}
-
           {/* Notification */}
           <div className="relative order-3 sm:order-none" ref={notificationRef}>
             <button
@@ -2001,11 +1987,125 @@ const getChatNoteBadgeClass = (result?: string | null) => {
             )}
           </div>
 
+          <div className="relative order-2 sm:order-none" ref={favoriteRef}>
+            <button
+              onClick={handleToggleFavorites}
+              className={`hidden sm:inline-flex rounded-lg text-gray-700 transition-colors hover:text-rose-500 dark:text-gray-300 dark:hover:text-rose-400 hover:bg-gray-100 dark:hover:bg-gray-800 ${
+                isAppShell ? "p-1.5 sm:p-2" : "p-2"
+              }`}
+              title={t("profile.favorite")}
+            >
+              <Heart className="h-5 w-5 sm:h-5 sm:w-5" />
+              {favoriteCount > 0 ? (
+                <span className="absolute -right-0.5 -top-0.5 inline-flex min-w-[1.1rem] items-center justify-center rounded-full bg-rose-500 px-1 text-[9px] font-semibold leading-4 text-white">
+                  {favoriteCount > 9 ? "9+" : favoriteCount}
+                </span>
+              ) : null}
+            </button>
+
+            <button
+              onClick={handleToggleFavorites}
+              className="relative order-2 rounded-lg p-2 text-gray-700 transition-colors hover:text-rose-500 dark:text-gray-300 dark:hover:text-rose-400 hover:bg-gray-100 dark:hover:bg-gray-800 sm:hidden inline-flex"
+              title={t("profile.favorite")}
+            >
+              <Heart className="w-5 h-5" />
+              {favoriteCount > 0 ? (
+                <span className="absolute -right-0.5 -top-0.5 inline-flex min-w-[1.1rem] items-center justify-center rounded-full bg-rose-500 px-1 text-[9px] font-semibold leading-4 text-white">
+                  {favoriteCount > 9 ? "9+" : favoriteCount}
+                </span>
+              ) : null}
+            </button>
+
+            {favoriteOpen && (
+              <div className="fixed left-3 right-3 top-24 z-50 overflow-hidden rounded-2xl border border-gray-100 bg-white shadow-2xl dark:border-gray-700 dark:bg-gray-900 sm:absolute sm:left-auto sm:right-0 sm:top-full sm:mt-3 sm:w-[24rem]">
+                <div className="flex items-center justify-between border-b border-gray-100 px-4 py-3 dark:border-gray-800">
+                  <div>
+                    <p className="text-sm font-semibold text-gray-900 dark:text-white">
+                      {t("profile.favorite")}
+                    </p>
+                    <p className="text-xs text-gray-500 dark:text-gray-400">
+                      {t("favorites.savedItems", { count: favoriteCount })}
+                    </p>
+                  </div>
+                  {favoriteCount > 0 ? (
+                    <div className="flex items-center gap-2">
+                      <button
+                        type="button"
+                        onClick={() => {
+                          setFavoriteOpen(false);
+                          onNavigate("favorites");
+                        }}
+                        className="text-xs font-semibold text-rose-500 transition hover:text-rose-600"
+                      >
+                        {t("favorites.viewAll")}
+                      </button>
+                      <span className="rounded-full bg-rose-500 px-2 py-0.5 text-xs font-semibold text-white">
+                        {favoriteCount}
+                      </span>
+                    </div>
+                  ) : null}
+                </div>
+
+                <div className="max-h-[calc(100vh-8rem)] overflow-y-auto sm:max-h-[24rem]">
+                  {favoriteCount === 0 ? (
+                    <div className="px-4 py-8 text-center text-sm text-gray-500 dark:text-gray-400">
+                      {t("favorites.empty")}
+                    </div>
+                  ) : (
+                    favoriteItems.map((item) => (
+                      <div
+                        key={item.id}
+                        className="flex items-center gap-3 border-b border-gray-100 px-4 py-3 last:border-b-0 dark:border-gray-800"
+                      >
+                        <button
+                          type="button"
+                          onClick={() => handleOpenFavoriteItem(item)}
+                          className="flex min-w-0 flex-1 items-center gap-3 text-left"
+                        >
+                          <img
+                            src={item.image ?? "/placeholder.png"}
+                            alt={item.title}
+                            className="h-14 w-14 rounded-xl object-cover"
+                          />
+                          <div className="min-w-0 flex-1">
+                            <div className="truncate text-sm font-semibold text-gray-900 dark:text-white">
+                              {item.title}
+                            </div>
+                            <div className="mt-1 flex flex-wrap items-center gap-2 text-xs text-gray-500 dark:text-gray-400">
+                              {item.label ? (
+                                <span className="rounded-full bg-gray-100 px-2 py-0.5 text-[11px] font-medium text-gray-700 dark:bg-gray-800 dark:text-gray-200">
+                                  {item.label}
+                                </span>
+                              ) : null}
+                              {item.price === null ? null : Number(item.price) === 0 ? (
+                                <span>{t("labels.free")}</span>
+                              ) : (
+                                <span>{formatPrice(Number(item.price))}</span>
+                              )}
+                            </div>
+                          </div>
+                        </button>
+                        <button
+                          type="button"
+                          onClick={() => setFavoriteItems(removeFavoriteItem(item.id))}
+                          className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-rose-50 text-rose-500 transition hover:bg-rose-100 dark:bg-rose-500/10 dark:text-rose-300"
+                          title={t("favorites.remove")}
+                        >
+                          <Heart className="h-4 w-4 fill-current" />
+                        </button>
+                      </div>
+                    ))
+                  )}
+                </div>
+              </div>
+            )}
+          </div>
+
           {/* Chat - Desktop/Tablet */}
-          <div className="relative hidden sm:inline-flex">
+          <div className="relative inline-flex">
             <button
               onClick={handleToggleChatWidget}
-              className={`relative rounded-lg text-gray-700 transition-colors hover:text-blue-600 dark:text-gray-300 dark:hover:text-blue-400 hover:bg-gray-100 dark:hover:bg-gray-800 ${
+              className={`relative hidden rounded-lg text-gray-700 transition-colors hover:text-blue-600 dark:text-gray-300 dark:hover:text-blue-400 hover:bg-gray-100 dark:hover:bg-gray-800 sm:inline-flex ${
                 isAppShell ? "p-1.5 sm:p-2" : "p-2"
               }`}
               title={t("popup.chat")}
@@ -2062,11 +2162,11 @@ const getChatNoteBadgeClass = (result?: string | null) => {
                       <div className="flex flex-wrap gap-1.5">
                         {(
                           [
-                            { key: "all", label: language === "km" ? "แ‘แถแแแขแแ" : "All" },
-                            { key: "online", label: language === "km" ? "แขแ“แกแถแ" : "Online" },
-                            { key: "offline", label: language === "km" ? "แ€แ’แแ…แ”แแ’แแถแ" : "Offline" },
-                            { key: "read", label: language === "km" ? "แ”แถแ“แขแถแ“" : "Read" },
-                            { key: "unread", label: language === "km" ? "แแทแ“แ‘แถแ“แแขแถแ“" : "Unread" },
+                            { key: "all", label: "All" },
+                            { key: "online", label: "Online" },
+                            { key: "offline", label: "Offline" },
+                            { key: "read", label: "Read" },
+                            { key: "unread", label: "Unread" },
                           ] as Array<{ key: ChatWidgetActivityFilter; label: string }>
                         ).map((tab) => {
                           const active = chatWidgetActivityFilter === tab.key;
@@ -2728,7 +2828,7 @@ const getChatNoteBadgeClass = (result?: string | null) => {
               className={`relative rounded-lg text-gray-700 transition-colors hover:text-blue-600 dark:text-gray-300 dark:hover:text-blue-400 hover:bg-gray-100 dark:hover:bg-gray-800 ${
                 isAppShell ? "p-1.5 sm:p-2" : "p-2"
               } hidden sm:inline-flex`}
-              title={language === 'km' ? 'แ€แ“แ’แแ’แแ€' : 'Cart'}
+              title={t("sidebar.cart")}
             >
               <ShoppingCart className="h-5 w-5 sm:h-5 sm:w-5" />
               {cartCount > 0 && (
@@ -2741,7 +2841,7 @@ const getChatNoteBadgeClass = (result?: string | null) => {
             {/* Mobile Chat Button - Shows only on mobile (below sm) */}
             <button
               onClick={handleToggleChatWidget}
-              className="relative order-2 rounded-lg p-2 text-gray-700 transition-colors hover:text-blue-600 dark:text-gray-300 dark:hover:text-blue-400 hover:bg-gray-100 dark:hover:bg-gray-800 sm:order-none sm:hidden inline-flex"
+              className="relative order-3 rounded-lg p-2 text-gray-700 transition-colors hover:text-blue-600 dark:text-gray-300 dark:hover:text-blue-400 hover:bg-gray-100 dark:hover:bg-gray-800 sm:order-none sm:hidden inline-flex"
               title={t("popup.chat")}
             >
               <MessageCircle className="w-5 h-5" />
@@ -2754,7 +2854,7 @@ const getChatNoteBadgeClass = (result?: string | null) => {
             <button
               onClick={() => onNavigate('cart')}
               className="relative order-4 rounded-lg p-2 text-gray-700 transition-colors hover:text-blue-600 dark:text-gray-300 dark:hover:text-blue-400 hover:bg-gray-100 dark:hover:bg-gray-800 sm:order-none sm:hidden inline-flex"
-              title={language === 'km' ? 'แ€แ“แ’แแ’แแ€' : 'Cart'}
+              title={t("sidebar.cart")}
             >
               <ShoppingCart className="h-5 w-5" />
               {cartCount > 0 && (
@@ -2773,19 +2873,27 @@ const getChatNoteBadgeClass = (result?: string | null) => {
                 <button
                   onClick={() => setAccountPopupOpen(!accountPopupOpen)}
                   className="p-1.5 hover:bg-gray-100 dark:hover:bg-gray-800 rounded-lg transition-colors"
-                  title={language === 'km' ? 'แแแ“แธ' : 'Account'}
+                  title={t("popup.account")}
                 >
-                  <ProfileAvatar
-                    src={user.avatarUrl}
-                    alt={accountDisplayName}
-                    fallback={(user?.firstName || user?.username || user?.email || "U")
-                      .trim()
-                      .slice(0, 2)
-                      .toUpperCase()}
-                    borderUrl={user.avatarBorderUrl}
-                    className="h-9 w-9 rounded-full bg-white p-0.5 shadow-[0_10px_24px_rgba(15,23,42,0.18)] ring-1 ring-slate-200/80 dark:bg-slate-950 dark:ring-slate-700/70"
-                    fallbackClassName="text-sm"
-                  />
+                  <div className="relative">
+                    <ProfileAvatar
+                      src={user.avatarUrl}
+                      alt={accountDisplayName}
+                      fallback={(user?.firstName || user?.username || user?.email || "U")
+                        .trim()
+                        .slice(0, 2)
+                        .toUpperCase()}
+                      borderUrl={userAvatarBorderUrl}
+                      className="h-9 w-9 rounded-full bg-white p-0.5 shadow-[0_10px_24px_rgba(15,23,42,0.18)] ring-1 ring-slate-200/80 dark:bg-slate-950 dark:ring-slate-700/70"
+                      fallbackClassName="text-sm"
+                    />
+                    <UserOnlineStatus
+                      online={userPresence.online}
+                      showLabel={false}
+                      className="absolute bottom-0 right-0"
+                      dotClassName="h-3.5 w-3.5 border-2 border-white shadow-none dark:border-slate-950"
+                    />
+                  </div>
                 </button>
 
                 {/* Account Popup */}
@@ -2802,31 +2910,41 @@ const getChatNoteBadgeClass = (result?: string | null) => {
                       {/* User Info Header */}
                       <div className="border-b border-blue-500 bg-blue-700 px-4 py-3 dark:bg-blue-800">
                         <div className="mb-2 flex items-center gap-3">
-                          <ProfileAvatar
-                            src={user.avatarUrl}
-                            alt={accountDisplayName}
-                            fallback={(user?.firstName || user?.username || user?.email || "U")
-                              .trim()
-                              .slice(0, 2)
-                              .toUpperCase()}
-                            borderUrl={user.avatarBorderUrl}
-                            className="h-10 w-10 rounded-full bg-white p-0.5 ring-1 ring-white/50"
-                            fallbackClassName="text-xs"
-                          />
+                          <div className="relative">
+                            <ProfileAvatar
+                              src={user.avatarUrl}
+                              alt={accountDisplayName}
+                              fallback={(user?.firstName || user?.username || user?.email || "U")
+                                .trim()
+                                .slice(0, 2)
+                                .toUpperCase()}
+                              borderUrl={userAvatarBorderUrl}
+                              className="h-10 w-10 rounded-full bg-white p-0.5 ring-1 ring-white/50"
+                              fallbackClassName="text-xs"
+                            />
+                            <UserOnlineStatus
+                              online={userPresence.online}
+                              showLabel={false}
+                              className="absolute bottom-0 right-0"
+                              dotClassName="h-3.5 w-3.5 border-2 border-white shadow-none"
+                            />
+                          </div>
                           <div className="min-w-0">
                             <div className="flex items-center gap-1.5">
                               <div className="truncate text-xs font-bold text-white">{accountDisplayName}</div>
-                              <img
-                                src={verifiedBadgeSrc}
-                                alt="Verified"
-                                className="h-4 w-4 shrink-0 object-contain"
-                              />
+                              {userHasLevelPerks ? (
+                                <img
+                                  src={verifiedBadgeSrc}
+                                  alt="Verified"
+                                  className="h-4 w-4 shrink-0 object-contain"
+                                />
+                              ) : null}
                             </div>
                           </div>
                         </div>
                         <div className="hidden text-xs font-bold text-white truncate">{accountDisplayName}</div>
                         <div className="text-xs text-blue-200 truncate">
-                          {language === 'km' ? 'แขแแ’แแแแ’แแถแ' : 'User ID'}: {user.id}
+                          {t("sidebar.userId")}: {user.id}
                         </div>
                       </div>
                       
@@ -2838,7 +2956,7 @@ const getChatNoteBadgeClass = (result?: string | null) => {
                         className="w-full text-left px-4 py-2.5 text-sm text-white hover:bg-blue-700 dark:hover:bg-blue-800 flex items-center gap-2 font-medium transition-colors"
                       >
                         <User className="w-4 h-4" />
-                        <span>{language === 'km' ? 'แแแ“แธ' : 'Account'}</span>
+                        <span>{t("popup.account")}</span>
                       </button>
                       
                       <button
@@ -2849,7 +2967,7 @@ const getChatNoteBadgeClass = (result?: string | null) => {
                         className="w-full text-left px-4 py-2.5 text-sm text-white hover:bg-blue-700 dark:hover:bg-blue-800 flex items-center gap-2 font-medium transition-colors"
                       >
                         <FileText className="w-4 h-4" />
-                        <span>{language === 'km' ? 'แ€แถแแ”แแ’แแถแ‘แทแ' : 'Purchase History'}</span>
+                        <span>{t("popup.purchaseHistory")}</span>
                       </button>
                       
                       <button
@@ -2857,7 +2975,7 @@ const getChatNoteBadgeClass = (result?: string | null) => {
                         className="w-full text-left px-4 py-2.5 text-sm text-white hover:bg-blue-700 dark:hover:bg-blue-800 flex items-center gap-2 font-medium transition-colors"
                       >
                         <LogOut className="w-4 h-4" />
-                        <span>{language === 'km' ? 'แ…แถแ€แ…แแ' : 'Logout'}</span>
+                        <span>{t("popup.logout")}</span>
                       </button>
                     </div>
                   </>
@@ -2889,7 +3007,7 @@ const getChatNoteBadgeClass = (result?: string | null) => {
                 <button
                   onClick={() => onNavigate('login')}
                 className="order-5 hidden rounded-lg p-2 text-gray-700 transition-colors hover:text-blue-600 dark:text-gray-300 dark:hover:text-blue-400 hover:bg-gray-100 dark:hover:bg-gray-800 sm:order-none sm:inline-flex lg:hidden"
-                  title={language === 'km' ? 'แ…แผแแแแ“แธ' : 'Login'}
+                  title={t('nav.login')}
                 >
                   <User className="w-5 h-5" />
                 </button>
@@ -2907,17 +3025,25 @@ const getChatNoteBadgeClass = (result?: string | null) => {
                   className="rounded-lg p-1.5 hover:bg-gray-100 dark:hover:bg-gray-800 transition-colors"
                   title={language === 'km' ? 'គណនី' : 'Account'}
                 >
-                  <ProfileAvatar
-                    src={user.avatarUrl}
-                    alt={accountDisplayName}
-                    fallback={(user?.firstName || user?.username || user?.email || "U")
-                      .trim()
-                      .slice(0, 2)
-                      .toUpperCase()}
-                    borderUrl={user.avatarBorderUrl}
-                    className="h-9 w-9 rounded-full bg-white p-0.5 shadow-[0_8px_20px_rgba(15,23,42,0.16)] ring-1 ring-slate-200/80 dark:bg-slate-950 dark:ring-slate-700/70"
-                    fallbackClassName="text-xs"
-                  />
+                  <div className="relative">
+                    <ProfileAvatar
+                      src={user.avatarUrl}
+                      alt={accountDisplayName}
+                      fallback={(user?.firstName || user?.username || user?.email || "U")
+                        .trim()
+                        .slice(0, 2)
+                        .toUpperCase()}
+                      borderUrl={userAvatarBorderUrl}
+                      className="h-9 w-9 rounded-full bg-white p-0.5 shadow-[0_8px_20px_rgba(15,23,42,0.16)] ring-1 ring-slate-200/80 dark:bg-slate-950 dark:ring-slate-700/70"
+                      fallbackClassName="text-xs"
+                    />
+                    <UserOnlineStatus
+                      online={userPresence.online}
+                      showLabel={false}
+                      className="absolute bottom-0 right-0"
+                      dotClassName="h-3.5 w-3.5 border-2 border-white shadow-none dark:border-slate-950"
+                    />
+                  </div>
                 </button>
 
                 {/* Mobile Account Popup */}
@@ -2933,28 +3059,38 @@ const getChatNoteBadgeClass = (result?: string | null) => {
                     <div className="absolute right-0 mt-2 w-48 bg-blue-600 dark:bg-blue-700 rounded-lg shadow-2xl overflow-hidden z-50">
                       <div className="border-b border-blue-500 bg-blue-700 px-4 py-3 dark:bg-blue-800">
                         <div className="flex items-center gap-3">
-                          <ProfileAvatar
-                            src={user.avatarUrl}
-                            alt={accountDisplayName}
-                            fallback={(user?.firstName || user?.username || user?.email || "U")
-                              .trim()
-                              .slice(0, 2)
-                              .toUpperCase()}
-                            borderUrl={user.avatarBorderUrl}
-                            className="h-10 w-10 rounded-full bg-white p-0.5 ring-1 ring-white/50"
-                            fallbackClassName="text-xs"
-                          />
+                          <div className="relative">
+                            <ProfileAvatar
+                              src={user.avatarUrl}
+                              alt={accountDisplayName}
+                              fallback={(user?.firstName || user?.username || user?.email || "U")
+                                .trim()
+                                .slice(0, 2)
+                                .toUpperCase()}
+                              borderUrl={userAvatarBorderUrl}
+                              className="h-10 w-10 rounded-full bg-white p-0.5 ring-1 ring-white/50"
+                              fallbackClassName="text-xs"
+                            />
+                            <UserOnlineStatus
+                              online={userPresence.online}
+                              showLabel={false}
+                              className="absolute bottom-0 right-0"
+                              dotClassName="h-3.5 w-3.5 border-2 border-white shadow-none"
+                            />
+                          </div>
                           <div className="min-w-0">
                             <div className="flex items-center gap-1.5">
                               <div className="truncate text-xs font-bold text-white">{accountDisplayName}</div>
-                              <img
-                                src={verifiedBadgeSrc}
-                                alt="Verified"
-                                className="h-4 w-4 shrink-0 object-contain"
-                              />
+                              {userHasLevelPerks ? (
+                                <img
+                                  src={verifiedBadgeSrc}
+                                  alt="Verified"
+                                  className="h-4 w-4 shrink-0 object-contain"
+                                />
+                              ) : null}
                             </div>
                             <div className="truncate text-xs text-blue-200">
-                              {language === 'km' ? 'เนยเธเนยยเนยโ€เนยยเนยยเนยยเนยโ€เนยยเนยเธ–เนยย' : 'User ID'}: {user.id}
+                              {t("sidebar.userId")}: {user.id}
                             </div>
                           </div>
                         </div>
@@ -2967,7 +3103,7 @@ const getChatNoteBadgeClass = (result?: string | null) => {
                         className="w-full text-left px-4 py-2.5 text-sm text-white hover:bg-blue-700 dark:hover:bg-blue-800 flex items-center gap-2 font-medium transition-colors"
                       >
                         <User className="w-4 h-4" />
-                        <span>{language === 'km' ? 'แแแ“แธ' : 'Account'}</span>
+                        <span>{t("popup.account")}</span>
                       </button>
                       
                       <button
@@ -2978,7 +3114,7 @@ const getChatNoteBadgeClass = (result?: string | null) => {
                         className="w-full text-left px-4 py-2.5 text-sm text-white hover:bg-blue-700 dark:hover:bg-blue-800 flex items-center gap-2 font-medium transition-colors"
                       >
                         <Package className="w-4 h-4" />
-                        <span>{language === 'km' ? 'แ€แถแแ”แแ’แแถแ‘แทแ' : 'Purchase History'}</span>
+                        <span>{t("popup.purchaseHistory")}</span>
                       </button>
                       
                       <button
@@ -2986,7 +3122,7 @@ const getChatNoteBadgeClass = (result?: string | null) => {
                         className="w-full text-left px-4 py-2.5 text-sm text-white hover:bg-blue-700 dark:hover:bg-blue-800 flex items-center gap-2 font-medium transition-colors"
                       >
                         <LogOut className="w-4 h-4" />
-                        <span>{language === 'km' ? 'แ…แถแ€แ…แแ' : 'Logout'}</span>
+                        <span>{t("popup.logout")}</span>
                       </button>
                     </div>
                   </>

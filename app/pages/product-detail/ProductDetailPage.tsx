@@ -20,8 +20,11 @@ import { useLanguage } from "@/app/contexts/LanguageContext";
 import { useCurrency } from "@/app/contexts/CurrencyContext";
 import { AddToCartModal } from "@/app/components/AddToCartModal";
 import { ProfileAvatar } from "@/app/components/ProfileAvatar";
+import { ShareButton } from "@/app/components/ShareButton";
+import { UserOnlineStatus } from "@/app/components/UserOnlineStatus";
 import { useAuth } from "@/app/contexts/AuthContext";
 import { Textarea } from "@/app/components/ui/textarea";
+import { useUserPresence } from "@/app/lib/hooks/useUserPresence";
 import { toast } from "sonner";
 
 import {
@@ -217,6 +220,7 @@ export default function ProductDetailPage({
     hasAccess: boolean;
     reason?: string;
   } | null>(null);
+  const sellerPresence = useUserPresence(product?.posted_by ?? null);
 
   const MAX_VISIBLE_REVIEWS = 5;
 
@@ -513,8 +517,7 @@ export default function ProductDetailPage({
       ? product.posted_by_name
       : null) ||
     product.posted_by_username ||
-    product.posted_by_email ||
-    null;
+    "Seller";
 
   const openProduct = (s: string) => {
     if (onOpenProduct) {
@@ -540,13 +543,15 @@ export default function ProductDetailPage({
     return `Max ${effective} devices`;
   };
 
-  const openSellerBlog = (id: number | null | undefined) => {
-    if (!id || id <= 0) return;
+  const openSellerBlog = (sellerKey: string | number | null | undefined) => {
+    if (sellerKey === null || sellerKey === undefined) return;
+    const normalizedSellerKey = String(sellerKey).trim();
+    if (!normalizedSellerKey) return;
     if (onOpenSellerBlog) {
-      onOpenSellerBlog(id);
+      onOpenSellerBlog(normalizedSellerKey);
       return;
     }
-    window.location.href = `/blog/${encodeURIComponent(String(id))}`;
+    window.location.href = `/blog/${encodeURIComponent(normalizedSellerKey)}`;
   };
 
   const handleSubmitReview = async (event: React.FormEvent<HTMLFormElement>) => {
@@ -635,6 +640,14 @@ export default function ProductDetailPage({
           </Button>
 
           <div className="flex items-center gap-2">
+            <ShareButton
+              path={`/product/${encodeURIComponent(product.slug)}`}
+              title={product.title}
+              text={product.description || product.title}
+              label={t("share.button")}
+              className="inline-flex h-10 items-center justify-center rounded-xl border border-gray-200 bg-white px-4 text-sm font-semibold text-gray-700 shadow-sm transition hover:border-blue-200 hover:text-blue-600 dark:border-gray-700 dark:bg-gray-900 dark:text-gray-100"
+              iconClassName="h-4 w-4"
+            />
             {product.category && (
               <Badge variant="secondary" className="rounded-full">
                 {product.category}
@@ -706,26 +719,31 @@ export default function ProductDetailPage({
               {postedByName && (
                 <button
                   type="button"
-                  onClick={() => openSellerBlog(Number(product.posted_by ?? 0))}
-                  disabled={!product.posted_by}
+                  onClick={() =>
+                    openSellerBlog(product.posted_by_username || Number(product.posted_by ?? 0))
+                  }
+                  disabled={!product.posted_by && !product.posted_by_username}
                   className="mt-4 flex w-full items-center gap-3 rounded-xl border bg-white p-3 text-left transition hover:border-blue-300 hover:bg-blue-50/40 disabled:cursor-default disabled:hover:border-inherit disabled:hover:bg-white dark:bg-gray-900 dark:disabled:hover:bg-gray-900"
                 >
-                  <ProfileAvatar
-                    src={product.posted_by_avatar}
-                    alt={postedByName}
-                    fallback={postedByName}
-                    borderUrl={product.posted_by_avatar_border}
-                    className="h-12 w-12"
-                    contentClassName="border"
-                  />
+                  <div className="relative">
+                    <ProfileAvatar
+                      src={product.posted_by_avatar}
+                      alt={postedByName}
+                      fallback={postedByName}
+                      borderUrl={product.posted_by_avatar_border}
+                      className="h-12 w-12"
+                      contentClassName="border"
+                    />
+                    <UserOnlineStatus
+                      online={sellerPresence.online}
+                      showLabel={false}
+                      className="absolute bottom-0 right-0"
+                      dotClassName="h-4 w-4 border-2 border-white shadow-none dark:border-gray-900"
+                    />
+                  </div>
                   <div>
                     <div className="text-xs uppercase text-gray-400">Posted by</div>
                     <div className="font-semibold text-gray-900 dark:text-white">{postedByName}</div>
-                    {product.posted_by_email && (
-                      <div className="text-xs text-gray-500 dark:text-gray-300">
-                        {product.posted_by_email}
-                      </div>
-                    )}
                   </div>
                 </button>
               )}
@@ -814,7 +832,7 @@ export default function ProductDetailPage({
                   disabled={modalVariants.length === 0 || isOutOfStock || !hasBuyableVariant}
                 >
                   <ShoppingCart className="w-4 h-4 mr-2" />
-                  {isOutOfStock ? "Out of stock" : t("course.buyNow") || "Add to Cart"}
+                  {isOutOfStock ? "Out of stock" : t("detail.buyNow")}
                 </Button>
               )}
 

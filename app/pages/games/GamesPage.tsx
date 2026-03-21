@@ -2,6 +2,7 @@
 import { useEffect, useState } from "react";
 import { Gamepad2 } from "lucide-react";
 import { CourseCard } from "../../components/CourseCard";
+import { DesktopGridToggle } from "../../components/DesktopGridToggle";
 import { useLanguage } from "../../contexts/LanguageContext";
 import { SlugFilter } from "../../components/filters/SlugFilter";
 import { Pagination } from "../../components/Pagination";
@@ -29,6 +30,10 @@ export function GamesPage({ onOpenProductDetail }: { onOpenProductDetail: (slug:
 
   const [games, setGames] = useState<DbGame[]>([]);
   const [loading, setLoading] = useState(true);
+  const [screenWidth, setScreenWidth] = useState(1280);
+  const [mobileGridColumns, setMobileGridColumns] = useState<1 | 2>(2);
+  const [tabletGridColumns, setTabletGridColumns] = useState<2 | 3>(3);
+  const [desktopGridColumns, setDesktopGridColumns] = useState<4 | 5>(4);
   const {
     pagedItems: pagedGames,
     selectedSlug,
@@ -46,7 +51,30 @@ export function GamesPage({ onOpenProductDetail }: { onOpenProductDetail: (slug:
     items: games,
     allSlug: ALL_SLUG,
     allLabel: t("games.all"),
+    mobileGridColumns,
+    tabletGridColumns,
+    desktopGridColumns,
   });
+
+  useEffect(() => {
+    const updateScreenWidth = () => setScreenWidth(window.innerWidth);
+    updateScreenWidth();
+    window.addEventListener("resize", updateScreenWidth);
+    return () => window.removeEventListener("resize", updateScreenWidth);
+  }, []);
+
+  const gridClassName =
+    screenWidth < 768
+      ? mobileGridColumns === 2
+        ? "grid grid-cols-2 gap-4"
+        : "grid grid-cols-1 gap-4"
+      : screenWidth < 1024
+      ? tabletGridColumns === 3
+        ? "grid grid-cols-2 md:grid-cols-3 gap-6"
+        : "grid grid-cols-2 gap-6"
+      : `grid grid-cols-2 gap-4 sm:gap-6 ${
+          desktopGridColumns === 5 ? "lg:grid-cols-4 xl:grid-cols-5" : "lg:grid-cols-4"
+        }`;
 
   /* ================= FETCH FROM DB ================= */
   useEffect(() => {
@@ -79,30 +107,8 @@ export function GamesPage({ onOpenProductDetail }: { onOpenProductDetail: (slug:
 
       {/* ================= CONTENT ================= */}
       <div className="max-w-7xl mx-auto px-4 py-12">
-        <div className="grid lg:grid-cols-4 gap-8">
-          {/* ================= FILTER SIDEBAR ================= */}
-          <aside className="lg:col-span-1">
-            <SlugFilter
-              filterTitle={t("courses.filters")}
-              slugLabel={t("filters.slugs")}
-              sortLabel={t("courses.sortBy")}
-              slugOptions={slugOptions}
-              selectedSlug={selectedSlug}
-              onSelectSlug={setSelectedSlug}
-              sortBy={sortBy}
-              onSortChange={setSortBy}
-              sortOptions={[
-                { id: "popular", label: t("courses.popular") },
-                { id: "rating", label: t("courses.rating") },
-                { id: "price-low", label: t("courses.priceLow") },
-                { id: "price-high", label: t("courses.priceHigh") },
-              ]}
-              activeClassName="bg-purple-50 text-purple-600 font-medium"
-            />
-          </aside>
-
-          {/* ================= MAIN GRID ================= */}
-          <main className="lg:col-span-3">
+        <div className="space-y-6">
+          <main>
             <SlugCatalogResults
               loading={loading}
               loadingLabel={t("common.loading")}
@@ -112,6 +118,47 @@ export function GamesPage({ onOpenProductDetail }: { onOpenProductDetail: (slug:
               onSearchChange={setSlugQuery}
               searchPlaceholder={t("search.slug")}
               searchInputClassName="rounded-lg shadow-sm focus:ring-purple-500"
+              belowSearchControls={
+                <SlugFilter
+                  filterTitle={t("courses.filters")}
+                  slugLabel={t("filters.slugs")}
+                  sortLabel={t("courses.sortBy")}
+                  slugOptions={slugOptions}
+                  selectedSlug={selectedSlug}
+                  onSelectSlug={setSelectedSlug}
+                  sortBy={sortBy}
+                  onSortChange={setSortBy}
+                  sortOptions={[
+                    { id: "popular", label: t("courses.popular") },
+                    { id: "rating", label: t("courses.rating") },
+                    { id: "price-low", label: t("courses.priceLow") },
+                    { id: "price-high", label: t("courses.priceHigh") },
+                  ]}
+                  activeClassName="bg-purple-50 text-purple-600 font-medium"
+                  mobileTrailingControl={
+                    <>
+                      <DesktopGridToggle
+                        value={mobileGridColumns}
+                        onChange={(value) => setMobileGridColumns(value as 1 | 2)}
+                        options={[1, 2]}
+                        visibilityClassName="flex md:hidden"
+                      />
+                      <DesktopGridToggle
+                        value={tabletGridColumns}
+                        onChange={(value) => setTabletGridColumns(value as 2 | 3)}
+                        options={[2, 3]}
+                        visibilityClassName="hidden md:flex lg:hidden"
+                      />
+                    </>
+                  }
+                />
+              }
+              desktopControls={
+                <DesktopGridToggle
+                  value={desktopGridColumns}
+                  onChange={(value) => setDesktopGridColumns(value as 4 | 5)}
+                />
+              }
               clearFilterControl={
                 selectedSlug !== ALL_SLUG ? (
                   <button
@@ -123,7 +170,7 @@ export function GamesPage({ onOpenProductDetail }: { onOpenProductDetail: (slug:
                 ) : null
               }
             >
-              <div className="grid sm:grid-cols-2 lg:grid-cols-3 gap-6">
+              <div className={gridClassName}>
                 {pagedGames.map((g) => (
                   <CourseCard
                     key={g.id}

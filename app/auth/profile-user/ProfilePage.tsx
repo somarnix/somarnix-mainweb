@@ -2,6 +2,7 @@
 
 import Image from "next/image";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { toast } from "sonner";
 import {
   User,
   Settings,
@@ -28,15 +29,21 @@ import {
   ExternalLink,
   Smartphone,
   Mail,
+  ImageIcon,
 } from "lucide-react";
 
 import { Button } from "../../components/ui/button";
 import { Input } from "../../components/ui/input";
 import { Pagination } from "../../components/Pagination";
 import { ProfileAvatar } from "../../components/ProfileAvatar";
+import { DEFAULT_PROFILE_COVERS, getDefaultProfileCover, ProfileCoverArt } from "../../components/ProfileCoverArt";
+import { UserLevelBadge } from "../../components/level/UserLevelBadge";
+import { UserLevelDashboard } from "../../components/level/UserLevelDashboard";
+import { UserOnlineStatus } from "../../components/UserOnlineStatus";
 import { useAuth } from "../../contexts/AuthContext";
 import { useLanguage } from "../../contexts/LanguageContext";
 import { useTheme } from "../../contexts/ThemeContext";
+import { useUserPresence } from "../../lib/hooks/useUserPresence";
 import { AVATAR_BORDER_URLS } from "../../lib/avatar-borders";
 
 interface ProfilePageProps {
@@ -166,6 +173,26 @@ type ApiKeysResponse = {
   apiKeys?: Partial<ApiKeysState>;
 };
 
+function normalizeAvatarInputUrl(value: string): string | null {
+  const trimmed = value.trim();
+  if (!trimmed) return null;
+  if (trimmed.startsWith("/")) return trimmed;
+
+  try {
+    const parsed = new URL(trimmed);
+    if (parsed.protocol !== "http:" && parsed.protocol !== "https:") {
+      return null;
+    }
+    return parsed.toString();
+  } catch {
+    return null;
+  }
+}
+
+function clampCoverValue(value: number, min: number, max: number) {
+  return Math.min(max, Math.max(min, value));
+}
+
 function sanitizeProfilePhone(value: string | null | undefined): string {
   const trimmed = (value ?? "").trim();
   if (!trimmed || trimmed.includes("@")) return "";
@@ -238,12 +265,28 @@ export function ProfilePage({ onNavigate, onOpenProductDetail, onOpenToolDetail,
   const [activeTab, setActiveTab] = useState<TabId>("overview");
   const [isEditing, setIsEditing] = useState(false);
   const [avatarOpen, setAvatarOpen] = useState(false);
+  const [coverOpen, setCoverOpen] = useState(false);
+  const [avatarUrlInput, setAvatarUrlInput] = useState("");
+  const [avatarUrlSaving, setAvatarUrlSaving] = useState(false);
+  const [coverUrlInput, setCoverUrlInput] = useState("");
+  const [coverPositionX, setCoverPositionX] = useState(50);
+  const [coverPositionY, setCoverPositionY] = useState(50);
+  const [coverScale, setCoverScale] = useState(1);
+  const [coverSaving, setCoverSaving] = useState(false);
   const [profileUpdateError, setProfileUpdateError] = useState<string | null>(null);
 
   const [deleteOpen, setDeleteOpen] = useState(false);
   const [deleteText, setDeleteText] = useState("");
+  const [deleteCurrentPassword, setDeleteCurrentPassword] = useState("");
+  const [deleteCode, setDeleteCode] = useState("");
+  const [deleteRequiresPassword, setDeleteRequiresPassword] = useState(true);
+  const [deleteLoading, setDeleteLoading] = useState(false);
+  const [deleteSendingCode, setDeleteSendingCode] = useState(false);
+  const [deleteError, setDeleteError] = useState<string | null>(null);
+  const [deleteMessage, setDeleteMessage] = useState<string | null>(null);
 
   const [editForm, setEditForm] = useState({
+    username: "",
     name: "",
     bio: "",
     phone: "",
@@ -255,6 +298,14 @@ export function ProfilePage({ onNavigate, onOpenProductDetail, onOpenToolDetail,
   const [selectedCountry, setSelectedCountry] = useState<CountryOption | null>(null);
 
   const redirectedRef = useRef(false);
+  const coverPreviewRef = useRef<HTMLDivElement | null>(null);
+  const coverDragStateRef = useRef<{
+    pointerId: number;
+    startX: number;
+    startY: number;
+    originX: number;
+    originY: number;
+  } | null>(null);
 
   useEffect(() => {
     if (user) {
@@ -412,6 +463,10 @@ export function ProfilePage({ onNavigate, onOpenProductDetail, onOpenToolDetail,
   const [sendingOtp, setSendingOtp] = useState(false);
   const [removingDevice, setRemovingDevice] = useState(false);
   const [currentLoginDeviceId, setCurrentLoginDeviceId] = useState<string | null>(null);
+  const currentManagedDevice = useMemo(
+    () => loginDevices.find((device) => device.deviceId === currentLoginDeviceId) ?? null,
+    [currentLoginDeviceId, loginDevices]
+  );
   const [apiKeys, setApiKeys] = useState<ApiKeysState>(EMPTY_API_KEYS);
   const [apiKeyInputs, setApiKeyInputs] = useState<Record<ApiKeyProviderId, string>>({
     groq: "",
@@ -597,7 +652,8 @@ export function ProfilePage({ onNavigate, onOpenProductDetail, onOpenToolDetail,
       ? userPhone.replace(/[^\d+]/g, "").slice(match.dial.length)
       : userPhone;
     setEditForm({
-      name: user.username || full || "",
+      username: user.username || "",
+      name: full,
       bio: user.bio || "",
       phone: phoneNumber,
       location: match?.country.name || user.place || "",
@@ -622,6 +678,16 @@ export function ProfilePage({ onNavigate, onOpenProductDetail, onOpenToolDetail,
     if (!user) return;
     setProfileUpdateError(null);
 
+    const username = editForm.username.trim();
+    if (!username) {
+      setProfileUpdateError(t("register.errors.usernameRequired"));
+      return;
+    }
+    if (!/^[a-zA-Z0-9._]{3,30}$/.test(username)) {
+      setProfileUpdateError(t("register.errors.usernameInvalid"));
+      return;
+    }
+
     const parts = editForm.name.trim().split(/\s+/).filter(Boolean);
     const firstName = parts.length > 1 ? parts.slice(0, -1).join(" ") : parts[0] ?? "";
     const lastName = parts.length > 1 ? parts[parts.length - 1] : "";
@@ -640,6 +706,7 @@ export function ProfilePage({ onNavigate, onOpenProductDetail, onOpenToolDetail,
 
     try {
       await updateProfile({
+        username,
         firstName: firstName || undefined,
         lastName: lastName || undefined,
         bio: editForm.bio || undefined,
@@ -660,6 +727,125 @@ export function ProfilePage({ onNavigate, onOpenProductDetail, onOpenToolDetail,
       setAvatarOpen(false);
     } catch (error) {
       setProfileUpdateError(getProfileUpdateErrorMessage(error));
+    }
+  };
+
+  const handleSaveAvatarUrl = async () => {
+    const normalizedUrl = normalizeAvatarInputUrl(avatarUrlInput);
+    if (!normalizedUrl) {
+      setProfileUpdateError("Please enter a valid image URL that starts with http or https.");
+      return;
+    }
+
+    setProfileUpdateError(null);
+    setAvatarUrlSaving(true);
+    try {
+      await updateProfile({ avatarUrl: normalizedUrl });
+      setAvatarUrlInput(normalizedUrl);
+      setAvatarOpen(false);
+    } catch (error) {
+      setProfileUpdateError(getProfileUpdateErrorMessage(error));
+    } finally {
+      setAvatarUrlSaving(false);
+    }
+  };
+
+  const handleOpenCoverEditor = () => {
+    setProfileUpdateError(null);
+    const currentUser = user;
+    if (!currentUser) return;
+    setCoverUrlInput(currentUser.coverUrl ?? "");
+    setCoverPositionX(clampCoverValue(Number(currentUser.coverPositionX ?? 50), 0, 100));
+    setCoverPositionY(clampCoverValue(Number(currentUser.coverPositionY ?? 50), 0, 100));
+    setCoverScale(clampCoverValue(Number(currentUser.coverScale ?? 1), 1, 3));
+    setCoverOpen(true);
+  };
+
+  const handleSelectCover = (coverUrl: string) => {
+    setCoverUrlInput(coverUrl);
+  };
+
+  const handleSaveCover = async () => {
+    const normalizedUrl =
+      coverUrlInput.trim().length > 0 ? normalizeAvatarInputUrl(coverUrlInput) : null;
+
+    if (coverUrlInput.trim().length > 0 && !normalizedUrl) {
+      setProfileUpdateError("Please enter a valid cover URL that starts with http or https.");
+      return;
+    }
+
+    setProfileUpdateError(null);
+    setCoverSaving(true);
+    try {
+      await updateProfile({
+        coverUrl: normalizedUrl ?? null,
+        coverPositionX: clampCoverValue(coverPositionX, 0, 100),
+        coverPositionY: clampCoverValue(coverPositionY, 0, 100),
+        coverScale: clampCoverValue(coverScale, 1, 3),
+      });
+      setCoverOpen(false);
+    } catch (error) {
+      setProfileUpdateError(getProfileUpdateErrorMessage(error));
+    } finally {
+      setCoverSaving(false);
+    }
+  };
+
+  const handleClearCover = async () => {
+    setProfileUpdateError(null);
+    setCoverSaving(true);
+    try {
+      await updateProfile({
+        coverUrl: null,
+        coverPositionX: 50,
+        coverPositionY: 50,
+        coverScale: 1,
+      });
+      setCoverUrlInput("");
+      setCoverPositionX(50);
+      setCoverPositionY(50);
+      setCoverScale(1);
+      setCoverOpen(false);
+    } catch (error) {
+      setProfileUpdateError(getProfileUpdateErrorMessage(error));
+    } finally {
+      setCoverSaving(false);
+    }
+  };
+
+  const handleCoverPointerDown = (event: React.PointerEvent<HTMLDivElement>) => {
+    if (!coverPreviewRef.current) return;
+    const target = event.currentTarget;
+    target.setPointerCapture(event.pointerId);
+    coverDragStateRef.current = {
+      pointerId: event.pointerId,
+      startX: event.clientX,
+      startY: event.clientY,
+      originX: coverPositionX,
+      originY: coverPositionY,
+    };
+  };
+
+  const handleCoverPointerMove = (event: React.PointerEvent<HTMLDivElement>) => {
+    const dragState = coverDragStateRef.current;
+    if (!dragState || dragState.pointerId !== event.pointerId || !coverPreviewRef.current) return;
+    const rect = coverPreviewRef.current.getBoundingClientRect();
+    if (!rect.width || !rect.height) return;
+    const deltaX = event.clientX - dragState.startX;
+    const deltaY = event.clientY - dragState.startY;
+    setCoverPositionX(
+      clampCoverValue(dragState.originX - (deltaX / rect.width) * (100 / coverScale), 0, 100)
+    );
+    setCoverPositionY(
+      clampCoverValue(dragState.originY - (deltaY / rect.height) * (100 / coverScale), 0, 100)
+    );
+  };
+
+  const handleCoverPointerUp = (event: React.PointerEvent<HTMLDivElement>) => {
+    const dragState = coverDragStateRef.current;
+    if (dragState?.pointerId === event.pointerId) {
+      event.currentTarget.releasePointerCapture(event.pointerId);
+      coverDragStateRef.current = null;
     }
   };
 
@@ -839,6 +1025,15 @@ export function ProfilePage({ onNavigate, onOpenProductDetail, onOpenToolDetail,
     }
   }, [user]);
 
+  const forceSecurityLogout = useCallback((message?: string) => {
+    if (message) {
+      toast.error(message);
+    }
+    if (typeof window !== "undefined") {
+      window.location.href = "/login";
+    }
+  }, []);
+
   const sendLogoutCode = useCallback(
     async (deviceId: string) => {
       if (!deviceId) return;
@@ -856,6 +1051,12 @@ export function ProfilePage({ onNavigate, onOpenProductDetail, onOpenToolDetail,
           }),
         });
         const data = await res.json().catch(() => ({}));
+        if (data?.forceLogout) {
+          forceSecurityLogout(
+            typeof data?.error === "string" ? data.error : "This device is not allowed to manage other devices."
+          );
+          return;
+        }
         if (!res.ok) {
           const errMsg =
             typeof data?.error === "string" && data.error.trim().length > 0
@@ -880,7 +1081,7 @@ export function ProfilePage({ onNavigate, onOpenProductDetail, onOpenToolDetail,
         setSendingOtp(false);
       }
     },
-    [currentLoginDeviceId, user?.email]
+    [currentLoginDeviceId, forceSecurityLogout, user?.email]
   );
 
   const confirmLogoutOtherDevice = useCallback(
@@ -902,6 +1103,12 @@ export function ProfilePage({ onNavigate, onOpenProductDetail, onOpenToolDetail,
           }),
         });
         const data = await res.json().catch(() => ({}));
+        if (data?.forceLogout) {
+          forceSecurityLogout(
+            typeof data?.error === "string" ? data.error : "This device is not allowed to manage other devices."
+          );
+          return;
+        }
         if (!res.ok) {
           const errMsg =
             typeof data?.error === "string" && data.error.trim().length > 0
@@ -925,8 +1132,63 @@ export function ProfilePage({ onNavigate, onOpenProductDetail, onOpenToolDetail,
         setRemovingDevice(false);
       }
     },
-    [currentLoginDeviceId, deviceCurrentPassword, fetchLoginDevices, otpCode]
+    [currentLoginDeviceId, deviceCurrentPassword, fetchLoginDevices, forceSecurityLogout, otpCode]
   );
+
+  const sendDeleteAccountCode = useCallback(async () => {
+    setDeleteError(null);
+    setDeleteMessage(null);
+    setDeleteSendingCode(true);
+    try {
+      const res = await fetch("/api/auth/delete-account", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        credentials: "include",
+        body: JSON.stringify({ mode: "send_code" }),
+      });
+      const data = await res.json().catch(() => ({}));
+      if (data?.forceLogout) {
+        forceSecurityLogout(
+          typeof data?.error === "string"
+            ? data.error
+            : "This device is not allowed to delete the account."
+        );
+        return;
+      }
+      if (!res.ok) {
+        throw new Error(
+          typeof data?.error === "string" ? data.error : "Failed to send delete-account code."
+        );
+      }
+      setDeleteRequiresPassword(data?.requiresPassword !== false);
+      setDeleteMessage(`Verification code sent to ${user?.email || "your email"} (valid 10 minutes).`);
+    } catch (error) {
+      const message = error instanceof Error ? error.message : String(error);
+      setDeleteError(message || "Failed to send delete-account code.");
+    } finally {
+      setDeleteSendingCode(false);
+    }
+  }, [forceSecurityLogout, user?.email]);
+
+  const confirmDeleteAccount = useCallback(async () => {
+    setDeleteError(null);
+    setDeleteMessage(null);
+    setDeleteLoading(true);
+    try {
+      await deleteAccount({
+        confirmText: deleteText,
+        currentPassword: deleteRequiresPassword ? deleteCurrentPassword : undefined,
+        code: deleteCode,
+      });
+      await logout();
+      onNavigate("home");
+    } catch (error) {
+      const message = error instanceof Error ? error.message : String(error);
+      setDeleteError(message || "Delete account failed.");
+    } finally {
+      setDeleteLoading(false);
+    }
+  }, [deleteAccount, deleteCode, deleteCurrentPassword, deleteRequiresPassword, deleteText, logout, onNavigate]);
 
   const fetchApiKeys = useCallback(async () => {
     setApiKeysLoading(true);
@@ -1365,11 +1627,40 @@ export function ProfilePage({ onNavigate, onOpenProductDetail, onOpenToolDetail,
   };
   const verifiedBadgeSrc = "/border/blue%20verify.svg";
   if (!user) return null;
+  const userLevel = Number(user.level ?? 1);
+  const userHasLevelPerks = userLevel >= 2;
+  const userAvatarBorderUrl = userHasLevelPerks ? user.avatarBorderUrl ?? null : null;
+  const userPresence = useUserPresence(user.id);
+  const previewAvatarUrl =
+    normalizeAvatarInputUrl(avatarUrlInput) ?? user.avatarUrl ?? "/Job Jik.jpg";
+  const userCoverSrc = user.coverUrl || getDefaultProfileCover(user.id);
+  const previewCoverUrl =
+    normalizeAvatarInputUrl(coverUrlInput) ?? user.coverUrl ?? getDefaultProfileCover(user.id);
   
   return (
     <div className="min-h-screen bg-gray-50 dark:bg-gray-900">
-      <div className="bg-gradient-to-r from-blue-600 to-purple-600 py-8 sm:py-10 lg:py-12">
-        <div className="max-w-7xl mx-auto px-4 sm:px-6">
+      <div className="relative overflow-hidden">
+        <ProfileCoverArt
+          src={userCoverSrc}
+          alt={`${displayName} cover`}
+          positionX={user.coverPositionX ?? 50}
+          positionY={user.coverPositionY ?? 50}
+          scale={user.coverScale ?? 1}
+          className="absolute inset-0"
+          imageClassName="brightness-[0.78]"
+        />
+        <div className="absolute inset-0 bg-gradient-to-br from-slate-950/35 via-blue-900/20 to-violet-900/35" />
+        <div className="relative max-w-7xl mx-auto px-4 py-8 sm:px-6 sm:py-10 lg:py-12">
+          <div className="mb-4 flex justify-end">
+            <button
+              type="button"
+              onClick={handleOpenCoverEditor}
+              className="inline-flex items-center gap-2 rounded-full border border-white/25 bg-white/12 px-4 py-2 text-sm font-semibold text-white shadow-lg backdrop-blur hover:bg-white/18"
+            >
+              <ImageIcon className="h-4 w-4" />
+              {translate("profile.editCover", "Edit cover")}
+            </button>
+          </div>
           <div className="flex flex-col gap-6 md:flex-row md:items-center md:gap-8">
             <div className="relative mx-auto w-fit md:mx-0">
               <div className="rounded-[2rem] bg-white/12 p-2 shadow-[0_18px_40px_rgba(15,23,42,0.28)] ring-1 ring-white/25 backdrop-blur-sm">
@@ -1377,15 +1668,25 @@ export function ProfilePage({ onNavigate, onOpenProductDetail, onOpenToolDetail,
                   src={user.avatarUrl || "/Job Jik.jpg"}
                   alt={displayName}
                   fallback={displayName}
-                  borderUrl={user.avatarBorderUrl}
+                  borderUrl={userAvatarBorderUrl}
                   className="h-24 w-24 sm:h-28 sm:w-28 lg:h-32 lg:w-32"
-                  contentClassName={user.avatarBorderUrl ? "shadow-xl" : "border-4 border-white/90 shadow-xl"}
+                  contentClassName={userAvatarBorderUrl ? "shadow-xl" : "border-4 border-white/90 shadow-xl"}
                   fallbackClassName="text-xl sm:text-2xl lg:text-3xl"
                 />
               </div>
+              <UserOnlineStatus
+                online={userPresence.online}
+                showLabel={false}
+                className="absolute bottom-1 left-1"
+                dotClassName="h-5 w-5 border-[3px] border-white shadow-none sm:h-6 sm:w-6"
+              />
 
               <button
-                onClick={() => setAvatarOpen((v) => !v)}
+                onClick={() => {
+                  setProfileUpdateError(null);
+                  setAvatarUrlInput(user.avatarUrl ?? "");
+                  setAvatarOpen((v) => !v);
+                }}
                 className="absolute bottom-1 right-1 flex h-10 w-10 items-center justify-center rounded-full border-2 border-white bg-blue-600 text-white shadow-lg transition hover:scale-105 sm:h-11 sm:w-11"
                 type="button"
               >
@@ -1401,7 +1702,7 @@ export function ProfilePage({ onNavigate, onOpenProductDetail, onOpenToolDetail,
                     className="fixed inset-0 z-40 bg-slate-950/30 backdrop-blur-[2px]"
                   />
 
-                  <div className="fixed inset-x-3 bottom-4 top-[5.5rem] z-50 overflow-hidden rounded-[1.5rem] border border-slate-200/80 bg-white/95 shadow-[0_24px_60px_rgba(15,23,42,0.22)] backdrop-blur dark:border-gray-700 dark:bg-gray-900/95 sm:absolute sm:inset-x-auto sm:bottom-auto sm:left-1/2 sm:top-full sm:mt-4 sm:h-[min(80vh,42rem)] sm:w-[26rem] sm:max-w-[calc(100vw-2rem)] sm:-translate-x-1/2">
+                  <div className="fixed inset-x-3 bottom-4 top-[5.5rem] z-50 overflow-hidden rounded-[1.5rem] border border-slate-200/80 bg-white/95 shadow-[0_24px_60px_rgba(15,23,42,0.22)] backdrop-blur dark:border-gray-700 dark:bg-gray-900/95 sm:inset-x-auto sm:bottom-auto sm:left-1/2 sm:top-1/2 sm:h-[min(80vh,42rem)] sm:w-[26rem] sm:max-w-[calc(100vw-2rem)] sm:-translate-x-1/2 sm:-translate-y-1/2">
                     <div className="flex h-full flex-col overflow-hidden">
                       <div className="flex items-start justify-between gap-3 border-b border-slate-200/70 px-4 pb-3 pt-4 dark:border-gray-700 sm:border-b-0 sm:pb-0">
                         <div>
@@ -1432,9 +1733,9 @@ export function ProfilePage({ onNavigate, onOpenProductDetail, onOpenToolDetail,
                             src={user.avatarUrl || "/Job Jik.jpg"}
                             alt={displayName}
                             fallback={displayName}
-                            borderUrl={user.avatarBorderUrl}
+                            borderUrl={userAvatarBorderUrl}
                             className="h-20 w-20 sm:h-24 sm:w-24"
-                            contentClassName={user.avatarBorderUrl ? "shadow-lg" : "border-4 border-white/90 shadow-lg"}
+                            contentClassName={userAvatarBorderUrl ? "shadow-lg" : "border-4 border-white/90 shadow-lg"}
                           />
                           <div className="min-w-0">
                             <div className="text-xs font-semibold uppercase tracking-[0.18em] text-blue-600 dark:text-blue-300">
@@ -1444,8 +1745,54 @@ export function ProfilePage({ onNavigate, onOpenProductDetail, onOpenToolDetail,
                               {displayName}
                             </div>
                             <div className="mt-1 text-xs text-slate-500 dark:text-slate-400">
-                              {user.avatarBorderUrl ? "Border applied" : "No border selected"}
+                              {userAvatarBorderUrl ? "Border applied" : "No border selected"}
                             </div>
+                          </div>
+                        </div>
+
+                        <div className="mt-5 text-sm font-semibold text-slate-900 dark:text-slate-100">
+                          {translate("profile.avatarPasteLink", "Paste image link")}
+                        </div>
+                        <div className="mt-3 rounded-[1.1rem] border border-slate-200 bg-white p-3 dark:border-gray-700 dark:bg-gray-900">
+                          <div className="flex items-center gap-3">
+                            <ProfileAvatar
+                              src={previewAvatarUrl}
+                              alt={displayName}
+                              fallback={displayName}
+                              borderUrl={userAvatarBorderUrl}
+                              className="h-16 w-16 shrink-0"
+                              contentClassName={userAvatarBorderUrl ? "shadow-md" : "border-4 border-white/90 shadow-md"}
+                            />
+                            <div className="min-w-0">
+                              <div className="text-sm font-semibold text-slate-900 dark:text-white">
+                                {translate("profile.avatarLinkPreview", "Link preview")}
+                              </div>
+                              <div className="text-xs text-slate-500 dark:text-slate-400">
+                                {translate(
+                                  "profile.avatarLinkHint",
+                                  "Paste any image URL. Large images will auto-fit your profile size."
+                                )}
+                              </div>
+                            </div>
+                          </div>
+                          <div className="mt-3 flex flex-col gap-2 sm:flex-row">
+                            <Input
+                              value={avatarUrlInput}
+                              onChange={(e) => setAvatarUrlInput(e.target.value)}
+                              placeholder="https://example.com/avatar.jpg"
+                              className="flex-1"
+                            />
+                            <Button
+                              type="button"
+                              onClick={() => void handleSaveAvatarUrl()}
+                              disabled={avatarUrlSaving}
+                              className="w-full sm:w-auto"
+                            >
+                              <ExternalLink className="mr-2 h-4 w-4" />
+                              {avatarUrlSaving
+                                ? translate("profile.saving", "Saving...")
+                                : translate("profile.useImageLink", "Use link")}
+                            </Button>
                           </div>
                         </div>
 
@@ -1481,12 +1828,17 @@ export function ProfilePage({ onNavigate, onOpenProductDetail, onOpenToolDetail,
                             {AVATAR_BORDER_URLS.length} styles
                           </div>
                         </div>
+                        {!userHasLevelPerks ? (
+                          <div className="mt-3 rounded-xl border border-amber-200 bg-amber-50 px-3 py-2 text-xs text-amber-700 dark:border-amber-800/50 dark:bg-amber-950/30 dark:text-amber-200">
+                            Blue verify and avatar borders unlock at Level 2.
+                          </div>
+                        ) : null}
                         <div className="mt-3 grid grid-cols-3 gap-3">
                           <button
                             type="button"
                             onClick={() => void handleSelectAvatarBorder(null)}
                             className={`group flex aspect-square flex-col items-center justify-center rounded-[1.1rem] border p-3 text-center transition hover:-translate-y-0.5 hover:shadow-md ${
-                              user.avatarBorderUrl
+                              userAvatarBorderUrl
                                 ? "border-slate-200 bg-slate-50 text-slate-600 dark:border-gray-700 dark:bg-gray-800/80 dark:text-gray-300"
                                 : "border-blue-500 bg-blue-50 text-blue-600 ring-2 ring-blue-100 dark:border-blue-400 dark:bg-blue-500/10 dark:text-blue-300 dark:ring-blue-900/60"
                             }`}
@@ -1502,9 +1854,15 @@ export function ProfilePage({ onNavigate, onOpenProductDetail, onOpenToolDetail,
                             <button
                               key={borderUrl}
                               type="button"
-                              onClick={() => void handleSelectAvatarBorder(borderUrl)}
-                              className={`group relative aspect-square rounded-[1.1rem] border p-3 transition hover:-translate-y-0.5 hover:shadow-md ${
-                                user.avatarBorderUrl === borderUrl
+                              onClick={() => {
+                                if (!userHasLevelPerks) return;
+                                void handleSelectAvatarBorder(borderUrl);
+                              }}
+                              disabled={!userHasLevelPerks}
+                              className={`group relative aspect-square rounded-[1.1rem] border p-3 transition ${
+                                userHasLevelPerks ? "hover:-translate-y-0.5 hover:shadow-md" : "cursor-not-allowed opacity-45"
+                              } ${
+                                userAvatarBorderUrl === borderUrl
                                   ? "border-blue-500 bg-blue-50 ring-2 ring-blue-100 dark:border-blue-400 dark:bg-blue-500/10 dark:ring-blue-900/60"
                                   : "border-slate-200 bg-white dark:border-gray-700 dark:bg-gray-800/70"
                               }`}
@@ -1519,7 +1877,7 @@ export function ProfilePage({ onNavigate, onOpenProductDetail, onOpenToolDetail,
                                   contentClassName="shadow-md"
                                 />
                               </div>
-                              {user.avatarBorderUrl === borderUrl ? (
+                              {userAvatarBorderUrl === borderUrl ? (
                                 <span className="absolute right-2 top-2 rounded-full bg-blue-600 px-1.5 py-0.5 text-[10px] font-semibold text-white">
                                   On
                                 </span>
@@ -1532,21 +1890,212 @@ export function ProfilePage({ onNavigate, onOpenProductDetail, onOpenToolDetail,
                   </div>
                 </>
               )}
+
+              {coverOpen && (
+                <>
+                  <button
+                    type="button"
+                    aria-label="Close cover editor"
+                    onClick={() => setCoverOpen(false)}
+                    className="fixed inset-0 z-40 bg-slate-950/40 backdrop-blur-[2px]"
+                  />
+
+                  <div className="fixed inset-x-3 bottom-4 top-[5.5rem] z-50 overflow-hidden rounded-[1.5rem] border border-slate-200/80 bg-white/95 shadow-[0_24px_60px_rgba(15,23,42,0.22)] backdrop-blur dark:border-gray-700 dark:bg-gray-900/95 sm:inset-x-auto sm:bottom-auto sm:left-1/2 sm:top-1/2 sm:h-[min(84vh,46rem)] sm:w-[34rem] sm:max-w-[calc(100vw-2rem)] sm:-translate-x-1/2 sm:-translate-y-1/2">
+                    <div className="flex h-full flex-col overflow-hidden">
+                      <div className="flex items-start justify-between gap-3 border-b border-slate-200/70 px-4 pb-3 pt-4 dark:border-gray-700">
+                        <div>
+                          <div className="text-sm font-semibold text-slate-900 dark:text-white">
+                            {translate("profile.editCover", "Edit cover")}
+                          </div>
+                          <p className="mt-1 text-xs text-slate-500 dark:text-slate-400">
+                            {translate(
+                              "profile.coverHelp",
+                              "Paste a cover URL, drag the preview, and use the sliders to fit it like a Facebook cover."
+                            )}
+                          </p>
+                        </div>
+                        <button
+                          type="button"
+                          onClick={() => setCoverOpen(false)}
+                          className="rounded-full border border-slate-200 px-2.5 py-1 text-xs font-semibold text-slate-500 transition hover:bg-slate-100 dark:border-gray-700 dark:text-slate-300 dark:hover:bg-gray-800"
+                        >
+                          Close
+                        </button>
+                      </div>
+
+                      <div className="flex-1 overflow-y-auto overscroll-contain px-4 pb-4 pt-4">
+                        {profileUpdateError ? (
+                          <div className="mb-4 rounded-xl border border-red-200 bg-red-50 px-3 py-2 text-sm text-red-700 dark:border-red-900/60 dark:bg-red-950/40 dark:text-red-200">
+                            {profileUpdateError}
+                          </div>
+                        ) : null}
+
+                        <div
+                          ref={coverPreviewRef}
+                          className="relative h-44 overflow-hidden rounded-[1.35rem] border border-slate-200 bg-slate-100 shadow-sm dark:border-gray-700 dark:bg-gray-800 sm:h-52"
+                          onPointerDown={handleCoverPointerDown}
+                          onPointerMove={handleCoverPointerMove}
+                          onPointerUp={handleCoverPointerUp}
+                          onPointerCancel={handleCoverPointerUp}
+                        >
+                          <ProfileCoverArt
+                            src={previewCoverUrl}
+                            alt={`${displayName} cover preview`}
+                            positionX={coverPositionX}
+                            positionY={coverPositionY}
+                            scale={coverScale}
+                            className="absolute inset-0"
+                          />
+                          <div className="absolute inset-0 bg-gradient-to-b from-slate-950/5 via-transparent to-slate-950/20" />
+                          <div className="pointer-events-none absolute bottom-3 left-3 rounded-full bg-slate-900/65 px-3 py-1 text-[11px] font-semibold uppercase tracking-[0.16em] text-white">
+                            Drag to position
+                          </div>
+                        </div>
+
+                        <div className="mt-4 rounded-[1.1rem] border border-slate-200 bg-white p-3 dark:border-gray-700 dark:bg-gray-900">
+                          <div className="text-sm font-semibold text-slate-900 dark:text-white">
+                            {translate("profile.coverPasteLink", "Paste cover link")}
+                          </div>
+                          <div className="mt-3 flex flex-col gap-2 sm:flex-row">
+                            <Input
+                              value={coverUrlInput}
+                              onChange={(e) => setCoverUrlInput(e.target.value)}
+                              placeholder="https://example.com/cover.jpg"
+                              className="flex-1"
+                            />
+                            <Button
+                              type="button"
+                              onClick={() => setCoverUrlInput(previewCoverUrl)}
+                              variant="outline"
+                              className="w-full sm:w-auto"
+                            >
+                              {translate("profile.usePreview", "Use preview")}
+                            </Button>
+                          </div>
+                        </div>
+
+                        <div className="mt-5">
+                          <div className="flex items-center justify-between gap-3">
+                            <div className="text-sm font-semibold text-slate-900 dark:text-white">
+                              {translate("profile.chooseCover", "Choose cover")}
+                            </div>
+                            <div className="text-[11px] font-medium uppercase tracking-[0.18em] text-slate-400">
+                              {DEFAULT_PROFILE_COVERS.length} styles
+                            </div>
+                          </div>
+                          <div className="mt-3 grid grid-cols-2 gap-3">
+                            {DEFAULT_PROFILE_COVERS.map((src) => (
+                              <button
+                                key={src}
+                                type="button"
+                                onClick={() => handleSelectCover(src)}
+                                className={`overflow-hidden rounded-[1rem] border transition hover:-translate-y-0.5 hover:shadow-md ${
+                                  previewCoverUrl === src
+                                    ? "border-blue-500 ring-2 ring-blue-100 dark:ring-blue-900/60"
+                                    : "border-slate-200 dark:border-gray-700"
+                                }`}
+                              >
+                                <img
+                                  src={src}
+                                  alt="Cover option"
+                                  className="h-20 w-full object-cover sm:h-24"
+                                />
+                              </button>
+                            ))}
+                          </div>
+                        </div>
+
+                        <div className="mt-5 space-y-4 rounded-[1.1rem] border border-slate-200 bg-white p-4 dark:border-gray-700 dark:bg-gray-900">
+                          <label className="block">
+                            <div className="mb-2 text-sm font-semibold text-slate-900 dark:text-white">
+                              {translate("profile.coverZoom", "Zoom")}
+                            </div>
+                            <input
+                              type="range"
+                              min="1"
+                              max="3"
+                              step="0.01"
+                              value={coverScale}
+                              onChange={(event) => setCoverScale(Number(event.target.value))}
+                              className="w-full"
+                            />
+                          </label>
+
+                          <label className="block">
+                            <div className="mb-2 text-sm font-semibold text-slate-900 dark:text-white">
+                              {translate("profile.coverHorizontal", "Horizontal position")}
+                            </div>
+                            <input
+                              type="range"
+                              min="0"
+                              max="100"
+                              step="0.1"
+                              value={coverPositionX}
+                              onChange={(event) => setCoverPositionX(Number(event.target.value))}
+                              className="w-full"
+                            />
+                          </label>
+
+                          <label className="block">
+                            <div className="mb-2 text-sm font-semibold text-slate-900 dark:text-white">
+                              {translate("profile.coverVertical", "Vertical position")}
+                            </div>
+                            <input
+                              type="range"
+                              min="0"
+                              max="100"
+                              step="0.1"
+                              value={coverPositionY}
+                              onChange={(event) => setCoverPositionY(Number(event.target.value))}
+                              className="w-full"
+                            />
+                          </label>
+                        </div>
+                      </div>
+
+                      <div className="flex flex-col gap-2 border-t border-slate-200/70 px-4 py-4 dark:border-gray-700 sm:flex-row sm:justify-between">
+                        <Button
+                          type="button"
+                          variant="outline"
+                          onClick={() => void handleClearCover()}
+                          disabled={coverSaving}
+                          className="w-full sm:w-auto"
+                        >
+                          {translate("profile.clearCover", "Clear cover")}
+                        </Button>
+                        <Button
+                          type="button"
+                          onClick={() => void handleSaveCover()}
+                          disabled={coverSaving}
+                          className="w-full sm:w-auto"
+                        >
+                          {coverSaving
+                            ? translate("profile.saving", "Saving...")
+                            : translate("profile.saveCover", "Save cover")}
+                        </Button>
+                      </div>
+                    </div>
+                  </div>
+                </>
+              )}
             </div>
 
             <div className="flex-1 text-center md:text-left">
               <div className="inline-flex items-center justify-center gap-2 align-middle md:justify-start">
                 <h1 className="text-2xl font-bold text-white sm:text-3xl">{displayName}</h1>
-                <Image
-                  src={verifiedBadgeSrc}
-                  alt="Verified"
-                  width={40}
-                  height={40}
-                  className="mt-0.5 h-8 w-8 shrink-0 object-contain drop-shadow-[0_4px_10px_rgba(14,165,233,0.45)] sm:h-9 sm:w-9"
-                />
+                {userHasLevelPerks ? (
+                  <Image
+                    src={verifiedBadgeSrc}
+                    alt="Verified"
+                    width={40}
+                    height={40}
+                    className="mt-0.5 h-8 w-8 shrink-0 object-contain drop-shadow-[0_4px_10px_rgba(14,165,233,0.45)] sm:h-9 sm:w-9"
+                  />
+                ) : null}
               </div>
-              <p className="mt-1 break-all text-sm text-blue-100 sm:text-base">{user.email}</p>
-
+              <p className="mt-1 text-sm text-blue-100 sm:text-base">
+                {translate("sidebar.userId", "Account ID")}: {user.id}
+              </p>
               <div className="mt-3 flex flex-col items-center gap-2 text-sm sm:flex-row sm:flex-wrap sm:gap-4 md:items-start md:justify-start">
                 {!!joinedText && (
                   <span className="text-white flex items-center gap-1">
@@ -1558,6 +2107,14 @@ export function ProfilePage({ onNavigate, onOpenProductDetail, onOpenToolDetail,
                     <MapPin className="w-4 h-4" /> {user.place}
                   </span>
                 )}
+              </div>
+              <div className="mt-3 flex justify-center md:justify-start">
+                <UserLevelBadge
+                  userId={user.id}
+                  size="lg"
+                  showProgress={false}
+                  lang={language as "en" | "km" || "en"}
+                />
               </div>
             </div>
 
@@ -1615,6 +2172,11 @@ export function ProfilePage({ onNavigate, onOpenProductDetail, onOpenToolDetail,
       <div className="max-w-7xl mx-auto px-4 py-6 sm:px-6 sm:py-8">
         {activeTab === "overview" && (
           <div className="space-y-6">
+            {/* Level Dashboard */}
+            <div className="mb-6">
+              <UserLevelDashboard userId={user.id} />
+            </div>
+
             {statsError && (
               <div className="flex items-center justify-between rounded-2xl border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700 dark:border-red-400/50 dark:bg-red-500/10 dark:text-red-200">
                 <div className="flex items-center gap-2">
@@ -2490,16 +3052,46 @@ export function ProfilePage({ onNavigate, onOpenProductDetail, onOpenToolDetail,
                       {profileUpdateError}
                     </div>
                   ) : null}
-                  <Input
-                    placeholder={translate("profile.fullName", "Full name")}
-                    value={editForm.name}
-                    onChange={(e) => setEditForm({ ...editForm, name: e.target.value })}
-                  />
-                  <Input
-                    placeholder={translate("profile.bioPlaceholder", "Short bio")}
-                    value={editForm.bio}
-                    onChange={(e) => setEditForm({ ...editForm, bio: e.target.value })}
-                  />
+                  <div className="space-y-1.5">
+                    <p className="text-xs font-medium uppercase tracking-wide text-gray-500">
+                      {translate("register.username", "Username")}
+                    </p>
+                    <Input
+                      placeholder={translate("register.username", "Username")}
+                      value={editForm.username}
+                      onChange={(e) => setEditForm({ ...editForm, username: e.target.value })}
+                    />
+                  </div>
+                  <div className="space-y-1.5">
+                    <p className="text-xs font-medium uppercase tracking-wide text-gray-500">
+                      Gmail
+                    </p>
+                    <Input
+                      value={user.email || ""}
+                      disabled
+                      placeholder="Gmail"
+                    />
+                  </div>
+                  <div className="space-y-1.5">
+                    <p className="text-xs font-medium uppercase tracking-wide text-gray-500">
+                      {translate("profile.fullName", "Full name")}
+                    </p>
+                    <Input
+                      placeholder={translate("profile.fullName", "Full name")}
+                      value={editForm.name}
+                      onChange={(e) => setEditForm({ ...editForm, name: e.target.value })}
+                    />
+                  </div>
+                  <div className="space-y-1.5">
+                    <p className="text-xs font-medium uppercase tracking-wide text-gray-500">
+                      {translate("profile.bioPlaceholder", "Short bio")}
+                    </p>
+                    <Input
+                      placeholder={translate("profile.bioPlaceholder", "Short bio")}
+                      value={editForm.bio}
+                      onChange={(e) => setEditForm({ ...editForm, bio: e.target.value })}
+                    />
+                  </div>
                   <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
                     <div className="relative">
                       <button
@@ -2593,6 +3185,7 @@ export function ProfilePage({ onNavigate, onOpenProductDetail, onOpenToolDetail,
                 </div>
               ) : (
                 <div className="mt-4 grid gap-3 text-sm text-gray-600 dark:text-gray-300">
+                  <p>{user.email || t("login.emailLabel")}</p>
                   <p>{user.bio || translate("profile.passionate", "Passionate about learning and technology")}</p>
                   <p>{sanitizeProfilePhone(user.phone) || translate("profile.phone", "Phone")}</p>
                   <p>{user.place || translate("profile.location", "Location")}</p>
@@ -2896,6 +3489,11 @@ export function ProfilePage({ onNavigate, onOpenProductDetail, onOpenToolDetail,
                     variant="destructive"
                     onClick={() => {
                       setDeleteText("");
+                      setDeleteCurrentPassword("");
+                      setDeleteCode("");
+                      setDeleteRequiresPassword(true);
+                      setDeleteError(null);
+                      setDeleteMessage(null);
                       setDeleteOpen(true);
                     }}
                     className="w-full sm:w-auto"
@@ -2909,25 +3507,73 @@ export function ProfilePage({ onNavigate, onOpenProductDetail, onOpenToolDetail,
                   <div className="mt-4 border rounded-xl p-4">
                     <div className="font-bold mb-1">{translate("profile.deleteWarnTitle", "Delete account?")}</div>
                     <p className="text-sm text-gray-500 mb-3">{translate("profile.deleteWarnBody", "This will disable your account and sign you out.")}</p>
+                    <div className="mb-3 rounded-lg border border-amber-200 bg-amber-50 px-3 py-2 text-xs text-amber-700">
+                      Only a trusted device that is at least 30 days old can remove devices or delete this account. Account deletion always requires a 6-digit email verification code. Password accounts also require the current password.
+                    </div>
+                    {currentManagedDevice ? (
+                      <div className="mb-3 rounded-lg border border-gray-200 bg-gray-50 px-3 py-2 text-xs text-gray-600">
+                        This device first signed in: {formatDateTime(currentManagedDevice.firstSeenAt)}.
+                        Trusted until: {currentManagedDevice.trustedUntil ? formatDateTime(currentManagedDevice.trustedUntil) : "Not trusted"}.
+                      </div>
+                    ) : null}
+                    {deleteMessage ? (
+                      <div className="mb-3 rounded-lg border border-emerald-200 bg-emerald-50 px-3 py-2 text-sm text-emerald-700">
+                        {deleteMessage}
+                      </div>
+                    ) : null}
+                    {deleteError ? (
+                      <div className="mb-3 rounded-lg border border-red-200 bg-red-50 px-3 py-2 text-sm text-red-700">
+                        {deleteError}
+                      </div>
+                    ) : null}
 
                     <Input
                       placeholder={translate("profile.confirmDelete", "Type DELETE to confirm")}
                       value={deleteText}
                       onChange={(e) => setDeleteText(e.target.value)}
                     />
+                    <div className="mt-3 grid gap-2 sm:grid-cols-2">
+                      {deleteRequiresPassword ? (
+                        <Input
+                          type="password"
+                          placeholder="Current password"
+                          value={deleteCurrentPassword}
+                          onChange={(e) => setDeleteCurrentPassword(e.target.value)}
+                        />
+                      ) : (
+                        <div className="rounded-lg border border-emerald-200 bg-emerald-50 px-3 py-3 text-sm text-emerald-700">
+                          This account signs in with Google, so password confirmation is not required.
+                        </div>
+                      )}
+                      <Input
+                        value={deleteCode}
+                        onChange={(e) => setDeleteCode(e.target.value.replace(/\D/g, "").slice(0, 6))}
+                        placeholder={translate("profile.enterCode", "Enter 6-digit code")}
+                      />
+                    </div>
 
                     <div className="mt-3 flex flex-col gap-2 sm:flex-row">
                       <Button
-                        variant="destructive"
-                        disabled={deleteText !== "DELETE"}
-                        onClick={async () => {
-                          await deleteAccount();
-                          await logout();
-                          onNavigate("home");
-                        }}
+                        type="button"
+                        variant="outline"
+                        onClick={() => void sendDeleteAccountCode()}
+                        disabled={deleteSendingCode || deleteLoading}
                         className="w-full sm:w-auto"
                       >
-                        {translate("profile.confirm", "Confirm")}
+                        {deleteSendingCode ? "Sending..." : translate("profile.sendCode", "Send code")}
+                      </Button>
+                      <Button
+                        variant="destructive"
+                        disabled={
+                          deleteText !== "DELETE" ||
+                          (deleteRequiresPassword && deleteCurrentPassword.trim().length === 0) ||
+                          deleteCode.trim().length !== 6 ||
+                          deleteLoading
+                        }
+                        onClick={() => void confirmDeleteAccount()}
+                        className="w-full sm:w-auto"
+                      >
+                        {deleteLoading ? translate("profile.saving", "Saving...") : translate("profile.confirm", "Confirm")}
                       </Button>
                       <Button variant="outline" onClick={() => setDeleteOpen(false)} className="w-full sm:w-auto">
                         {translate("profile.close", "Close")}
@@ -2945,7 +3591,7 @@ export function ProfilePage({ onNavigate, onOpenProductDetail, onOpenToolDetail,
                       <p className="text-sm text-gray-500">
                         {translate(
                           "profile.manageDevicesDesc",
-                          "Logout another device by verifying a code sent to your email."
+                          "Logout another device only from a trusted device that is at least 30 days old, then verify with your email code and password."
                         )}
                       </p>
                     </div>

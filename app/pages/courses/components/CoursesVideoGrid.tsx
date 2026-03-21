@@ -8,15 +8,17 @@ export default function CoursesVideoGrid({
   loadingLabel,
   items,
   renderItem,
+  className = "",
 }: {
   loading: boolean;
   error: string | null;
   loadingLabel: string;
   items: any[];
   renderItem: (item: any) => ReactNode;
+  className?: string;
 }) {
   return (
-    <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-6">
+    <div className={className || "grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-6"}>
       {loading ? (
         <div className="col-span-full text-sm text-gray-500 dark:text-gray-400">
           {loadingLabel}

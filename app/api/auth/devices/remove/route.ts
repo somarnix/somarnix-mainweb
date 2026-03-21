@@ -2,13 +2,15 @@ import crypto from "crypto";
 import { db } from "@/lib/db";
 import { getAuthUser } from "@/lib/auth";
 import bcrypt from "bcryptjs";
+import { clearSessionCookies } from "@/lib/security";
 import {
+  getSensitiveActionEligibility,
   ensureTrustedDeviceSchema,
   getLoginDeviceByRowId,
   hasTable,
-  isFutureDate,
   normalizeSixDigitCode,
   normalizeString,
+  registerSensitiveActionViolation,
 } from "@/lib/trusted-devices";
 import type { RowDataPacket, ResultSetHeader } from "mysql2";
 
@@ -25,6 +27,26 @@ type PasswordRow = RowDataPacket & {
 
 function sha256Hex(value: string): string {
   return crypto.createHash("sha256").update(value).digest("hex");
+}
+
+function blockedSecurityResponse(input: {
+  error: string;
+  suspended?: boolean;
+  suspendedUntil?: string | null;
+}): Response {
+  const res = Response.json(
+    {
+      error: input.error,
+      forceLogout: true,
+      suspended: input.suspended === true,
+      suspendedUntil: input.suspendedUntil ?? null,
+    },
+    { status: 403 }
+  );
+  for (const cookie of clearSessionCookies()) {
+    res.headers.append("Set-Cookie", cookie);
+  }
+  return res;
 }
 
 export async function POST(req: Request): Promise<Response> {
@@ -65,14 +87,19 @@ export async function POST(req: Request): Promise<Response> {
     if (currentDevice.device_id === deviceId || (currentDeviceId && currentDeviceId === deviceId)) {
       return Response.json({ error: "Use normal logout for current device" }, { status: 400 });
     }
-    if (isFutureDate(currentDevice.device_action_locked_until)) {
-      return Response.json(
-        {
-          error: "This device cannot remove other trusted devices yet.",
-          lockedUntil: currentDevice.device_action_locked_until,
-        },
-        { status: 403 }
-      );
+    const eligibility = getSensitiveActionEligibility(currentDevice);
+    if (!eligibility.ok) {
+      const violation = await registerSensitiveActionViolation({
+        userId: auth.userId,
+        deviceId: currentDevice.device_id,
+        actionKey: "remove_device",
+        reason: eligibility.error,
+      });
+      return blockedSecurityResponse({
+        error: eligibility.error,
+        suspended: violation.suspended,
+        suspendedUntil: violation.suspendedUntil,
+      });
     }
 
     const [passwordRows] = await db.query<PasswordRow[]>(

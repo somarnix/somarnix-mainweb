@@ -15,6 +15,7 @@ import { CoursesPage } from "./pages/courses/CoursesPage";
 import { VideoDetailPage } from "./pages/courses/VideoDetailPage";
 import { ServicesPage } from "./pages/services/ServicesPage";
 import { BlogPage } from "./pages/blogs/BlogPage";
+import { FavoritesPage } from "./pages/favorites/FavoritesPage";
 
 import LoginPage from "./auth/login/LoginPage";
 import { RegisterPage } from "./auth/register/RegisterPage";
@@ -46,11 +47,7 @@ import AdminNotificationsPage from "./admin-pages/notifications/AdminNotificatio
 import ProductDetailPage from "./pages/product-detail/ProductDetailPage";
 import { ChatPage } from "./pages/chat/ChatPage";
 import { ChatConversationPage } from "./pages/chat/ChatConversationPage";
-import Veo3 from "./pages/tools-ai/veo3/Veo3";
-import ToolDownload from "./pages/tools-ai/tooldownloadvideo/ToolDownload";
-import VideoEditorPage from "./pages/tools-ai/video-editor/Videoeditor";
-import TranslateVideoAI from "./pages/tools-ai/translatevideo/TranslateVideoAI";
-import PromtAi from "./pages/tools-ai/promt-ai/PromtAi";
+import ToolRuntimePage from "./pages/tools-ai/ToolRuntimePage";
 import { SupportCenterPage } from "./pages/support/SupportCenterPage";
 
 type AppPage =
@@ -69,6 +66,7 @@ type AppPage =
   | "video-courses"
   | "services"
   | "support-center"
+  | "favorites"
   | "profile"
   | "account"
   | "login"
@@ -117,6 +115,7 @@ const ALL_PAGES: ReadonlyArray<AppPage> = [
   "video-courses",
   "services",
   "support-center",
+  "favorites",
   "profile",
   "account",
   "login",
@@ -153,6 +152,7 @@ const STATIC_ROUTES: Record<string, AppPage> = {
   "/blog": "blog",
   "/services": "services",
   "/support": "support-center",
+  "/favorites": "favorites",
   "/profile": "profile",
   "/account": "account",
   "/login": "login",
@@ -181,16 +181,6 @@ function normalizePath(pathname?: string | null): string {
     return pathname.replace(/\/+$/, "");
   }
   return pathname;
-}
-
-function normalizeToolRouteSlug(value?: string | null): string {
-  const slug = (value ?? "").trim().toLowerCase();
-  if (!slug) return "";
-  if (slug === "toolveo3") return "veo3";
-  if (slug === "videoeditor") return "video-editor";
-  if (slug === "translatevideo-ai") return "translatevideo";
-  if (slug === "prompt-ai") return "promt-ai";
-  return slug;
 }
 
 function resolveRoute(pathname?: string | null): RouteState {
@@ -346,6 +336,8 @@ function buildPathForPage(
       return "/services";
     case "support-center":
       return "/support";
+    case "favorites":
+      return "/favorites";
     case "profile":
       return "/profile";
     case "account":
@@ -717,16 +709,12 @@ export default function App() {
 
       case "tool-detail":
         if (!toolSlug) return <ToolsPage onOpenProductDetail={handleOpenProductDetail} />;
-        {
-          const normalizedTool = normalizeToolRouteSlug(toolSlug);
-          if (normalizedTool === "veo3") return <Veo3 toolSlug={toolSlug} />;
-          if (normalizedTool === "tooldownloadvideo") return <ToolDownload toolSlug={toolSlug} />;
-          if (normalizedTool === "video-editor") return <VideoEditorPage toolSlug={toolSlug} />;
-          if (normalizedTool === "translatevideo")
-            return <TranslateVideoAI />;
-          if (normalizedTool === "promt-ai") return <PromtAi toolSlug={toolSlug} />;
-        }
-        return <ToolsPage onOpenProductDetail={handleOpenProductDetail} />;
+        return (
+          <ToolRuntimePage
+            slug={toolSlug}
+            onOpenProductDetail={handleOpenProductDetail}
+          />
+        );
 
       case "blog":
         return (
@@ -765,6 +753,14 @@ export default function App() {
 
       case "support-center":
         return <SupportCenterPage />;
+
+      case "favorites":
+        return (
+          <FavoritesPage
+            onOpenProductDetail={handleOpenProductDetail}
+            onOpenVideoDetail={handleOpenVideoDetail}
+          />
+        );
 
       case "chat":
         return (

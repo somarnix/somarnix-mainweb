@@ -5,6 +5,20 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import PaginationNext from "@/app/components/PaginationNext";
 import { parseErrorMessage } from "@/app/lib/http/parseErrorMessage";
+import {
+  EMBEDDED_CUSTOM_HANDLER_OPTIONS,
+  generateToolSlug,
+  getDefaultLicenseRequired,
+  getDefaultPlanType,
+  MAX_TOOL_DEVICES,
+  TOOL_TEMPLATE_OPTIONS,
+  type EmbeddedCustomHandlerKey,
+  type ToolLicenseType,
+  type ToolPlanType,
+  type ToolRunMode,
+  type ToolStatus,
+  type ToolTemplateType,
+} from "@/app/lib/tool-templates";
 
 /* ================= TYPES ================= */
 
@@ -110,6 +124,7 @@ function getErrorMessage(err: unknown): string {
 const DEFAULT_KH_QR = "/paymentQR/khmer_qr.jpg";
 const USD_QR_NONE = "none";
 const GLOBAL_MAX_DEVICES = 10;
+const VALID_EMBEDDED_HANDLER_VALUES = EMBEDDED_CUSTOM_HANDLER_OPTIONS.map((option) => option.value);
 
 function normalizeOrderFields(raw?: string | null): OrderField[] {
   if (!raw || typeof raw !== "string") return [];
@@ -211,6 +226,41 @@ export default function AdminProductsPage({
   const [cTitle, setCTitle] = useState("");
   const [cSlug, setCSlug] = useState("");
   const [cCategoryId, setCCategoryId] = useState<number>(0);
+  const [cDescription, setCDescription] = useState("");
+  const [cImageUrl, setCImageUrl] = useState("");
+  const [cImageUploading, setCImageUploading] = useState(false);
+  const [cTemplateType, setCTemplateType] = useState<ToolTemplateType>("downloadable_exe");
+  const [cStatus, setCStatus] = useState<ToolStatus>("draft");
+  const [cPlanType, setCPlanType] = useState<ToolPlanType>("one_time");
+  const [cPrice, setCPrice] = useState("");
+  const [cOriginalPrice, setCOriginalPrice] = useState("");
+  const [cDurationDays, setCDurationDays] = useState("");
+  const [cMaxDevices, setCMaxDevices] = useState("1");
+  const [cLoginRequired, setCLoginRequired] = useState(true);
+  const [cPurchaseRequired, setCPurchaseRequired] = useState(true);
+  const [cLicenseRequired, setCLicenseRequired] = useState(true);
+  const [cToolAssetUrl, setCToolAssetUrl] = useState("");
+  const [cToolAssetUploading, setCToolAssetUploading] = useState(false);
+  const [cPlatform, setCPlatform] = useState("Windows");
+  const [cVersion, setCVersion] = useState("");
+  const [cReleaseNotes, setCReleaseNotes] = useState("");
+  const [cInstallInstructions, setCInstallInstructions] = useState("");
+  const [cOfflineUseAllowed, setCOfflineUseAllowed] = useState(true);
+  const [cActivationRequired, setCActivationRequired] = useState(true);
+  const [cRunMode, setCRunMode] = useState<ToolRunMode>("external_url");
+  const [cLaunchUrl, setCLaunchUrl] = useState("");
+  const [cIntroText, setCIntroText] = useState("");
+  const [cUsageInstructions, setCUsageInstructions] = useState("");
+  const [cAllowGuestPreview, setCAllowGuestPreview] = useState(false);
+  const [cLicenseType, setCLicenseType] = useState<ToolLicenseType>("single_device");
+  const [cActivationInstructions, setCActivationInstructions] = useState("");
+  const [cDeliveryInstructions, setCDeliveryInstructions] = useState("");
+  const [cCustomHandlerKey, setCCustomHandlerKey] =
+    useState<EmbeddedCustomHandlerKey>("prompt-ai-studio");
+  const [cCustomInstructions, setCCustomInstructions] = useState("");
+  const [cEnableFileUpload, setCEnableFileUpload] = useState(false);
+  const [cEnableDownloadOutput, setCEnableDownloadOutput] = useState(false);
+  const [cEnableTabs, setCEnableTabs] = useState(true);
 
   /* ================= EDIT MODAL ================= */
   const [editOpen, setEditOpen] = useState(false);
@@ -389,6 +439,24 @@ export default function AdminProductsPage({
   }, []);
 
   useEffect(() => {
+    if (!isToolsMode) return;
+    setCLicenseRequired(getDefaultLicenseRequired(cTemplateType));
+    setCPlanType(getDefaultPlanType(cTemplateType));
+    if (cTemplateType === "license_only") {
+      setCLoginRequired(true);
+      setCPurchaseRequired(true);
+      setCActivationRequired(true);
+      setCLicenseType("single_device");
+    }
+    if (cTemplateType === "online_web") {
+      setCActivationRequired(false);
+    }
+    if (cTemplateType === "embedded_custom" && !VALID_EMBEDDED_HANDLER_VALUES.includes(cCustomHandlerKey)) {
+      setCCustomHandlerKey("prompt-ai-studio");
+    }
+  }, [cCustomHandlerKey, cTemplateType, isToolsMode]);
+
+  useEffect(() => {
     if (!editOpen || !editing || !editModalBodyRef.current) return;
     const scrollEl = editModalBodyRef.current;
     requestAnimationFrame(() => {
@@ -420,6 +488,28 @@ export default function AdminProductsPage({
     throw new Error("Upload failed (no url)");
   };
 
+  const uploadToolAsset = async (file: File): Promise<string> => {
+    const form = new FormData();
+    form.append("file", file);
+
+    const res = await fetch("/api/admin/tool-assets/upload", {
+      method: "POST",
+      credentials: "include",
+      body: form,
+    });
+
+    const data: unknown = await res.json().catch(() => ({}));
+    if (!res.ok) throw new Error(parseErrorMessage(data, "Tool file upload failed"));
+
+    const url =
+      typeof data === "object" && data !== null && "url" in data
+        ? (data as { url?: unknown }).url
+        : null;
+
+    if (typeof url === "string" && url.trim()) return url;
+    throw new Error("Tool file upload failed (no url)");
+  };
+
   /* ================= QUICK SAVE FIELD ================= */
 
   const quickSave = async (productId: number, patch: Record<string, unknown>) => {
@@ -449,6 +539,40 @@ export default function AdminProductsPage({
     setCTitle("");
     setCSlug("");
     setCCategoryId(scopedCategories[0].id);
+    setCDescription("");
+    setCImageUrl("");
+    setCImageUploading(false);
+    setCTemplateType("downloadable_exe");
+    setCStatus("draft");
+    setCPlanType("one_time");
+    setCPrice("");
+    setCOriginalPrice("");
+    setCDurationDays("");
+    setCMaxDevices("1");
+    setCLoginRequired(true);
+    setCPurchaseRequired(true);
+    setCLicenseRequired(true);
+    setCToolAssetUrl("");
+    setCToolAssetUploading(false);
+    setCPlatform("Windows");
+    setCVersion("");
+    setCReleaseNotes("");
+    setCInstallInstructions("");
+    setCOfflineUseAllowed(true);
+    setCActivationRequired(true);
+    setCRunMode("external_url");
+    setCLaunchUrl("");
+    setCIntroText("");
+    setCUsageInstructions("");
+    setCAllowGuestPreview(false);
+    setCLicenseType("single_device");
+    setCActivationInstructions("");
+    setCDeliveryInstructions("");
+    setCCustomHandlerKey("prompt-ai-studio");
+    setCCustomInstructions("");
+    setCEnableFileUpload(false);
+    setCEnableDownloadOutput(false);
+    setCEnableTabs(true);
     setCreating(false);
     setCreateOpen(true);
   };
@@ -456,48 +580,103 @@ export default function AdminProductsPage({
   const closeCreate = () => {
     setCreateOpen(false);
     setCreating(false);
+    setCImageUploading(false);
+    setCToolAssetUploading(false);
   };
 
   const createProduct = async () => {
     try {
-      const slug = getNormalizedSlugForMode(cSlug, isToolsMode);
       if (!cTitle.trim()) throw new Error("Title is required");
-      if (!slug) throw new Error("Slug is required");
       if (!cCategoryId || cCategoryId <= 0) {
         throw new Error("Invalid category. Please select a category.");
       }
 
       setCreating(true);
 
-      const payload = {
-        title: cTitle.trim(),
-        slug,
-        category_id: Number(cCategoryId),
-      };
+      if (isToolsMode) {
+        const autoSlug = generateToolSlug(cTitle);
+        if (!autoSlug) throw new Error("Tool name must produce a valid slug");
 
-      const res = await fetch("/api/admin/products", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        credentials: "include",
-        body: JSON.stringify(payload),
-      });
+        const payload = {
+          title: cTitle.trim(),
+          category_id: Number(cCategoryId),
+          description: cDescription.trim(),
+          image_url: cImageUrl.trim() || null,
+          status: cStatus,
+          template_type: cTemplateType,
+          price: Number(cPrice),
+          original_price: cOriginalPrice.trim() ? Number(cOriginalPrice) : null,
+          plan_type: cPlanType,
+          duration_days: cDurationDays.trim() ? Number(cDurationDays) : null,
+          max_devices: cMaxDevices.trim() ? Number(cMaxDevices) : 1,
+          login_required: cLoginRequired,
+          purchase_required: cPurchaseRequired,
+          license_required: cLicenseRequired,
+          platform: cPlatform,
+          version: cVersion.trim(),
+          download_url: cToolAssetUrl.trim(),
+          release_notes: cReleaseNotes.trim(),
+          installation_instructions: cInstallInstructions.trim(),
+          offline_use_allowed: cOfflineUseAllowed,
+          activation_required: cActivationRequired,
+          run_mode: cRunMode,
+          launch_url: cLaunchUrl.trim(),
+          intro_text: cIntroText.trim(),
+          usage_instructions: cUsageInstructions.trim(),
+          allow_guest_preview: cAllowGuestPreview,
+          license_type: cLicenseType,
+          activation_instructions: cActivationInstructions.trim(),
+          delivery_instructions: cDeliveryInstructions.trim(),
+          custom_handler_key: cCustomHandlerKey,
+          custom_instructions: cCustomInstructions.trim(),
+          enable_file_upload: cEnableFileUpload,
+          enable_download_output: cEnableDownloadOutput,
+          enable_tabs: cEnableTabs,
+        };
 
-      const data: unknown = await res.json();
+        const res = await fetch("/api/admin/tools/create", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          credentials: "include",
+          body: JSON.stringify(payload),
+        });
 
-      if (!res.ok) {
-        if (
-          typeof data === "object" &&
-          data !== null &&
-          "error" in data &&
-          typeof (data as { error?: unknown }).error === "string"
-        ) {
-          throw new Error((data as { error: string }).error);
+        const data: unknown = await res.json().catch(() => ({}));
+        if (!res.ok) throw new Error(parseErrorMessage(data, "Failed to create tool"));
+      } else {
+        const slug = getNormalizedSlugForMode(cSlug, false);
+        if (!slug) throw new Error("Slug is required");
+
+        const payload = {
+          title: cTitle.trim(),
+          slug,
+          category_id: Number(cCategoryId),
+        };
+
+        const res = await fetch("/api/admin/products", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          credentials: "include",
+          body: JSON.stringify(payload),
+        });
+
+        const data: unknown = await res.json();
+
+        if (!res.ok) {
+          if (
+            typeof data === "object" &&
+            data !== null &&
+            "error" in data &&
+            typeof (data as { error?: unknown }).error === "string"
+          ) {
+            throw new Error((data as { error: string }).error);
+          }
+          throw new Error("Failed to create product");
         }
-        throw new Error("Failed to create product");
       }
 
-      await loadProducts(); // force full refresh
-      setSort("newest");    // ensure visible on top
+      await loadProducts();
+      setSort("newest");
       closeCreate();
     } catch (err: unknown) {
       const message =
@@ -990,6 +1169,24 @@ export default function AdminProductsPage({
       ),
     [products, isToolsMode]
   );
+  const createToolSlugPreview = useMemo(() => generateToolSlug(cTitle), [cTitle]);
+  const canCreateTool = useMemo(() => {
+    if (!isToolsMode) return false;
+    if (!cTitle.trim() || !createToolSlugPreview || cCategoryId <= 0) return false;
+    if (!cPrice.trim() || !Number.isFinite(Number(cPrice)) || Number(cPrice) < 0) return false;
+    if (cTemplateType === "downloadable_exe" && !cToolAssetUrl.trim()) return false;
+    if (cTemplateType === "online_web" && !cLaunchUrl.trim()) return false;
+    return true;
+  }, [
+    cCategoryId,
+    cLaunchUrl,
+    cPrice,
+    cTemplateType,
+    cTitle,
+    cToolAssetUrl,
+    createToolSlugPreview,
+    isToolsMode,
+  ]);
   const slugOptions = useMemo(() => {
     const set = new Set<string>(["all"]);
     for (const p of scopedProducts) {
@@ -1635,13 +1832,22 @@ export default function AdminProductsPage({
       {/* ================= CREATE MODAL ================= */}
       {createOpen ? (
         <div className="fixed inset-0 z-50 flex items-start justify-center bg-black/40 p-2 sm:items-center sm:p-4">
-          <div className="flex w-full max-w-xl flex-col overflow-hidden rounded-2xl bg-white shadow-lg max-h-[calc(100vh-2rem)]">
+          <div
+            className={cls(
+              "flex w-full flex-col overflow-hidden rounded-2xl bg-white shadow-lg max-h-[calc(100vh-2rem)]",
+              isToolsMode ? "max-w-5xl" : "max-w-xl"
+            )}
+          >
             <div className="p-4 border-b flex items-center justify-between">
               <div>
                 <div className="text-lg font-semibold">
                   {isToolsMode ? "Create Tool" : "Create Product"}
                 </div>
-                <div className="text-xs text-gray-500">Title + slug + category</div>
+                <div className="text-xs text-gray-500">
+                  {isToolsMode
+                    ? "Template-driven tool setup with automatic product, tool definition, and first price row."
+                    : "Title + slug + category"}
+                </div>
               </div>
               <button
                 onClick={closeCreate}
@@ -1651,7 +1857,9 @@ export default function AdminProductsPage({
               </button>
             </div>
 
-            <div className="grid min-h-0 flex-1 grid-cols-1 gap-3 overflow-x-hidden overflow-y-auto overscroll-contain p-4 md:grid-cols-2">
+            {!isToolsMode ? (
+              <>
+                <div className="grid min-h-0 flex-1 grid-cols-1 gap-3 overflow-x-hidden overflow-y-auto overscroll-contain p-4 md:grid-cols-2">
               <div className="md:col-span-2">
                 <label className="text-xs text-gray-600">Title</label>
                 <input
@@ -1697,9 +1905,9 @@ export default function AdminProductsPage({
                   )}
                 </select>
               </div>
-            </div>
+                </div>
 
-            <div className="sticky bottom-0 flex items-center justify-end gap-2 border-t bg-white p-4">
+                <div className="sticky bottom-0 flex items-center justify-end gap-2 border-t bg-white p-4">
               <button
                 onClick={closeCreate}
                 className="text-sm px-4 py-2 rounded-lg border hover:bg-gray-50"
@@ -1722,7 +1930,597 @@ export default function AdminProductsPage({
                 {creating ? "Creating..." : "Create"}
               </button>
 
-            </div>
+                </div>
+              </>
+            ) : null}
+
+            {isToolsMode ? (
+              <>
+                <div className="grid min-h-0 flex-1 grid-cols-1 gap-4 overflow-x-hidden overflow-y-auto overscroll-contain p-4 lg:grid-cols-[1.3fr_0.7fr]">
+                  <div className="space-y-4">
+                    <section className="rounded-2xl border border-gray-200 p-4">
+                      <div className="text-sm font-semibold text-gray-900">1. Choose Template</div>
+                      <div className="mt-3 grid gap-3 md:grid-cols-2">
+                        {TOOL_TEMPLATE_OPTIONS.map((option) => (
+                          <button
+                            key={option.value}
+                            type="button"
+                            onClick={() => setCTemplateType(option.value)}
+                            className={cls(
+                              "rounded-2xl border p-4 text-left transition",
+                              cTemplateType === option.value
+                                ? "border-black bg-gray-50 shadow-sm"
+                                : "border-gray-200 hover:border-gray-300"
+                            )}
+                          >
+                            <div className="flex items-center justify-between gap-2">
+                              <div className="text-sm font-semibold text-gray-900">{option.label}</div>
+                              <span className="rounded-full bg-gray-100 px-2.5 py-1 text-[11px] font-semibold text-gray-600">
+                                {option.badge}
+                              </span>
+                            </div>
+                            <p className="mt-2 text-xs text-gray-500">{option.description}</p>
+                          </button>
+                        ))}
+                      </div>
+                    </section>
+
+                    <section className="rounded-2xl border border-gray-200 p-4">
+                      <div className="text-sm font-semibold text-gray-900">2. Basic Info</div>
+                      <div className="mt-3 grid gap-3 md:grid-cols-2">
+                        <div className="md:col-span-2">
+                          <label className="text-xs text-gray-600">Tool Name</label>
+                          <input
+                            value={cTitle}
+                            onChange={(e) => setCTitle(e.target.value)}
+                            className="mt-1 w-full rounded-lg border px-3 py-2 text-sm"
+                            placeholder="Video Editor Pro"
+                          />
+                        </div>
+
+                        <div className="md:col-span-2">
+                          <label className="text-xs text-gray-600">Short Description</label>
+                          <textarea
+                            value={cDescription}
+                            onChange={(e) => setCDescription(e.target.value)}
+                            rows={3}
+                            className="mt-1 w-full rounded-lg border px-3 py-2 text-sm"
+                            placeholder="Describe what the customer gets and how they use it."
+                          />
+                        </div>
+
+                        <div>
+                          <label className="text-xs text-gray-600">Category</label>
+                          <select
+                            value={String(cCategoryId)}
+                            onChange={(e) => setCCategoryId(Number(e.target.value))}
+                            className="mt-1 w-full rounded-lg border px-3 py-2 text-sm"
+                          >
+                            {scopedCategories.length === 0 ? (
+                              <option value="0">No categories loaded</option>
+                            ) : (
+                              scopedCategories.map((c) => (
+                                <option key={c.id} value={String(c.id)}>
+                                  {c.name}
+                                </option>
+                              ))
+                            )}
+                          </select>
+                        </div>
+
+                        <div>
+                          <label className="text-xs text-gray-600">Status</label>
+                          <select
+                            value={cStatus}
+                            onChange={(e) => setCStatus(e.target.value as ToolStatus)}
+                            className="mt-1 w-full rounded-lg border px-3 py-2 text-sm"
+                          >
+                            <option value="draft">Draft</option>
+                            <option value="published">Published</option>
+                          </select>
+                        </div>
+
+                        <div className="md:col-span-2">
+                          <label className="text-xs text-gray-600">Slug Preview</label>
+                          <div className="mt-1 rounded-lg border bg-gray-50 px-3 py-2 text-sm text-gray-700">
+                            {createToolSlugPreview || "Slug will be generated from the tool name"}
+                          </div>
+                        </div>
+
+                        <div className="md:col-span-2">
+                          <div className="flex items-center justify-between gap-3">
+                            <label className="text-xs text-gray-600">Thumbnail / Cover Image</label>
+                            {cImageUploading ? (
+                              <span className="text-[11px] text-gray-500">Uploading image...</span>
+                            ) : null}
+                          </div>
+                          <div className="mt-1 flex flex-col gap-2 md:flex-row">
+                            <input
+                              value={cImageUrl}
+                              onChange={(e) => setCImageUrl(e.target.value)}
+                              className="w-full rounded-lg border px-3 py-2 text-sm"
+                              placeholder="/productimg/my-tool.jpg or https://..."
+                            />
+                            <label className="cursor-pointer rounded-lg border px-3 py-2 text-sm hover:bg-gray-50">
+                              Upload image
+                              <input
+                                type="file"
+                                accept="image/*"
+                                className="hidden"
+                                onChange={async (e) => {
+                                  const file = e.target.files?.[0];
+                                  if (!file) return;
+                                  try {
+                                    setCImageUploading(true);
+                                    const url = await uploadImage(file);
+                                    setCImageUrl(url);
+                                  } catch (err) {
+                                    alert(getErrorMessage(err));
+                                  } finally {
+                                    setCImageUploading(false);
+                                    e.currentTarget.value = "";
+                                  }
+                                }}
+                              />
+                            </label>
+                          </div>
+                        </div>
+                      </div>
+                    </section>
+
+                    <section className="rounded-2xl border border-gray-200 p-4">
+                      <div className="text-sm font-semibold text-gray-900">3. Access &amp; Sales</div>
+                      <div className="mt-3 grid gap-3 md:grid-cols-2">
+                        <div>
+                          <label className="text-xs text-gray-600">Plan Type</label>
+                          <select
+                            value={cPlanType}
+                            onChange={(e) => setCPlanType(e.target.value as ToolPlanType)}
+                            className="mt-1 w-full rounded-lg border px-3 py-2 text-sm"
+                          >
+                            <option value="one_time">One-time</option>
+                            <option value="subscription">Subscription</option>
+                            <option value="time_limited">Time-limited</option>
+                          </select>
+                        </div>
+
+                        <div>
+                          <label className="text-xs text-gray-600">Duration (days)</label>
+                          <input
+                            value={cDurationDays}
+                            onChange={(e) => setCDurationDays(e.target.value)}
+                            type="number"
+                            min="1"
+                            className="mt-1 w-full rounded-lg border px-3 py-2 text-sm"
+                            placeholder={cPlanType === "one_time" ? "Leave blank for lifetime" : "30"}
+                          />
+                        </div>
+
+                        <div>
+                          <label className="text-xs text-gray-600">Price</label>
+                          <input
+                            value={cPrice}
+                            onChange={(e) => setCPrice(e.target.value)}
+                            type="number"
+                            min="0"
+                            step="0.01"
+                            className="mt-1 w-full rounded-lg border px-3 py-2 text-sm"
+                            placeholder="9.99"
+                          />
+                        </div>
+
+                        <div>
+                          <label className="text-xs text-gray-600">Original Price</label>
+                          <input
+                            value={cOriginalPrice}
+                            onChange={(e) => setCOriginalPrice(e.target.value)}
+                            type="number"
+                            min="0"
+                            step="0.01"
+                            className="mt-1 w-full rounded-lg border px-3 py-2 text-sm"
+                            placeholder="19.99"
+                          />
+                        </div>
+
+                        <div>
+                          <label className="text-xs text-gray-600">
+                            Max Devices (1-{MAX_TOOL_DEVICES})
+                          </label>
+                          <input
+                            value={cMaxDevices}
+                            onChange={(e) => setCMaxDevices(e.target.value)}
+                            type="number"
+                            min="1"
+                            max={String(MAX_TOOL_DEVICES)}
+                            className="mt-1 w-full rounded-lg border px-3 py-2 text-sm"
+                          />
+                        </div>
+
+                        <div>
+                          <label className="text-xs text-gray-600">License Type</label>
+                          <select
+                            value={cLicenseType}
+                            onChange={(e) => setCLicenseType(e.target.value as ToolLicenseType)}
+                            className="mt-1 w-full rounded-lg border px-3 py-2 text-sm"
+                          >
+                            <option value="single_device">Single device</option>
+                            <option value="multi_device">Multi-device</option>
+                            <option value="unlimited">Unlimited</option>
+                          </select>
+                        </div>
+
+                        <label className="flex items-center gap-2 rounded-lg border px-3 py-2 text-sm">
+                          <input
+                            type="checkbox"
+                            checked={cLoginRequired}
+                            onChange={(e) => setCLoginRequired(e.target.checked)}
+                          />
+                          Login required
+                        </label>
+
+                        <label className="flex items-center gap-2 rounded-lg border px-3 py-2 text-sm">
+                          <input
+                            type="checkbox"
+                            checked={cPurchaseRequired}
+                            onChange={(e) => setCPurchaseRequired(e.target.checked)}
+                          />
+                          Purchase required
+                        </label>
+
+                        <label className="flex items-center gap-2 rounded-lg border px-3 py-2 text-sm">
+                          <input
+                            type="checkbox"
+                            checked={cLicenseRequired}
+                            onChange={(e) => setCLicenseRequired(e.target.checked)}
+                          />
+                          License required
+                        </label>
+
+                        <label className="flex items-center gap-2 rounded-lg border px-3 py-2 text-sm">
+                          <input
+                            type="checkbox"
+                            checked={cActivationRequired}
+                            onChange={(e) => setCActivationRequired(e.target.checked)}
+                          />
+                          Activation required
+                        </label>
+                      </div>
+                    </section>
+
+                    <section className="rounded-2xl border border-gray-200 p-4">
+                      <div className="text-sm font-semibold text-gray-900">4. Tool Content</div>
+                      <div className="mt-3 grid gap-3 md:grid-cols-2">
+                        {cTemplateType === "downloadable_exe" ? (
+                          <>
+                            <div>
+                              <label className="text-xs text-gray-600">Primary Platform</label>
+                              <select
+                                value={cPlatform}
+                                onChange={(e) => setCPlatform(e.target.value)}
+                                className="mt-1 w-full rounded-lg border px-3 py-2 text-sm"
+                              >
+                                <option value="Windows">Windows</option>
+                                <option value="Mac">Mac</option>
+                                <option value="Linux">Linux</option>
+                                <option value="Android">Android</option>
+                              </select>
+                            </div>
+
+                            <div>
+                              <label className="text-xs text-gray-600">Version</label>
+                              <input
+                                value={cVersion}
+                                onChange={(e) => setCVersion(e.target.value)}
+                                className="mt-1 w-full rounded-lg border px-3 py-2 text-sm"
+                                placeholder="1.0.0"
+                              />
+                            </div>
+
+                            <div className="md:col-span-2">
+                              <div className="flex items-center justify-between gap-3">
+                                <label className="text-xs text-gray-600">Download File / URL</label>
+                                {cToolAssetUploading ? (
+                                  <span className="text-[11px] text-gray-500">Uploading file...</span>
+                                ) : null}
+                              </div>
+                              <div className="mt-1 flex flex-col gap-2 md:flex-row">
+                                <input
+                                  value={cToolAssetUrl}
+                                  onChange={(e) => setCToolAssetUrl(e.target.value)}
+                                  className="w-full rounded-lg border px-3 py-2 text-sm"
+                                  placeholder="Upload a file or paste an external download URL"
+                                />
+                                <label className="cursor-pointer rounded-lg border px-3 py-2 text-sm hover:bg-gray-50">
+                                  Upload file
+                                  <input
+                                    type="file"
+                                    className="hidden"
+                                    onChange={async (e) => {
+                                      const file = e.target.files?.[0];
+                                      if (!file) return;
+                                      try {
+                                        setCToolAssetUploading(true);
+                                        const url = await uploadToolAsset(file);
+                                        setCToolAssetUrl(url);
+                                      } catch (err) {
+                                        alert(getErrorMessage(err));
+                                      } finally {
+                                        setCToolAssetUploading(false);
+                                        e.currentTarget.value = "";
+                                      }
+                                    }}
+                                  />
+                                </label>
+                              </div>
+                            </div>
+
+                            <div className="md:col-span-2">
+                              <label className="text-xs text-gray-600">Installation Instructions</label>
+                              <textarea
+                                value={cInstallInstructions}
+                                onChange={(e) => setCInstallInstructions(e.target.value)}
+                                rows={3}
+                                className="mt-1 w-full rounded-lg border px-3 py-2 text-sm"
+                              />
+                            </div>
+
+                            <div className="md:col-span-2">
+                              <label className="text-xs text-gray-600">Release Notes</label>
+                              <textarea
+                                value={cReleaseNotes}
+                                onChange={(e) => setCReleaseNotes(e.target.value)}
+                                rows={3}
+                                className="mt-1 w-full rounded-lg border px-3 py-2 text-sm"
+                              />
+                            </div>
+
+                            <label className="flex items-center gap-2 rounded-lg border px-3 py-2 text-sm md:col-span-2">
+                              <input
+                                type="checkbox"
+                                checked={cOfflineUseAllowed}
+                                onChange={(e) => setCOfflineUseAllowed(e.target.checked)}
+                              />
+                              Offline use allowed
+                            </label>
+                          </>
+                        ) : null}
+
+                        {cTemplateType === "online_web" ? (
+                          <>
+                            <div>
+                              <label className="text-xs text-gray-600">Run Mode</label>
+                              <select
+                                value={cRunMode}
+                                onChange={(e) => setCRunMode(e.target.value as ToolRunMode)}
+                                className="mt-1 w-full rounded-lg border px-3 py-2 text-sm"
+                              >
+                                <option value="external_url">External URL</option>
+                                <option value="internal_page">Internal page</option>
+                              </select>
+                            </div>
+
+                            <div>
+                              <label className="text-xs text-gray-600">Launch URL</label>
+                              <input
+                                value={cLaunchUrl}
+                                onChange={(e) => setCLaunchUrl(e.target.value)}
+                                className="mt-1 w-full rounded-lg border px-3 py-2 text-sm"
+                                placeholder="https://tool.example.com"
+                              />
+                            </div>
+
+                            <div className="md:col-span-2">
+                              <label className="text-xs text-gray-600">Intro Text</label>
+                              <textarea
+                                value={cIntroText}
+                                onChange={(e) => setCIntroText(e.target.value)}
+                                rows={3}
+                                className="mt-1 w-full rounded-lg border px-3 py-2 text-sm"
+                              />
+                            </div>
+
+                            <div className="md:col-span-2">
+                              <label className="text-xs text-gray-600">Usage Instructions</label>
+                              <textarea
+                                value={cUsageInstructions}
+                                onChange={(e) => setCUsageInstructions(e.target.value)}
+                                rows={3}
+                                className="mt-1 w-full rounded-lg border px-3 py-2 text-sm"
+                              />
+                            </div>
+
+                            <label className="flex items-center gap-2 rounded-lg border px-3 py-2 text-sm md:col-span-2">
+                              <input
+                                type="checkbox"
+                                checked={cAllowGuestPreview}
+                                onChange={(e) => setCAllowGuestPreview(e.target.checked)}
+                              />
+                              Allow guest preview
+                            </label>
+                          </>
+                        ) : null}
+
+                        {cTemplateType === "license_only" ? (
+                          <>
+                            <div className="md:col-span-2">
+                              <label className="text-xs text-gray-600">Activation Instructions</label>
+                              <textarea
+                                value={cActivationInstructions}
+                                onChange={(e) => setCActivationInstructions(e.target.value)}
+                                rows={3}
+                                className="mt-1 w-full rounded-lg border px-3 py-2 text-sm"
+                              />
+                            </div>
+
+                            <div className="md:col-span-2">
+                              <label className="text-xs text-gray-600">Delivery Instructions</label>
+                              <textarea
+                                value={cDeliveryInstructions}
+                                onChange={(e) => setCDeliveryInstructions(e.target.value)}
+                                rows={3}
+                                className="mt-1 w-full rounded-lg border px-3 py-2 text-sm"
+                              />
+                            </div>
+                          </>
+                        ) : null}
+
+                        {cTemplateType === "embedded_custom" ? (
+                          <>
+                            <div className="md:col-span-2">
+                              <label className="text-xs text-gray-600">Custom Tool Type</label>
+                              <select
+                                value={cCustomHandlerKey}
+                                onChange={(e) =>
+                                  setCCustomHandlerKey(e.target.value as EmbeddedCustomHandlerKey)
+                                }
+                                className="mt-1 w-full rounded-lg border px-3 py-2 text-sm"
+                              >
+                                {EMBEDDED_CUSTOM_HANDLER_OPTIONS.map((option) => (
+                                  <option key={option.value} value={option.value}>
+                                    {option.label}
+                                  </option>
+                                ))}
+                              </select>
+                              <p className="mt-1 text-xs text-gray-500">
+                                {
+                                  EMBEDDED_CUSTOM_HANDLER_OPTIONS.find(
+                                    (option) => option.value === cCustomHandlerKey
+                                  )?.description
+                                }
+                              </p>
+                            </div>
+
+                            <div className="md:col-span-2">
+                              <label className="text-xs text-gray-600">Custom Instructions</label>
+                              <textarea
+                                value={cCustomInstructions}
+                                onChange={(e) => setCCustomInstructions(e.target.value)}
+                                rows={3}
+                                className="mt-1 w-full rounded-lg border px-3 py-2 text-sm"
+                              />
+                            </div>
+
+                            <label className="flex items-center gap-2 rounded-lg border px-3 py-2 text-sm">
+                              <input
+                                type="checkbox"
+                                checked={cEnableFileUpload}
+                                onChange={(e) => setCEnableFileUpload(e.target.checked)}
+                              />
+                              Enable file upload
+                            </label>
+
+                            <label className="flex items-center gap-2 rounded-lg border px-3 py-2 text-sm">
+                              <input
+                                type="checkbox"
+                                checked={cEnableDownloadOutput}
+                                onChange={(e) => setCEnableDownloadOutput(e.target.checked)}
+                              />
+                              Enable download output
+                            </label>
+
+                            <label className="flex items-center gap-2 rounded-lg border px-3 py-2 text-sm md:col-span-2">
+                              <input
+                                type="checkbox"
+                                checked={cEnableTabs}
+                                onChange={(e) => setCEnableTabs(e.target.checked)}
+                              />
+                              Enable tabs
+                            </label>
+                          </>
+                        ) : null}
+                      </div>
+                    </section>
+                  </div>
+
+                  <div className="space-y-4">
+                    <section className="rounded-2xl border border-gray-200 p-4">
+                      <div className="text-sm font-semibold text-gray-900">Review</div>
+                      <div className="mt-3 space-y-2 text-sm text-gray-600">
+                        <div className="flex items-center justify-between gap-3">
+                          <span>Template</span>
+                          <span className="font-medium text-gray-900">
+                            {
+                              TOOL_TEMPLATE_OPTIONS.find((option) => option.value === cTemplateType)
+                                ?.label
+                            }
+                          </span>
+                        </div>
+                        <div className="flex items-center justify-between gap-3">
+                          <span>Slug</span>
+                          <code className="rounded bg-gray-100 px-2 py-1 text-xs text-gray-800">
+                            {createToolSlugPreview || "--"}
+                          </code>
+                        </div>
+                        <div className="flex items-center justify-between gap-3">
+                          <span>Status</span>
+                          <span className="font-medium text-gray-900">
+                            {cStatus === "published" ? "Published" : "Draft"}
+                          </span>
+                        </div>
+                        <div className="flex items-center justify-between gap-3">
+                          <span>Price</span>
+                          <span className="font-medium text-gray-900">
+                            {cPrice.trim() ? formatMoney(Number(cPrice)) : "--"}
+                          </span>
+                        </div>
+                        <div className="flex items-center justify-between gap-3">
+                          <span>License</span>
+                          <span className="font-medium text-gray-900">
+                            {cLicenseRequired ? "Required" : "Not required"}
+                          </span>
+                        </div>
+                        <div className="flex items-center justify-between gap-3">
+                          <span>Login</span>
+                          <span className="font-medium text-gray-900">
+                            {cLoginRequired ? "Required" : "Open"}
+                          </span>
+                        </div>
+                        <div className="flex items-center justify-between gap-3">
+                          <span>Purchase</span>
+                          <span className="font-medium text-gray-900">
+                            {cPurchaseRequired ? "Required" : "Open"}
+                          </span>
+                        </div>
+                      </div>
+                    </section>
+
+                    <section className="rounded-2xl border border-dashed border-gray-200 bg-gray-50 p-4 text-xs text-gray-500">
+                      When you click create, admin will automatically:
+                      <ul className="mt-2 list-disc space-y-1 pl-4">
+                        <li>generate the slug from the tool name</li>
+                        <li>create the product row</li>
+                        <li>create the tool definition from the selected template</li>
+                        <li>create the first tool price row</li>
+                      </ul>
+                    </section>
+                  </div>
+                </div>
+
+                <div className="sticky bottom-0 flex items-center justify-end gap-2 border-t bg-white p-4">
+                  <button
+                    onClick={closeCreate}
+                    className="rounded-lg border px-4 py-2 text-sm hover:bg-gray-50"
+                    disabled={creating || cImageUploading || cToolAssetUploading}
+                  >
+                    Cancel
+                  </button>
+
+                  <button
+                    onClick={createProduct}
+                    disabled={
+                      creating ||
+                      cImageUploading ||
+                      cToolAssetUploading ||
+                      scopedCategories.length === 0 ||
+                      !canCreateTool
+                    }
+                    className="rounded-lg bg-black px-4 py-2 text-sm text-white hover:opacity-90 disabled:opacity-50"
+                  >
+                    {creating ? "Creating Tool..." : "Create Tool"}
+                  </button>
+                </div>
+              </>
+            ) : null}
           </div>
         </div>
       ) : null}

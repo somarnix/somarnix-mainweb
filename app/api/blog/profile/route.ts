@@ -9,8 +9,13 @@ type UserRow = RowDataPacket & {
   username: string | null;
   first_name: string | null;
   last_name: string | null;
+  level: number | null;
   avatar_url: string | null;
   avatar_border_url: string | null;
+  cover_url: string | null;
+  cover_position_x: number | null;
+  cover_position_y: number | null;
+  cover_scale: number | null;
   bio: string | null;
   created_at: string | Date | null;
 };
@@ -50,30 +55,78 @@ function toNumber(value: unknown): number {
   return Number.isFinite(n) ? n : 0;
 }
 
+function toFiniteOr(value: unknown, fallback: number): number {
+  const n = Number(value);
+  return Number.isFinite(n) ? n : fallback;
+}
+
 export async function GET(req: NextRequest) {
   try {
     const url = new URL(req.url);
-    const sellerIdRaw = Number(url.searchParams.get("sellerId") ?? 0);
     const auth = await getAuthUser(req);
-    const sellerId = sellerIdRaw > 0 ? sellerIdRaw : auth?.userId ?? 1;
+    const sellerParam = (url.searchParams.get("seller") ?? "").trim();
+    const sellerIdRaw = Number(url.searchParams.get("sellerId") ?? 0);
     const hasAvatarBorderColumn = await hasColumn("users", "avatar_border_url");
+    const hasLevelColumn = await hasColumn("users", "level");
+    const hasCoverUrlColumn = await hasColumn("users", "cover_url");
+    const hasCoverPositionXColumn = await hasColumn("users", "cover_position_x");
+    const hasCoverPositionYColumn = await hasColumn("users", "cover_position_y");
+    const hasCoverScaleColumn = await hasColumn("users", "cover_scale");
     const avatarBorderSelect = hasAvatarBorderColumn
       ? "avatar_border_url"
       : "NULL AS avatar_border_url";
+    const levelSelect = hasLevelColumn ? "level" : "1 AS level";
+    const coverUrlSelect = hasCoverUrlColumn ? "cover_url" : "NULL AS cover_url";
+    const coverPositionXSelect = hasCoverPositionXColumn
+      ? "cover_position_x"
+      : "50.00 AS cover_position_x";
+    const coverPositionYSelect = hasCoverPositionYColumn
+      ? "cover_position_y"
+      : "50.00 AS cover_position_y";
+    const coverScaleSelect = hasCoverScaleColumn ? "cover_scale" : "1.00 AS cover_scale";
 
-    const [users] = await db.query<UserRow[]>(
-      `
-      SELECT id, email, username, first_name, last_name, avatar_url, ${avatarBorderSelect}, bio, created_at
-      FROM users
-      WHERE id = ? AND is_active = 1 AND deleted_at IS NULL
-      LIMIT 1
-      `,
-      [sellerId]
-    );
+    let users: UserRow[] = [];
+    if (sellerParam) {
+      const sellerNumericId = Number(sellerParam);
+      if (Number.isFinite(sellerNumericId) && sellerNumericId > 0) {
+        [users] = await db.query<UserRow[]>(
+          `
+          SELECT id, email, username, first_name, last_name, ${levelSelect}, avatar_url, ${avatarBorderSelect}, ${coverUrlSelect}, ${coverPositionXSelect}, ${coverPositionYSelect}, ${coverScaleSelect}, bio, created_at
+          FROM users
+          WHERE id = ? AND is_active = 1 AND deleted_at IS NULL
+          LIMIT 1
+          `,
+          [sellerNumericId]
+        );
+      } else {
+        [users] = await db.query<UserRow[]>(
+          `
+          SELECT id, email, username, first_name, last_name, ${levelSelect}, avatar_url, ${avatarBorderSelect}, ${coverUrlSelect}, ${coverPositionXSelect}, ${coverPositionYSelect}, ${coverScaleSelect}, bio, created_at
+          FROM users
+          WHERE LOWER(username) = LOWER(?) AND is_active = 1 AND deleted_at IS NULL
+          LIMIT 1
+          `,
+          [sellerParam]
+        );
+      }
+    } else {
+      const sellerId = sellerIdRaw > 0 ? sellerIdRaw : auth?.userId ?? 1;
+      [users] = await db.query<UserRow[]>(
+        `
+        SELECT id, email, username, first_name, last_name, ${levelSelect}, avatar_url, ${avatarBorderSelect}, ${coverUrlSelect}, ${coverPositionXSelect}, ${coverPositionYSelect}, ${coverScaleSelect}, bio, created_at
+        FROM users
+        WHERE id = ? AND is_active = 1 AND deleted_at IS NULL
+        LIMIT 1
+        `,
+        [sellerId]
+      );
+    }
+
     if (users.length === 0) {
       return NextResponse.json({ error: "User not found" }, { status: 404 });
     }
     const seller = users[0];
+    const sellerId = Number(seller.id);
 
     const [ordersCountRows] = await db.query<NumberRow[]>(
       `
@@ -175,8 +228,13 @@ export async function GET(req: NextRequest) {
         username: seller.username,
         firstName: seller.first_name,
         lastName: seller.last_name,
+        level: toNumber(seller.level) || 1,
         avatarUrl: seller.avatar_url,
-        avatarBorderUrl: seller.avatar_border_url,
+        avatarBorderUrl: toNumber(seller.level) >= 2 ? seller.avatar_border_url : null,
+        coverUrl: seller.cover_url,
+        coverPositionX: toFiniteOr(seller.cover_position_x, 50),
+        coverPositionY: toFiniteOr(seller.cover_position_y, 50),
+        coverScale: toFiniteOr(seller.cover_scale, 1),
         bio: seller.bio,
         memberSince: seller.created_at instanceof Date
           ? seller.created_at.toISOString()

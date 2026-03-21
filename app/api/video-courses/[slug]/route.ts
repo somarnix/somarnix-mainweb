@@ -11,6 +11,7 @@ type CourseRow = RowDataPacket & {
   title: string;
   slug: string;
   posted_by?: number | null;
+  posted_by_username?: string | null;
   category: string | null;
   tags: string | null;
   description: string | null;
@@ -27,6 +28,19 @@ type CourseRow = RowDataPacket & {
   preview_mode: string;
   preview_count: number;
 };
+
+type LinkedAuthorUserRow = RowDataPacket & {
+  id: number;
+  username: string;
+  avatar_url: string | null;
+};
+
+function extractLinkedAuthorUsername(value: string | null | undefined): string | null {
+  const trimmed = typeof value === "string" ? value.trim() : "";
+  if (!trimmed.startsWith("@")) return null;
+  const username = trimmed.slice(1).trim();
+  return username || null;
+}
 
 type SectionRow = RowDataPacket & {
   id: number;
@@ -250,6 +264,39 @@ export async function GET(
   }
 
   const course = courseRows[0];
+  const linkedAuthorUsername = extractLinkedAuthorUsername(course.author_avatar_url);
+  if (linkedAuthorUsername) {
+    const [linkedRows] = await db.query<LinkedAuthorUserRow[]>(
+      `
+      SELECT id, username, avatar_url
+      FROM users
+      WHERE LOWER(username) = LOWER(?)
+        AND is_active = 1
+        AND deleted_at IS NULL
+      LIMIT 1
+      `,
+      [linkedAuthorUsername]
+    );
+    if (linkedRows.length > 0) {
+      course.posted_by = linkedRows[0].id;
+      course.posted_by_username = linkedRows[0].username;
+      course.author_avatar_url = linkedRows[0].avatar_url;
+    }
+  } else if (hasPostedByColumn && Number(course.posted_by ?? 0) > 0) {
+    const [sellerRows] = await db.query<RowDataPacket[]>(
+      `
+      SELECT username
+      FROM users
+      WHERE id = ?
+      LIMIT 1
+      `,
+      [Number(course.posted_by)]
+    );
+    course.posted_by_username =
+      typeof sellerRows[0]?.username === "string" ? sellerRows[0].username : null;
+  } else {
+    course.posted_by_username = null;
+  }
 
   const [sections] = await db.query<SectionRow[]>(
     `

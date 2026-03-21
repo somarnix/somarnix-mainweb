@@ -24,6 +24,9 @@ type CourseRow = RowDataPacket & {
   preview_mode: string;
   preview_count: number;
   is_active: number;
+  posted_by?: number | null;
+  posted_by_name?: string | null;
+  posted_by_username?: string | null;
 };
 
 export async function GET(req: Request, ctx: { params: Promise<{ id?: string }> }) {
@@ -49,31 +52,56 @@ export async function GET(req: Request, ctx: { params: Promise<{ id?: string }> 
     `
   );
   const hasLearningOutcomesColumn = learningOutcomesColumnRows.length > 0;
+  const [postedByColumnRows] = await db.query<RowDataPacket[]>(
+    `
+    SELECT 1 AS ok
+    FROM information_schema.columns
+    WHERE table_schema = DATABASE()
+      AND table_name = 'video_courses'
+      AND column_name = 'posted_by'
+    LIMIT 1
+    `
+  );
+  const hasPostedByColumn = postedByColumnRows.length > 0;
+  const postedBySelect = hasPostedByColumn
+    ? `
+      posted_by,
+      CONCAT_WS(' ', NULLIF(TRIM(u.first_name), ''), NULLIF(TRIM(u.last_name), '')) AS posted_by_name,
+      u.username AS posted_by_username,
+    `
+    : `
+      NULL AS posted_by,
+      NULL AS posted_by_name,
+      NULL AS posted_by_username,
+    `;
+  const postedByJoin = hasPostedByColumn ? "LEFT JOIN users u ON u.id = vc.posted_by" : "";
 
   const [rows] = await db.query<CourseRow[]>(
     `
     SELECT
-      id,
-      title,
-      slug,
-      category,
-      tags,
-      description,
-      level,
-      author_name,
-      author_avatar_url,
-      rating,
-      rating_count,
-      students_count,
-      upload_date,
-      thumbnail_url,
-      hero_url,
-      ${hasLearningOutcomesColumn ? "learning_outcomes," : "NULL AS learning_outcomes,"}
-      preview_mode,
-      preview_count,
-      is_active
-    FROM video_courses
-    WHERE id = ?
+      vc.id,
+      vc.title,
+      vc.slug,
+      vc.category,
+      vc.tags,
+      vc.description,
+      vc.level,
+      vc.author_name,
+      vc.author_avatar_url,
+      vc.rating,
+      vc.rating_count,
+      vc.students_count,
+      vc.upload_date,
+      vc.thumbnail_url,
+      vc.hero_url,
+      ${hasLearningOutcomesColumn ? "vc.learning_outcomes," : "NULL AS learning_outcomes,"}
+      ${postedBySelect}
+      vc.preview_mode,
+      vc.preview_count,
+      vc.is_active
+    FROM video_courses vc
+    ${postedByJoin}
+    WHERE vc.id = ?
     LIMIT 1
     `,
     [id]

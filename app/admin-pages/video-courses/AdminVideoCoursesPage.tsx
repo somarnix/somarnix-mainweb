@@ -29,6 +29,9 @@ type VideoCourse = {
   min_price?: number | string | null;
   plan_count?: number | null;
   is_active: number;
+  posted_by?: number | null;
+  posted_by_name?: string | null;
+  posted_by_username?: string | null;
 };
 
 type Section = {
@@ -291,6 +294,11 @@ export default function AdminVideoCoursesPage({
       }),
     [promotionProducts]
   );
+  const getPostedByLabel = (course: VideoCourse | null | undefined) => {
+    if (!course) return "Unknown";
+    const fullName = (course.posted_by_name || "").trim();
+    return fullName || course.posted_by_username || (course.posted_by ? `User #${course.posted_by}` : "Unknown");
+  };
 
   const loadCourses = async () => {
     setLoading(true);
@@ -1202,6 +1210,9 @@ export default function AdminVideoCoursesPage({
                           <div className="min-w-0">
                             <div className="font-semibold text-gray-900 truncate">{course.title}</div>
                             <div className="text-xs text-gray-500 truncate">{course.slug}</div>
+                            <div className="text-xs text-gray-500 truncate">
+                              Posted by: {getPostedByLabel(course)}
+                            </div>
                           </div>
                         </div>
                       </td>
@@ -1314,6 +1325,9 @@ export default function AdminVideoCoursesPage({
                             <div className="min-w-0">
                               <div className="truncate font-semibold text-gray-900">{course.title}</div>
                               <div className="truncate text-xs text-gray-500">{course.slug}</div>
+                              <div className="truncate text-xs text-gray-500">
+                                Posted by: {getPostedByLabel(course)}
+                              </div>
                             </div>
                             <div className="text-right text-xs text-gray-500">#{course.id}</div>
                           </div>
@@ -1521,6 +1535,12 @@ export default function AdminVideoCoursesPage({
                     placeholder="Author name"
                   />
                   <input
+                    className="border rounded-lg bg-gray-50 px-3 py-2 text-sm text-gray-600"
+                    value={getPostedByLabel(editCourse)}
+                    disabled
+                    placeholder="Posted by"
+                  />
+                  <input
                     className="border rounded-lg px-3 py-2 text-sm"
                     value={editCourse?.author_avatar_url ?? ""}
                     onChange={(e) =>
@@ -1528,7 +1548,7 @@ export default function AdminVideoCoursesPage({
                         prev ? { ...prev, author_avatar_url: e.target.value } : prev
                       )
                     }
-                    placeholder="Author avatar URL"
+                    placeholder="Author avatar URL or @username"
                   />
                   <select
                     className="border rounded-lg px-3 py-2 text-sm"

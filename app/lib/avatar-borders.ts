@@ -25,7 +25,7 @@ const SQUARE_BORDER_FIT: AvatarBorderFit = {
 const ORNATE_BORDER_FIT: AvatarBorderFit = {
   insetClassName: "left-[14%] right-[14%] top-[11%] bottom-[18%]",
   borderClassName: "scale-[1.1] translate-x-[-2%] translate-y-[11%]",
-  contentShapeClassName: "rounded-[34%]",
+  contentShapeClassName: "rounded-full",
   imageClassName: "scale-[0.94] object-[center_20%]",
 };
 

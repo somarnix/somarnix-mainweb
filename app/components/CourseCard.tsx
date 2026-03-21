@@ -1,9 +1,12 @@
 // app/components/CourseCard.tsx
-import { Star, ShoppingCart, AlertTriangle } from "lucide-react";
+import { Star, ShoppingCart, AlertTriangle, Play } from "lucide-react";
 import { Button } from "./ui/button";
 import { Badge } from "./ui/badge";
 import { useLanguage } from "../contexts/LanguageContext";
 import { useCurrency } from "../contexts/CurrencyContext";
+import { FavoriteToggleButton } from "./FavoriteToggleButton";
+import { ShareButton } from "./ShareButton";
+import type { FavoriteItemType } from "../lib/favorites";
 
 export interface CourseCardProps {
   id: number;
@@ -16,6 +19,11 @@ export interface CourseCardProps {
   stockQty?: number | null;
   isUnlimitedStock?: 0 | 1 | boolean | null;
   onViewDetails?: (slug: string) => void;
+  favoriteType?: FavoriteItemType;
+  favoriteLabel?: string;
+  ctaLabel?: string;
+  ctaIcon?: "cart" | "play";
+  shareHref?: string;
 }
 
 export function CourseCard({
@@ -28,9 +36,19 @@ export function CourseCard({
   stockQty,
   isUnlimitedStock,
   onViewDetails,
+  favoriteType = "product",
+  favoriteLabel,
+  ctaLabel,
+  ctaIcon = "cart",
+  shareHref,
 }: CourseCardProps) {
   const { t } = useLanguage();
   const { formatPrice } = useCurrency();
+  const detailHref =
+    shareHref ??
+    (favoriteType === "video-course"
+      ? `/courses/${encodeURIComponent(slug)}`
+      : `/product/${encodeURIComponent(slug)}`);
 
   const discount =
     price && originalPrice
@@ -47,6 +65,24 @@ export function CourseCard({
     >
       {/* Image */}
       <div className="relative overflow-hidden">
+        <ShareButton
+          path={detailHref}
+          title={title}
+          text={category ? `${title} - ${category}` : title}
+          className="absolute right-3 top-14 z-10 flex h-10 w-10 items-center justify-center rounded-2xl bg-white/92 text-slate-500 shadow-[0_12px_26px_rgba(15,23,42,0.18)] backdrop-blur transition hover:-translate-y-0.5 hover:text-blue-600"
+        />
+        <FavoriteToggleButton
+          item={{
+            type: favoriteType,
+            title,
+            slug,
+            image,
+            price,
+            category,
+            href: detailHref,
+            label: favoriteLabel ?? category ?? null,
+          }}
+        />
         <img
           src={image ?? "/placeholder.png"}
           alt={title}
@@ -69,7 +105,7 @@ export function CourseCard({
 
         {/* Category */}
         {category && (
-          <div className="absolute top-3 right-3">
+          <div className="absolute right-14 top-3">
             <Badge variant="secondary">{category}</Badge>
           </div>
         )}
@@ -136,8 +172,12 @@ export function CourseCard({
             </span>
           ) : (
             <>
-              <ShoppingCart className="w-4 h-4 mr-2" />
-              {t("course.view")}
+              {ctaIcon === "play" ? (
+                <Play className="w-4 h-4 mr-2" />
+              ) : (
+                <ShoppingCart className="w-4 h-4 mr-2" />
+              )}
+              {ctaLabel ?? t("detail.buyNow")}
             </>
           )}
         </Button>

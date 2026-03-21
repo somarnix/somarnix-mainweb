@@ -9,6 +9,8 @@ type CourseRow = RowDataPacket & {
   id: number;
   title: string;
   slug: string;
+  posted_by?: number | null;
+  posted_by_username?: string | null;
   category: string | null;
   tags: string | null;
   description: string | null;
@@ -26,6 +28,19 @@ type CourseRow = RowDataPacket & {
   preview_count: number;
   is_active: number;
 };
+
+type LinkedAuthorUserRow = RowDataPacket & {
+  id: number;
+  username: string;
+  avatar_url: string | null;
+};
+
+function extractLinkedAuthorUsername(value: string | null | undefined): string | null {
+  const trimmed = typeof value === "string" ? value.trim() : "";
+  if (!trimmed.startsWith("@")) return null;
+  const username = trimmed.slice(1).trim();
+  return username || null;
+}
 
 export async function GET(req: Request) {
   try {
@@ -45,10 +60,38 @@ export async function GET(req: Request) {
     );
     const hasPostedByColumn = postedByColumnRows.length > 0;
 
-    const whereClause =
-      hasPostedByColumn && postedBy
-        ? "WHERE is_active = 1 AND posted_by = ?"
-        : "WHERE is_active = 1";
+    let postedByUsername: string | null = null;
+    if (postedBy) {
+      const [sellerRows] = await db.query<RowDataPacket[]>(
+        `
+        SELECT username
+        FROM users
+        WHERE id = ?
+        LIMIT 1
+        `,
+        [postedBy]
+      );
+      postedByUsername =
+        typeof sellerRows[0]?.username === "string" ? sellerRows[0].username : null;
+    }
+
+    const whereParts = ["is_active = 1"];
+    const whereValues: Array<number | string> = [];
+    if (postedBy) {
+      const ownerFilters: string[] = [];
+      if (hasPostedByColumn) {
+        ownerFilters.push("posted_by = ?");
+        whereValues.push(postedBy);
+      }
+      if (postedByUsername) {
+        ownerFilters.push("LOWER(author_avatar_url) = LOWER(?)");
+        whereValues.push(`@${postedByUsername}`);
+      }
+      if (ownerFilters.length > 0) {
+        whereParts.push(`(${ownerFilters.join(" OR ")})`);
+      }
+    }
+    const whereClause = `WHERE ${whereParts.join(" AND ")}`;
 
     const [rows] = await db.query<CourseRow[]>(
       `
@@ -56,6 +99,7 @@ export async function GET(req: Request) {
         id,
         title,
         slug,
+        ${hasPostedByColumn ? "posted_by," : "NULL AS posted_by,"}
         category,
         tags,
         description,
@@ -84,10 +128,51 @@ export async function GET(req: Request) {
       ${whereClause}
       ORDER BY id DESC
       `,
-      hasPostedByColumn && postedBy ? [postedBy] : []
+      whereValues
     );
 
-    return Response.json({ courses: rows });
+    const linkedAuthorUsernames = Array.from(
+      new Set(
+        rows
+          .map((row) => extractLinkedAuthorUsername(row.author_avatar_url))
+          .filter((value): value is string => !!value)
+          .map((value) => value.toLowerCase())
+      )
+    );
+
+    const linkedAuthorMap = new Map<string, LinkedAuthorUserRow>();
+    if (linkedAuthorUsernames.length > 0) {
+      const placeholders = linkedAuthorUsernames.map(() => "?").join(", ");
+      const [linkedUsers] = await db.query<LinkedAuthorUserRow[]>(
+        `
+        SELECT id, username, avatar_url
+        FROM users
+        WHERE LOWER(username) IN (${placeholders})
+          AND is_active = 1
+          AND deleted_at IS NULL
+        `,
+        linkedAuthorUsernames
+      );
+
+      linkedUsers.forEach((user) => {
+        linkedAuthorMap.set(user.username.toLowerCase(), user);
+      });
+    }
+
+    const resolvedRows = rows.map((row) => {
+      const linkedAuthorUsername = extractLinkedAuthorUsername(row.author_avatar_url);
+      if (!linkedAuthorUsername) return row;
+      const linkedUser = linkedAuthorMap.get(linkedAuthorUsername.toLowerCase());
+      if (!linkedUser) return row;
+      return {
+        ...row,
+        author_avatar_url: linkedUser.avatar_url,
+        posted_by: linkedUser.id,
+        posted_by_username: linkedUser.username,
+      };
+    });
+
+    return Response.json({ courses: resolvedRows });
   } catch (err: unknown) {
     return Response.json(
       { error: "Server error", detail: String(err) },

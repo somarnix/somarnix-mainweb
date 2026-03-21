@@ -1,8 +1,10 @@
 "use client";
 
 import Image from "next/image";
+import { useEffect, useState } from "react";
 import type { ComponentType, ReactNode } from "react";
 import {
+  Heart,
   ShoppingCart,
   Package,
   Layers,
@@ -24,8 +26,10 @@ import {
 } from "lucide-react";
 import { Button } from "./ui/button";
 import { ProfileAvatar } from "./ProfileAvatar";
+import { UserOnlineStatus } from "./UserOnlineStatus";
 import { useLanguage } from "../contexts/LanguageContext";
 import { useAuth } from "../contexts/AuthContext";
+import { useUserPresence } from "../lib/hooks/useUserPresence";
 
 interface SidebarProps {
   isOpen: boolean;
@@ -49,6 +53,13 @@ type ActionItem = {
   onClick: () => void;
 };
 
+type SidebarCountry = {
+  name: string;
+  code: string;
+  flag: string;
+  dial: string;
+};
+
 export function Sidebar({
   isOpen,
   onNavigate,
@@ -58,7 +69,45 @@ export function Sidebar({
 }: SidebarProps) {
   const { t } = useLanguage();
   const { user, isAuthenticated } = useAuth();
+  const userLevel = Number(user?.level ?? 1);
+  const userHasLevelPerks = userLevel >= 2;
+  const userAvatarBorderUrl = userHasLevelPerks ? user?.avatarBorderUrl ?? null : null;
+  const userPresence = useUserPresence(user?.id ?? null);
   const verifiedBadgeSrc = "/border/blue%20verify.svg";
+  const [sidebarCountry, setSidebarCountry] = useState<SidebarCountry | null>(null);
+
+  useEffect(() => {
+    const readCountry = () => {
+      if (typeof window === "undefined") return;
+      try {
+        const raw = window.localStorage.getItem("edugroit-country");
+        if (!raw) {
+          setSidebarCountry(null);
+          return;
+        }
+
+        const parsed = JSON.parse(raw);
+        if (parsed?.name && parsed?.cca2) {
+          setSidebarCountry({
+            name: String(parsed.name),
+            code: String(parsed.cca2).toUpperCase(),
+            flag: String(parsed.flag ?? "🌍"),
+            dial: String(parsed.dial ?? ""),
+          });
+          return;
+        }
+
+        setSidebarCountry(null);
+      } catch {
+        setSidebarCountry(null);
+      }
+    };
+
+    readCountry();
+    const handler = () => readCountry();
+    window.addEventListener("edugroit-country-change", handler);
+    return () => window.removeEventListener("edugroit-country-change", handler);
+  }, []);
 
   const navigationLinks: NavLink[] = [
     { id: "home", icon: Home, label: t("nav.home"), page: "home" },
@@ -73,6 +122,15 @@ export function Sidebar({
   ];
 
   const sidebarMenuItems: ActionItem[] = [
+    {
+      id: "favorite",
+      icon: Heart,
+      label: t("profile.favorite"),
+      onClick: () => {
+        onNavigate("favorites");
+        if (isMobile && onClose) onClose();
+      },
+    },
     {
       id: "cart",
       icon: ShoppingCart,
@@ -184,19 +242,33 @@ export function Sidebar({
 
         <div
           className={`flex items-center justify-center gap-3 py-6 ${
-            isAppShell ? "px-4" : "px-6"
+            isAppShell
+              ? "mx-4 mb-1 rounded-[2rem] border border-slate-200/80 bg-[radial-gradient(circle_at_top,_rgba(255,255,255,1),_rgba(248,250,252,0.99)_58%,_rgba(239,246,255,0.98)_100%)] px-7 py-8 shadow-[0_18px_40px_rgba(15,23,42,0.12)]"
+              : "px-6"
           }`}
         >
           <img
             src="/khqr-assets/gstechkh-logo.png"
             alt="GSTECHKH"
-            className="h-12 w-12 sm:h-14 sm:w-14 flex-shrink-0 object-contain rounded-xl shadow-lg"
+            className={`flex-shrink-0 object-contain shadow-lg ${
+              isAppShell
+                ? "h-20 w-20 rounded-[1.75rem] bg-white p-1.5 shadow-[0_18px_34px_rgba(37,99,235,0.16)]"
+                : "h-12 w-12 rounded-xl sm:h-14 sm:w-14"
+            }`}
           />
           <div className="flex flex-col">
-            <span className="font-bold bg-gradient-to-r from-blue-400 to-purple-400 bg-clip-text text-transparent text-2xl sm:text-3xl tracking-tight">
+            <span
+              className={`font-bold bg-gradient-to-r from-sky-500 via-blue-500 to-violet-500 bg-clip-text text-transparent tracking-tight ${
+                isAppShell ? "text-[3.1rem] leading-[0.9]" : "text-2xl sm:text-3xl"
+              }`}
+            >
               GSTECH
             </span>
-            <span className="font-bold bg-gradient-to-r from-purple-400 to-pink-400 bg-clip-text text-transparent text-lg sm:text-xl tracking-wide">
+            <span
+              className={`font-bold bg-gradient-to-r from-violet-500 to-fuchsia-400 bg-clip-text text-transparent tracking-wide ${
+                isAppShell ? "mt-1 text-[2.35rem] leading-[0.9]" : "text-lg sm:text-xl"
+              }`}
+            >
               KH
             </span>
           </div>
@@ -206,7 +278,7 @@ export function Sidebar({
           <div
             className={
               isAppShell
-                ? "relative mx-4 mb-5 mt-2 rounded-[2rem] border border-white/10 bg-[linear-gradient(145deg,rgba(37,99,235,0.96),rgba(29,78,216,0.9),rgba(124,58,237,0.82))] px-6 pb-6 pt-7 shadow-[0_24px_60px_rgba(15,23,42,0.45)]"
+                ? "relative mx-4 mb-5 mt-0 rounded-[2rem] border border-white/10 bg-[radial-gradient(circle_at_top,_rgba(96,165,250,0.28),_transparent_26%),radial-gradient(circle_at_bottom,_rgba(59,130,246,0.24),_transparent_38%),linear-gradient(160deg,#2563eb_0%,#1d4ed8_34%,#1e3a8a_68%,#172554_100%)] px-6 pb-7 pt-9 shadow-[0_24px_60px_rgba(15,23,42,0.5)]"
                 : "relative mb-4 mt-2 rounded-b-3xl bg-gradient-to-br from-blue-600 to-blue-700 p-6"
             }
           >
@@ -218,55 +290,77 @@ export function Sidebar({
                 }}
                 className={`p-2 ${
                   isAppShell
-                    ? "rounded-bl-2xl rounded-tr-[2rem] bg-black/20 hover:bg-black/30"
-                    : "rounded-bl-xl bg-gray-700 hover:bg-gray-600"
+                    ? "rounded-bl-2xl rounded-tr-[2rem] bg-slate-950/30 p-2.5 text-white shadow-[inset_0_1px_0_rgba(255,255,255,0.08)] hover:bg-slate-950/40"
+                    : "rounded-bl-xl bg-gray-700 text-white hover:bg-gray-600"
                 }`}
               >
                 <Edit className="w-4 h-4" />
               </button>
             </div>
 
-            <div className="mt-2 flex flex-col items-center text-center">
-              <ProfileAvatar
-                src={user.avatarUrl || "/avatar-default.png"}
-                alt={user.email}
-                fallback={user.username || user.email}
-                borderUrl={user.avatarBorderUrl}
-                className={isAppShell ? "h-[92px] w-[92px]" : "h-20 w-20"}
-                contentClassName={
-                  user.avatarBorderUrl
-                    ? `shadow-lg ${isAppShell ? "ring-4 ring-white/15" : ""}`
-                    : `border-4 border-sidebar-foreground/20 shadow-lg ${isAppShell ? "ring-4 ring-white/15" : ""}`
-                }
-              />
+            <div className="mt-0 flex flex-col items-center text-center">
+              <div className="relative">
+                <ProfileAvatar
+                  src={user.avatarUrl || "/avatar-default.png"}
+                  alt={user.email}
+                  fallback={user.username || user.email}
+                  borderUrl={userAvatarBorderUrl}
+                  className={isAppShell ? "h-[132px] w-[132px]" : "h-20 w-20"}
+                  contentClassName={
+                    userAvatarBorderUrl
+                      ? `shadow-lg ${isAppShell ? "ring-4 ring-white/12" : ""}`
+                      : `border-4 border-sidebar-foreground/20 shadow-lg ${isAppShell ? "ring-4 ring-white/12" : ""}`
+                  }
+                />
+                <UserOnlineStatus
+                  online={userPresence.online}
+                  showLabel={false}
+                  className="absolute bottom-1 right-1"
+                  dotClassName={`border-2 border-white shadow-none dark:border-slate-900 ${
+                    isAppShell ? "h-5 w-5" : "h-4 w-4"
+                  }`}
+                />
+              </div>
 
-              <div className="mt-2 w-full">
-                <div className="truncate text-xs text-blue-100/90">
-                  {t("sidebar.userId")}: {user.id}
+              <div className="mt-4 w-full">
+                <div className={isAppShell ? "flex justify-center" : ""}>
+                  <div
+                    className={`truncate text-xs ${
+                      isAppShell ? "text-[15px] font-medium text-blue-100/90" : "text-blue-100/90"
+                    }`}
+                  >
+                    {t("sidebar.userId")}: {user.id}
+                  </div>
                 </div>
-                <div className="mt-1 flex min-w-0 items-center justify-center gap-2">
+                <div className="mt-3 flex min-w-0 items-center justify-center gap-2">
                   <div
                     className={`truncate font-bold text-white ${
-                      isAppShell ? "text-3xl tracking-tight" : ""
+                      isAppShell ? "text-[2.45rem] tracking-tight drop-shadow-[0_12px_28px_rgba(15,23,42,0.34)]" : ""
                     }`}
                   >
                     {user.username || user.email}
                   </div>
-                  <Image
-                    src={verifiedBadgeSrc}
-                    alt="Verified"
-                    width={32}
-                    height={32}
-                    className={`shrink-0 object-contain drop-shadow-[0_4px_10px_rgba(14,165,233,0.45)] ${
-                      isAppShell ? "h-7 w-7" : "h-5 w-5"
-                    }`}
-                  />
+                  {userHasLevelPerks ? (
+                    <Image
+                      src={verifiedBadgeSrc}
+                      alt="Verified"
+                      width={32}
+                      height={32}
+                      className={`shrink-0 object-contain drop-shadow-[0_4px_10px_rgba(14,165,233,0.45)] ${
+                        isAppShell ? "h-8 w-8" : "h-5 w-5"
+                      }`}
+                    />
+                  ) : null}
                 </div>
-                <div className={`truncate text-blue-50 ${isAppShell ? "mt-1 text-sm" : "text-xs"}`}>
+                <div
+                  className={`truncate text-blue-50 ${
+                    isAppShell ? "mt-2 text-[15px] font-medium text-blue-50/95" : "text-xs"
+                  }`}
+                >
                   {user.email}
                 </div>
                 {isAppShell && (
-                  <div className="mt-4 flex items-center justify-center gap-2 text-[11px] text-white/85">
+                  <div className="mt-4 flex items-center justify-center gap-2 text-[11px] text-white/80">
                     <span className="rounded-full border border-white/20 bg-white/10 px-3 py-1">
                       {t("sidebar.androidApp")}
                     </span>
@@ -275,6 +369,35 @@ export function Sidebar({
                     </span>
                   </div>
                 )}
+
+                {sidebarCountry ? (
+                  <div
+                    className={`mt-3 flex w-full items-center justify-center gap-2 text-xs font-medium ${
+                      isAppShell
+                        ? "mx-auto mt-8 gap-3 text-[15px] font-semibold text-blue-50/95"
+                        : "text-blue-100/85"
+                    }`}
+                  >
+                    <span className={isAppShell ? "text-blue-100/80" : ""}>
+                      {t("profile.country")}:
+                    </span>
+                    <span
+                      className={`flex shrink-0 items-center justify-center overflow-hidden rounded-full text-base ${
+                        isAppShell ? "h-11 w-11 bg-white/18 shadow-[0_10px_24px_rgba(15,23,42,0.25)]" : "h-7 w-7"
+                      }`}
+                    >
+                      {sidebarCountry.flag.startsWith("http") ? (
+                        <img
+                          src={sidebarCountry.flag}
+                          alt={sidebarCountry.name}
+                          className="h-full w-full object-cover"
+                        />
+                      ) : (
+                        <span>{sidebarCountry.flag}</span>
+                      )}
+                    </span>
+                  </div>
+                ) : null}
               </div>
             </div>
           </div>
@@ -300,6 +423,23 @@ export function Sidebar({
               >
                 {t("nav.login")}
               </Button>
+
+              {sidebarCountry ? (
+                <div className="mt-3 flex w-full items-center justify-center gap-2 text-xs font-medium text-blue-100/85">
+                  <span>{t("profile.country")}:</span>
+                  <span className="flex h-7 w-7 shrink-0 items-center justify-center overflow-hidden rounded-full text-base">
+                    {sidebarCountry.flag.startsWith("http") ? (
+                      <img
+                        src={sidebarCountry.flag}
+                        alt={sidebarCountry.name}
+                        className="h-full w-full object-cover"
+                      />
+                    ) : (
+                      <span>{sidebarCountry.flag}</span>
+                    )}
+                  </span>
+                </div>
+              ) : null}
             </div>
           </div>
         )}

@@ -1,10 +1,12 @@
 import { useEffect, useMemo, useState } from "react";
-import { Play, Eye, Calendar, Star } from "lucide-react";
+import { Play, Eye, Calendar, Star, ArrowRight } from "lucide-react";
 import { useLanguage } from "../../contexts/LanguageContext";
 import { CoursesFilter } from "../../components/filters/CoursesFilter";
+import { DesktopGridToggle } from "../../components/DesktopGridToggle";
 import { Pagination } from "../../components/Pagination";
 import { Search } from "../../components/Search";
 import CoursesVideoGrid from "./components/CoursesVideoGrid";
+import { FavoriteToggleButton } from "../../components/FavoriteToggleButton";
 
 interface CoursesPageProps {
   onNavigate: (page: string) => void;
@@ -31,6 +33,10 @@ export function CoursesPage({ onOpenVideoDetail }: CoursesPageProps) {
   >("all");
   const [currentPage, setCurrentPage] = useState(1);
   const [itemsPerPage, setItemsPerPage] = useState(6);
+  const [screenWidth, setScreenWidth] = useState(1280);
+  const [mobileGridColumns, setMobileGridColumns] = useState<1 | 2>(2);
+  const [tabletGridColumns, setTabletGridColumns] = useState<2 | 3>(3);
+  const [desktopGridColumns, setDesktopGridColumns] = useState<4 | 5>(4);
 
   useEffect(() => {
     const load = async () => {
@@ -55,13 +61,54 @@ export function CoursesPage({ onOpenVideoDetail }: CoursesPageProps) {
   }, [t]);
 
   useEffect(() => {
+    const updateScreenWidth = () => setScreenWidth(window.innerWidth);
+    updateScreenWidth();
+    window.addEventListener("resize", updateScreenWidth);
+    return () => window.removeEventListener("resize", updateScreenWidth);
+  }, []);
+
+  useEffect(() => {
     const updateItemsPerPage = () => {
-      setItemsPerPage(window.innerWidth < 768 ? 3 : 6);
+      const width = window.innerWidth;
+      if (width < 768) {
+        setItemsPerPage(mobileGridColumns === 2 ? 4 : 3);
+        return;
+      }
+      if (width < 1024) {
+        setItemsPerPage(tabletGridColumns === 3 ? 6 : 4);
+        return;
+      }
+      setItemsPerPage(desktopGridColumns === 5 ? 10 : 8);
     };
     updateItemsPerPage();
     window.addEventListener("resize", updateItemsPerPage);
     return () => window.removeEventListener("resize", updateItemsPerPage);
-  }, []);
+  }, [desktopGridColumns, mobileGridColumns, tabletGridColumns]);
+
+  const isPhone = screenWidth < 768;
+  const isTablet = screenWidth >= 768 && screenWidth < 1024;
+  const courseGridClassName = isPhone
+    ? mobileGridColumns === 2
+      ? "grid grid-cols-2 gap-4"
+      : "grid grid-cols-1 gap-4"
+    : isTablet
+    ? tabletGridColumns === 3
+      ? "grid grid-cols-2 md:grid-cols-3 gap-6"
+      : "grid grid-cols-2 gap-6"
+    : `grid grid-cols-1 md:grid-cols-2 gap-6 ${
+        desktopGridColumns === 5 ? "lg:grid-cols-4 xl:grid-cols-5" : "lg:grid-cols-4"
+      }`;
+  const featuredGridCount = isPhone
+    ? mobileGridColumns === 2
+      ? 4
+      : 3
+    : isTablet
+    ? tabletGridColumns === 3
+      ? 6
+      : 4
+    : desktopGridColumns === 5
+    ? 5
+    : 4;
 
   const normalize = (value: string) => value.trim().toLowerCase();
 
@@ -250,14 +297,18 @@ export function CoursesPage({ onOpenVideoDetail }: CoursesPageProps) {
           new Date(String(b.upload_date ?? "")).getTime() -
           new Date(String(a.upload_date ?? "")).getTime()
       )
-      .slice(0, 3);
-  }, [filteredCourses]);
+      .slice(0, featuredGridCount);
+  }, [featuredGridCount, filteredCourses]);
 
   const popularVideos = useMemo(() => {
     return [...filteredCourses]
       .sort((a, b) => Number(b.students_count ?? 0) - Number(a.students_count ?? 0))
-      .slice(0, 3);
-  }, [filteredCourses]);
+      .slice(0, featuredGridCount);
+  }, [featuredGridCount, filteredCourses]);
+
+  const featuredCourse = useMemo(() => {
+    return newestVideos[0] ?? popularVideos[0] ?? filteredCourses[0] ?? null;
+  }, [filteredCourses, newestVideos, popularVideos]);
 
   const toggleSelection = (
     value: string,
@@ -343,6 +394,18 @@ export function CoursesPage({ onOpenVideoDetail }: CoursesPageProps) {
       className="bg-white rounded-2xl border border-blue-100 shadow-sm hover:shadow-xl transition-all hover:-translate-y-1 cursor-pointer overflow-hidden dark:bg-gray-900 dark:border-gray-800"
     >
       <div className="relative">
+        <FavoriteToggleButton
+          item={{
+            type: "video-course",
+            title: String(video.title ?? ""),
+            slug: String(video.slug ?? video.id),
+            image: video.thumbnail_url || null,
+            price: Number(video.min_price ?? 0),
+            category: video.category || t("labels.video"),
+            href: `/courses/${encodeURIComponent(String(video.slug ?? video.id))}`,
+            label: t("nav.videoCourses"),
+          }}
+        />
         <img
           src={video.thumbnail_url || "/placeholder.png"}
           alt={video.title}
@@ -407,8 +470,8 @@ export function CoursesPage({ onOpenVideoDetail }: CoursesPageProps) {
 
   return (
     <div className="video-blog-page min-h-screen bg-gray-50 dark:bg-gray-900">
-      <div className="max-w-7xl mx-auto px-4 py-12">
-        <div className="mb-8 flex flex-col gap-4 rounded-2xl border border-gray-100 bg-white p-5 shadow-sm dark:border-gray-800 dark:bg-gray-900 md:flex-row md:items-center md:justify-between">
+      <div className="max-w-7xl mx-auto px-4 py-6 sm:py-8 lg:py-12">
+        <div className="mb-4 flex flex-col gap-3 rounded-2xl border border-gray-100 bg-white p-5 shadow-sm dark:border-gray-800 dark:bg-gray-900 md:mb-6 lg:mb-8 lg:flex-row lg:items-center lg:justify-between">
           <div>
             <h1 className="text-2xl font-semibold text-gray-900 dark:text-gray-100">
               {t("courses.videoBlogTitle")}
@@ -417,16 +480,30 @@ export function CoursesPage({ onOpenVideoDetail }: CoursesPageProps) {
               {t("courses.videoBlogSubtitle")}
             </p>
           </div>
-          <Search
-            value={searchTerm}
-            onChange={setSearchTerm}
-            placeholder={t("courses.searchVideos")}
-            className="w-full md:max-w-sm"
-            inputClassName="bg-gray-50 focus:ring-blue-500 dark:bg-gray-900 dark:border-gray-800"
-          />
+          <div className="flex w-full flex-col gap-3 lg:w-[560px] lg:items-end">
+            <div className="flex w-full flex-col gap-3 sm:flex-row sm:items-center sm:justify-end">
+              <Search
+                value={searchTerm}
+                onChange={setSearchTerm}
+                placeholder={t("courses.searchVideos")}
+                className="w-full sm:flex-1"
+                inputClassName="bg-gray-50 focus:ring-blue-500 dark:bg-gray-900 dark:border-gray-800"
+              />
+              <DesktopGridToggle
+                value={tabletGridColumns}
+                onChange={(value) => setTabletGridColumns(value as 2 | 3)}
+                options={[2, 3]}
+                visibilityClassName="hidden md:flex lg:hidden"
+              />
+              <DesktopGridToggle
+                value={desktopGridColumns}
+                onChange={(value) => setDesktopGridColumns(value as 4 | 5)}
+              />
+            </div>
+          </div>
         </div>
 
-        <div className="grid grid-cols-1 md:grid-cols-12 gap-8">
+        <div className="space-y-6">
           <CoursesFilter
             categories={categories}
             tags={tags}
@@ -446,10 +523,89 @@ export function CoursesPage({ onOpenVideoDetail }: CoursesPageProps) {
             onSortClick={handleSortClick}
             onClearFilters={handleClearFilters}
           />
+          <DesktopGridToggle
+            value={mobileGridColumns}
+            onChange={(value) => setMobileGridColumns(value as 1 | 2)}
+            options={[1, 2]}
+            visibilityClassName="flex md:hidden"
+          />
 
-          {/* ✅ RIGHT SIDE WRAPPED + STICKY */}
-          <section className="md:col-span-8 lg:col-span-9 min-w-0">
-            <div className="rounded-2xl border border-gray-200 bg-white p-5 shadow-sm space-y-10 lg:sticky lg:top-24 dark:border-gray-800 dark:bg-gray-900">
+          {featuredCourse ? (
+            <section className="relative overflow-hidden rounded-[2rem] bg-[radial-gradient(circle_at_top_left,_rgba(139,92,246,0.35),_transparent_34%),linear-gradient(135deg,_#1d0b4f_0%,_#2f0f7f_35%,_#14062d_100%)] px-5 py-6 text-white shadow-[0_24px_60px_rgba(37,0,99,0.28)] sm:px-8 sm:py-8 lg:px-10 lg:py-10">
+              <div className="pointer-events-none absolute inset-0 opacity-20 [background-image:radial-gradient(circle_at_1px_1px,rgba(255,255,255,0.18)_1px,transparent_0)] [background-size:24px_24px]" />
+              <div className="pointer-events-none absolute -left-16 top-10 h-40 w-40 rounded-full bg-fuchsia-500/20 blur-3xl" />
+              <div className="pointer-events-none absolute right-0 top-0 h-48 w-48 rounded-full bg-blue-500/20 blur-3xl" />
+
+              <div className="relative grid items-center gap-6 lg:grid-cols-[minmax(0,1.25fr)_380px] lg:gap-10">
+                <div className="max-w-2xl">
+                  <div className="text-sm font-semibold uppercase tracking-[0.28em] text-violet-200/90">
+                    {t("courses.videoBlogTitle")}
+                  </div>
+                  <h2 className="mt-3 text-3xl font-black leading-tight text-white sm:text-4xl lg:text-6xl">
+                    {featuredCourse.title || t("courses.popularVideos")}
+                  </h2>
+                  <p className="mt-4 max-w-xl text-sm leading-6 text-violet-100/85 sm:text-base">
+                    {featuredCourse.description || t("courses.videoBlogSubtitle")}
+                  </p>
+
+                  <div className="mt-6 flex flex-wrap items-center gap-3 text-sm text-violet-100/90">
+                    <span className="rounded-full border border-white/15 bg-white/10 px-4 py-2">
+                      {formatViews(Number(featuredCourse.students_count ?? 0))} {t("labels.students")}
+                    </span>
+                    <span className="rounded-full border border-white/15 bg-white/10 px-4 py-2">
+                      {Number(featuredCourse.lesson_count ?? 0)} {t("labels.lessons")}
+                    </span>
+                    <span className="rounded-full border border-white/15 bg-white/10 px-4 py-2">
+                      {Number(featuredCourse.rating ?? 0).toFixed(1)} {t("courseDetail.rating")}
+                    </span>
+                  </div>
+
+                  <button
+                    type="button"
+                    onClick={() => openVideo({ slug: featuredCourse.slug, id: String(featuredCourse.id) })}
+                    className="mt-7 inline-flex items-center gap-2 rounded-full bg-yellow-400 px-5 py-3 text-sm font-bold text-slate-950 transition hover:bg-yellow-300"
+                  >
+                    {t("courses.viewVideo")}
+                    <ArrowRight className="h-4 w-4" />
+                  </button>
+                </div>
+
+                <button
+                  type="button"
+                  onClick={() => openVideo({ slug: featuredCourse.slug, id: String(featuredCourse.id) })}
+                  className="group relative mx-auto w-full max-w-[380px] overflow-hidden rounded-[2rem] bg-white text-left text-slate-900 shadow-[0_18px_50px_rgba(10,8,37,0.35)] transition hover:-translate-y-1"
+                >
+                  <div className="relative aspect-[4/3] overflow-hidden bg-slate-900">
+                    <img
+                      src={featuredCourse.thumbnail_url || "/placeholder.png"}
+                      alt={featuredCourse.title}
+                      className="h-full w-full object-cover transition duration-500 group-hover:scale-105"
+                    />
+                    <div className="absolute inset-0 bg-gradient-to-t from-slate-950/30 via-transparent to-transparent" />
+                    <div className="absolute left-4 top-4 rounded-full bg-slate-950/75 px-3 py-1 text-xs font-semibold text-white backdrop-blur">
+                      {featuredCourse.category || t("labels.video")}
+                    </div>
+                  </div>
+                  <div className="space-y-2 px-5 py-5">
+                    <div className="line-clamp-2 text-2xl font-black tracking-tight text-slate-900">
+                      {featuredCourse.title}
+                    </div>
+                    <div className="flex items-center justify-between text-sm text-slate-500">
+                      <span>{featuredCourse.author_name || t("labels.instructor")}</span>
+                      <span className="font-semibold text-blue-600">
+                        {Number(featuredCourse.min_price ?? 0) === 0
+                          ? t("labels.free")
+                          : `$${Number(featuredCourse.min_price ?? 0).toFixed(2)}`}
+                      </span>
+                    </div>
+                  </div>
+                </button>
+              </div>
+            </section>
+          ) : null}
+
+          <section className="min-w-0">
+            <div className="space-y-6 rounded-2xl border border-gray-200 bg-white p-4 shadow-sm md:p-5 md:space-y-8 lg:space-y-10 dark:border-gray-800 dark:bg-gray-900">
               {viewMode === "all" ? (
                 <>
                   <div className="space-y-4">
@@ -461,7 +617,7 @@ export function CoursesPage({ onOpenVideoDetail }: CoursesPageProps) {
                         {t("courses.latestUploads")}
                       </p>
                     </div>
-                    <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-6">
+                    <div className={courseGridClassName}>
                       {newestVideos.map(renderVideoCard)}
                     </div>
                   </div>
@@ -475,7 +631,7 @@ export function CoursesPage({ onOpenVideoDetail }: CoursesPageProps) {
                         {t("courses.mostWatched")}
                       </p>
                     </div>
-                    <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-6">
+                    <div className={courseGridClassName}>
                       {popularVideos.map(renderVideoCard)}
                     </div>
                   </div>
@@ -497,6 +653,7 @@ export function CoursesPage({ onOpenVideoDetail }: CoursesPageProps) {
                       loadingLabel={t("common.loading")}
                       items={pagedCourses}
                       renderItem={renderVideoCard}
+                      className={courseGridClassName}
                     />
 
                     <Pagination
@@ -528,6 +685,7 @@ export function CoursesPage({ onOpenVideoDetail }: CoursesPageProps) {
                     loadingLabel={t("common.loading")}
                     items={pagedSectionCourses}
                     renderItem={renderVideoCard}
+                    className={courseGridClassName}
                   />
 
                   <Pagination

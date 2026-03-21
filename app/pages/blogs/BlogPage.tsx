@@ -1,11 +1,16 @@
 ﻿"use client";
 
 import React from "react";
+import Image from "next/image";
 import { useRouter, useSearchParams } from "next/navigation";
 import { CourseCard } from "../../components/CourseCard";
 import { ProfileAvatar } from "../../components/ProfileAvatar";
+import { getDefaultProfileCover, ProfileCoverArt } from "../../components/ProfileCoverArt";
+import { UserLevelBadge } from "../../components/level/UserLevelBadge";
+import { UserOnlineStatus } from "../../components/UserOnlineStatus";
 import { useAuth } from "../../contexts/AuthContext";
 import { useLanguage } from "../../contexts/LanguageContext";
+import { useUserPresence } from "../../lib/hooks/useUserPresence";
 import { useAppShellMode } from "../../lib/app-shell";
 
 type ServiceCard = {
@@ -46,8 +51,14 @@ type BlogProfileResponse = {
     id: number;
     name: string;
     email: string;
+    username?: string | null;
+    level?: number | null;
     avatarUrl: string | null;
     avatarBorderUrl?: string | null;
+    coverUrl?: string | null;
+    coverPositionX?: number | null;
+    coverPositionY?: number | null;
+    coverScale?: number | null;
     bio: string | null;
     memberSince: string | null;
   };
@@ -92,6 +103,12 @@ function formatCompact(value: number) {
   return `${Math.round(value)}`;
 }
 
+function getBadgeAssetNumber(currentLevel: number) {
+  if (currentLevel <= 1) return 1;
+  if (currentLevel <= 10) return currentLevel;
+  return Math.min(100, 11 + Math.floor((currentLevel - 11) / 11));
+}
+
 type BlogPageProps = {
   initialSellerId?: string | null;
 };
@@ -116,11 +133,12 @@ export function BlogPage({ initialSellerId }: BlogPageProps) {
   const [profile, setProfile] = React.useState<BlogProfileResponse | null>(null);
   const [profileLoading, setProfileLoading] = React.useState(false);
   const [followLoading, setFollowLoading] = React.useState(false);
+  const sellerPresence = useUserPresence(profile?.seller.id ?? sellerId);
 
   React.useEffect(() => {
-    const fromRoute = Number(initialSellerId ?? 0);
-    if (Number.isFinite(fromRoute) && fromRoute > 0) {
-      setSellerId(fromRoute);
+    const fromRoute = (initialSellerId ?? "").trim();
+    if (fromRoute) {
+      setSellerId(Number.isFinite(Number(fromRoute)) && Number(fromRoute) > 0 ? Number(fromRoute) : null);
       return;
     }
 
@@ -142,14 +160,16 @@ export function BlogPage({ initialSellerId }: BlogPageProps) {
     let active = true;
 
     const loadProfile = async () => {
-      if (!sellerId) {
+      const routeSellerKey = (initialSellerId ?? "").trim();
+      if (!sellerId && !routeSellerKey) {
         if (!active) return;
         setProfile(null);
         return;
       }
       try {
         setProfileLoading(true);
-        const res = await fetch(`/api/blog/profile?sellerId=${sellerId}`, {
+        const sellerQueryValue = routeSellerKey || String(sellerId);
+        const res = await fetch(`/api/blog/profile?seller=${encodeURIComponent(sellerQueryValue)}`, {
           cache: "no-store",
           credentials: "include",
         });
@@ -157,6 +177,7 @@ export function BlogPage({ initialSellerId }: BlogPageProps) {
         if (!res.ok) throw new Error("Failed to load profile");
         if (!active) return;
         setProfile(data);
+        setSellerId(Number(data.seller.id) > 0 ? Number(data.seller.id) : null);
       } catch {
         if (!active) return;
         setProfile(null);
@@ -169,7 +190,23 @@ export function BlogPage({ initialSellerId }: BlogPageProps) {
     return () => {
       active = false;
     };
-  }, [sellerId]);
+  }, [initialSellerId, sellerId]);
+
+  React.useEffect(() => {
+    if (typeof window === "undefined") return;
+    const username = profile?.seller.username?.trim();
+    if (!username) return;
+
+    const normalizedTarget = `/blog/${encodeURIComponent(username.toLowerCase())}`;
+    if (window.location.pathname.toLowerCase() === normalizedTarget) return;
+
+    const currentState = window.history.state;
+    const nextState =
+      currentState && typeof currentState === "object"
+        ? { ...currentState, page: "blog", sellerId: username }
+        : { page: "blog", sellerId: username };
+    window.history.replaceState(nextState, "", normalizedTarget);
+  }, [profile?.seller.username]);
 
   React.useEffect(() => {
     let active = true;
@@ -345,6 +382,12 @@ export function BlogPage({ initialSellerId }: BlogPageProps) {
   const sellerName = profileLoading
     ? t("common.loading")
     : profile?.seller.name || t("blog.sellerFallback");
+  const verifiedBadgeSrc = "/border/blue%20verify.svg";
+  const sellerLevel = Number(profile?.seller.level ?? 1);
+  const sellerHasLevelPerks = sellerLevel >= 2;
+  const sellerAvatarBorderUrl = sellerHasLevelPerks ? profile?.seller.avatarBorderUrl ?? null : null;
+  const sellerBadgeAssetSrc = `/Budget%20GSTECHKH%20SVG/${getBadgeAssetNumber(sellerLevel)}.svg`;
+  const sellerCoverSrc = profile?.seller.coverUrl || getDefaultProfileCover(profile?.seller.id ?? sellerId ?? 1);
   const sellerMeta = t("blog.sellerMeta", {
     followers: formatCompact(profile?.stats.followers ?? 0),
     following: formatCompact(profile?.stats.following ?? 0),
@@ -362,36 +405,82 @@ export function BlogPage({ initialSellerId }: BlogPageProps) {
         isAppShell ? "pb-8 pt-2 sm:pt-4" : ""
       }`}
     >
-      <div className="mx-auto w-full max-w-7xl px-3 py-4 sm:px-5 sm:py-8 lg:px-8 lg:py-10">
+      <div className="mx-auto w-full max-w-7xl px-2 py-3 sm:px-5 sm:py-8 lg:px-8 lg:py-10">
         <section className="mb-4 overflow-hidden rounded-[1.5rem] border border-slate-200/80 bg-white/95 shadow-[0_24px_60px_-36px_rgba(15,23,42,0.45)] backdrop-blur dark:border-slate-800 dark:bg-slate-900/95 sm:mb-8 sm:rounded-[2rem]">
-          <div className="h-16 bg-gradient-to-r from-blue-600 via-indigo-500 to-violet-500 sm:h-24" />
+          <div className="relative h-28 sm:h-44 lg:h-48">
+            <ProfileCoverArt
+              src={sellerCoverSrc}
+              alt={`${sellerName} cover`}
+              positionX={profile?.seller.coverPositionX ?? 50}
+              positionY={profile?.seller.coverPositionY ?? 50}
+              scale={profile?.seller.coverScale ?? 1}
+              className="absolute inset-0"
+              imageClassName="brightness-[0.78]"
+            />
+            <div className="absolute inset-0 bg-gradient-to-br from-slate-950/25 via-blue-900/10 to-violet-900/20" />
+          </div>
 
           <div className="px-3 pb-4 pt-0 sm:px-6 sm:pb-6">
             <div className="flex flex-col gap-3 sm:gap-4">
               <div className="flex flex-col gap-3 sm:flex-row sm:items-end sm:justify-between">
                 <div className="flex min-w-0 items-start gap-3 sm:gap-4">
-                  <div className="-mt-8 shrink-0 rounded-[1.5rem] bg-white p-1 shadow-[0_12px_30px_rgba(15,23,42,0.12)] ring-1 ring-slate-200/70 dark:bg-slate-900 dark:ring-slate-700 sm:-mt-12 sm:p-2 sm:rounded-[1.75rem]">
-                    <ProfileAvatar
-                      src={profile?.seller.avatarUrl}
-                      alt={sellerName}
-                      fallback={avatarInitials}
-                      borderUrl={profile?.seller.avatarBorderUrl}
-                      className="h-16 w-16 sm:h-24 sm:w-24"
-                      contentClassName={
-                        profile?.seller.avatarBorderUrl
-                          ? "shadow-lg"
-                          : "border-4 border-white shadow-lg dark:border-slate-900"
-                      }
-                      fallbackClassName="text-lg sm:text-2xl"
-                    />
+                  <div className="shrink-0">
+                    <div className="-mt-8 rounded-[1.5rem] bg-white p-1 shadow-[0_12px_30px_rgba(15,23,42,0.12)] ring-1 ring-slate-200/70 dark:bg-slate-900 dark:ring-slate-700 sm:-mt-12 sm:p-2 sm:rounded-[1.75rem]">
+                      <div className="relative">
+                        <ProfileAvatar
+                          src={profile?.seller.avatarUrl}
+                          alt={sellerName}
+                          fallback={avatarInitials}
+                          borderUrl={sellerAvatarBorderUrl}
+                          className="h-16 w-16 sm:h-24 sm:w-24"
+                          contentClassName={
+                            sellerAvatarBorderUrl
+                              ? "shadow-lg"
+                              : "border-4 border-white shadow-lg dark:border-slate-900"
+                          }
+                          fallbackClassName="text-lg sm:text-2xl"
+                        />
+                        <UserOnlineStatus
+                          online={sellerPresence.online}
+                          showLabel={false}
+                          className="absolute bottom-1 right-1"
+                          dotClassName="h-4 w-4 border-2 border-white shadow-none dark:border-slate-900 sm:h-5 sm:w-5"
+                        />
+                      </div>
+                    </div>
+                    <div className="mt-2 flex justify-center">
+                      <UserOnlineStatus
+                        online={sellerPresence.online}
+                        onlineLabel="Online"
+                        offlineLabel="Offline"
+                      />
+                    </div>
                   </div>
 
                   <div className="min-w-0 pt-2 sm:pt-0">
-                    <div className="truncate text-xl font-semibold tracking-tight text-slate-900 dark:text-white sm:text-2xl md:text-3xl">
-                      {sellerName}
+                    <div className="flex items-center gap-2">
+                      <div className="truncate text-lg font-semibold tracking-tight text-slate-900 dark:text-white sm:text-2xl md:text-3xl">
+                        {sellerName}
+                      </div>
+                      {sellerHasLevelPerks ? (
+                        <img
+                          src={verifiedBadgeSrc}
+                          alt="Verified"
+                          className="h-5 w-5 shrink-0 object-contain sm:h-6 sm:w-6"
+                        />
+                      ) : null}
                     </div>
                     <div className="mt-1 text-xs text-slate-500 dark:text-slate-300 sm:text-sm">
                       {sellerMeta}
+                    </div>
+                    <div className="mt-2">
+                      <UserLevelBadge
+                        userId={profile?.seller.id ?? sellerId}
+                        size="sm"
+                        showProgress={false}
+                        lang={(language as "en" | "km") || "en"}
+                        tone="dark"
+                      />
                     </div>
                   </div>
                 </div>
@@ -412,7 +501,7 @@ export function BlogPage({ initialSellerId }: BlogPageProps) {
                         ? t("blog.following")
                         : t("blog.follow")}
                   </button>
-                  <button className="min-h-10 rounded-full bg-slate-900 px-4 py-2 text-xs font-semibold text-white transition hover:bg-slate-800 dark:bg-white dark:text-slate-900 dark:hover:bg-slate-100 sm:text-sm">
+                  <button className="min-h-10 rounded-full border border-slate-900 bg-slate-900 px-4 py-2 text-xs font-semibold text-white transition hover:bg-slate-800 dark:border-slate-600 dark:bg-slate-800 dark:text-white dark:hover:bg-slate-700 sm:text-sm">
                     {t("blog.message")}
                   </button>
                 </div>
@@ -430,6 +519,19 @@ export function BlogPage({ initialSellerId }: BlogPageProps) {
         <div className="grid gap-4 xl:grid-cols-[280px_minmax(0,1fr)]">
           <aside className="space-y-4 xl:sticky xl:top-20 xl:self-start">
             <section className="rounded-[1.5rem] border border-slate-200/70 bg-white/90 p-4 shadow-[0_18px_45px_-36px_rgba(15,23,42,0.55)] backdrop-blur dark:border-slate-800 dark:bg-slate-900 sm:rounded-[1.75rem] sm:p-6">
+              <div className="mb-3 flex justify-center sm:mb-5">
+                <div className="relative h-14 w-14 shrink-0 sm:h-24 sm:w-24">
+                  <Image
+                    src={sellerBadgeAssetSrc}
+                    alt={`Level ${sellerLevel} badge`}
+                    fill
+                    sizes="56px"
+                    className="object-contain"
+                    unoptimized
+                  />
+                </div>
+              </div>
+
               <div className="grid grid-cols-2 gap-2 text-center sm:gap-3">
                 <div className="rounded-xl border border-slate-100 bg-slate-50/60 px-2 py-3 dark:border-slate-800 dark:bg-slate-950/40 sm:rounded-2xl sm:px-3 sm:py-4">
                   <div className="text-lg font-bold text-slate-900 dark:text-white sm:text-xl">
@@ -445,26 +547,26 @@ export function BlogPage({ initialSellerId }: BlogPageProps) {
                 </div>
               </div>
 
-              <div className="mt-4 space-y-2 text-xs text-slate-600 dark:text-slate-300 sm:mt-5 sm:space-y-3 sm:text-sm">
-                <div className="flex items-center justify-between border-b border-slate-100 pb-2 text-xs dark:border-slate-800">
+              <div className="mt-3 space-y-1.5 text-[11px] text-slate-600 dark:text-slate-300 sm:mt-5 sm:space-y-3 sm:text-sm">
+                <div className="flex items-center justify-between border-b border-slate-100 pb-2 text-[11px] dark:border-slate-800 sm:text-xs">
                   <span>{t("blog.memberSince")}</span>
                   <span className="font-semibold text-slate-900 dark:text-white">
                     {formatMemberSince(profile?.seller.memberSince ?? null, language)}
                   </span>
                 </div>
-                <div className="flex items-center justify-between border-b border-slate-100 pb-2 text-xs dark:border-slate-800">
+                <div className="flex items-center justify-between border-b border-slate-100 pb-2 text-[11px] dark:border-slate-800 sm:text-xs">
                   <span>{t("blog.successfulDelivery")}</span>
                   <span className="font-semibold text-emerald-600">
                     {(profile?.stats.successfulDelivery ?? 0).toFixed(2)}%
                   </span>
                 </div>
-                <div className="flex items-center justify-between border-b border-slate-100 pb-2 text-xs dark:border-slate-800">
+                <div className="flex items-center justify-between border-b border-slate-100 pb-2 text-[11px] dark:border-slate-800 sm:text-xs">
                   <span>{t("blog.totalLifetimeOrders")}</span>
                   <span className="font-semibold text-slate-900 dark:text-white">
                     {formatCompact(profile?.stats.totalLifetimeOrders ?? 0)}
                   </span>
                 </div>
-                <div className="flex items-center justify-between text-xs">
+                <div className="flex items-center justify-between text-[11px] sm:text-xs">
                   <span>{t("blog.allTimeRating")}</span>
                   <span className="font-semibold text-emerald-600">
                     {(profile?.stats.allTimeRating ?? 0).toFixed(2)}
@@ -485,12 +587,35 @@ export function BlogPage({ initialSellerId }: BlogPageProps) {
 
           <section className="space-y-4 sm:space-y-6">
             <div className="rounded-[1.5rem] border border-slate-200 bg-white p-3 shadow-[0_18px_45px_-36px_rgba(15,23,42,0.55)] dark:border-slate-800 dark:bg-slate-900 sm:rounded-[1.75rem] sm:p-6">
-              <div className="flex flex-col gap-1">
-                <div className="text-sm font-semibold text-slate-900 dark:text-white sm:text-base">
-                  {t("blog.allServices")}
+              <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
+                <div className="flex flex-col gap-1">
+                  <div className="text-sm font-semibold text-slate-900 dark:text-white sm:text-base">
+                    {t("blog.allServices")}
+                  </div>
+                  <div className="text-xs text-slate-500 dark:text-slate-400 sm:text-sm">
+                    {t("blog.allServicesDesc")}
+                  </div>
                 </div>
-                <div className="text-xs text-slate-500 dark:text-slate-400 sm:text-sm">
-                  {t("blog.allServicesDesc")}
+
+                <div className="flex items-center gap-3 rounded-2xl border border-blue-100 bg-gradient-to-br from-blue-50 via-indigo-50 to-violet-50 px-3 py-2.5 shadow-sm dark:border-slate-700 dark:from-slate-900 dark:via-slate-900 dark:to-slate-800">
+                  <div className="relative h-11 w-11 shrink-0">
+                    <Image
+                      src={sellerBadgeAssetSrc}
+                      alt={`Level ${sellerLevel} badge`}
+                      fill
+                      sizes="44px"
+                      className="object-contain"
+                      unoptimized
+                    />
+                  </div>
+                  <div className="min-w-0">
+                    <div className="text-[11px] font-semibold uppercase tracking-[0.18em] text-blue-600 dark:text-blue-300">
+                      Badge Collection
+                    </div>
+                    <div className="mt-1 text-xs font-medium text-slate-600 dark:text-slate-300 sm:text-sm">
+                      Current reward badge
+                    </div>
+                  </div>
                 </div>
               </div>
 
