@@ -48,7 +48,7 @@ Your project has these SQL files:
 
 ```bash
 # Create backup before migration
-mysqldump -u root -p gstechedukh > backup_before_migration_$(date +%Y%m%d).sql
+mysqldump -u root -p somarnix > backup_before_migration_$(date +%Y%m%d).sql
 
 # Verify backup exists
 ls -lh backup_before_migration_*.sql
@@ -61,7 +61,7 @@ ls -lh backup_before_migration_*.sql
 mysql -u root -p
 
 # Select database
-USE gstechedukh;
+USE somarnix;
 
 # Run migration
 SOURCE sql/12-enhanced-tools-licenses.sql;
@@ -73,7 +73,7 @@ SOURCE sql/12-enhanced-tools-licenses.sql;
 -- Check new tables exist
 SELECT table_name 
 FROM information_schema.tables 
-WHERE table_schema = 'gstechedukh' 
+WHERE table_schema = 'somarnix' 
   AND table_name IN (
     'tool_download_tokens',
     'license_rate_limits', 
@@ -86,7 +86,7 @@ WHERE table_schema = 'gstechedukh'
 -- Check tool_definitions has new columns
 SELECT column_name, data_type 
 FROM information_schema.columns 
-WHERE table_schema = 'gstechedukh' 
+WHERE table_schema = 'somarnix' 
   AND table_name = 'tool_definitions'
   AND column_name IN (
     'tool_category', 'platform', 'default_device_limit',
@@ -99,7 +99,7 @@ WHERE table_schema = 'gstechedukh'
 -- Check views exist
 SELECT table_name 
 FROM information_schema.views 
-WHERE table_schema = 'gstechedukh' 
+WHERE table_schema = 'somarnix' 
   AND table_name IN (
     'v_active_licenses_summary',
     'v_recent_activations',
@@ -207,15 +207,15 @@ The stored procedure `sp_cleanup_expired_tokens` should be called periodically t
 crontab -e
 
 # Add hourly cleanup
-0 * * * * mysql -u root -p'your_password' -e "CALL gstechedukh.sp_cleanup_expired_tokens();"
+0 * * * * mysql -u root -p'your_password' -e "CALL somarnix.sp_cleanup_expired_tokens();"
 ```
 
 **Windows (Task Scheduler):**
 ```powershell
 # Create scheduled task
-$action = New-ScheduledTaskAction -Execute "mysql" -Argument "-u root -p'password' -e `"CALL gstechedukh.sp_cleanup_expired_tokens();`""
+$action = New-ScheduledTaskAction -Execute "mysql" -Argument "-u root -p'password' -e `"CALL somarnix.sp_cleanup_expired_tokens();`""
 $trigger = New-ScheduledTaskTrigger -Hourly -At 0
-Register-ScheduledTask -TaskName "GSTECH License Cleanup" -Action $action -Trigger $trigger
+Register-ScheduledTask -TaskName "SOMARNIX License Cleanup" -Action $action -Trigger $trigger
 ```
 
 ### 3. Verify Application Works
@@ -407,8 +407,8 @@ If you encounter issues:
 4. Restore from backup if needed
 
 For help:
-- Email: support@gstechkh.com
-- Telegram: @gstechkh_support
+- Email: support@somarnix.com
+- Telegram: @somarnix_support
 
 ---
 

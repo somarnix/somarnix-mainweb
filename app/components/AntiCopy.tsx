@@ -110,7 +110,7 @@ export function ProtectedImage({
       />
       {watermark && (
         <div className="absolute bottom-2 right-2 text-white/50 text-xs font-bold pointer-events-none select-none drop-shadow-md">
-          © GSTECHKH
+          © SOMARNIX
         </div>
       )}
     </div>

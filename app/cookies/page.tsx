@@ -5,7 +5,7 @@ import { POLICY_LAST_UPDATED } from "../lib/siteConfig";
 export const metadata = buildMetadata({
   title: "Cookie Policy",
   description:
-    "Read how GSTECHKH uses cookies and similar storage for sessions, preferences, and operational functionality.",
+    "Read how SOMARNIX uses cookies and similar storage for sessions, preferences, and operational functionality.",
   path: "/cookies",
 });
 
@@ -13,7 +13,7 @@ export default function CookiesPage() {
   return (
     <ContentPageShell
       title="Cookie Policy"
-      description={`Last updated ${POLICY_LAST_UPDATED}. GSTECHKH uses cookies and similar browser storage for essential session behavior, preferences, and service operation.`}
+      description={`Last updated ${POLICY_LAST_UPDATED}. SOMARNIX uses cookies and similar browser storage for essential session behavior, preferences, and service operation.`}
     >
       <div className="space-y-6 text-sm leading-7 text-slate-600 dark:text-slate-300 sm:text-base">
         <section>

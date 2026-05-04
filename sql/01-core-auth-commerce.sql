@@ -2,12 +2,12 @@
    STEP 1: CORE AUTH + COMMERCE
 ========================================================= */
 
--- DROP DATABASE IF EXISTS gstechedukh;
--- CREATE DATABASE gstechedukh
+-- DROP DATABASE IF EXISTS somarnix;
+-- CREATE DATABASE somarnix
 --   CHARACTER SET utf8mb4
 --   COLLATE utf8mb4_unicode_ci;
 
-USE gstechedukh;
+USE somarnix;
 
 CREATE TABLE IF NOT EXISTS users (
   id BIGINT UNSIGNED AUTO_INCREMENT PRIMARY KEY,

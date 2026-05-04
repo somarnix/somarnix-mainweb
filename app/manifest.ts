@@ -2,9 +2,9 @@ import type { MetadataRoute } from "next";
 
 export default function manifest(): MetadataRoute.Manifest {
   return {
-    name: "GSTECHKH",
-    short_name: "GSTECHKH",
-    description: "GSTECHKH marketplace and learning platform.",
+    name: "SOMARNIX",
+    short_name: "SOMARNIX",
+    description: "SOMARNIX marketplace and learning platform.",
     start_url: "/",
     scope: "/",
     display: "standalone",

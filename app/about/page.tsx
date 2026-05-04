@@ -6,22 +6,22 @@ import { buildMetadata } from "../lib/buildMetadata";
 export const metadata = buildMetadata({
   title: "About",
   description:
-    "Learn what GSTECHKH offers across digital products, AI tools, courses, and customer support.",
+    "Learn what SOMARNIX offers across digital products, AI tools, courses, and customer support.",
   path: "/about",
 });
 
 export default function AboutPage() {
   return (
     <ContentPageShell
-      title="About GSTECHKH"
-      description="GSTECHKH brings together digital products, learning resources, AI tools, and support workflows in one place so users can discover, buy, learn, and get help without switching platforms."
+      title="About SOMARNIX"
+      description="SOMARNIX brings together digital products, learning resources, AI tools, and support workflows in one place so users can discover, buy, learn, and get help without switching platforms."
     >
       <div className="space-y-8 text-sm leading-7 text-slate-600 dark:text-slate-300 sm:text-base">
         <section className="grid gap-4 md:grid-cols-3">
           <div className="rounded-2xl border border-slate-200 p-5 dark:border-slate-800">
             <h2 className="text-lg font-semibold text-slate-900 dark:text-slate-100">What We Offer</h2>
             <p className="mt-2">
-              GSTECHKH combines marketplace listings, AI tools, and video learning so users can access products and training from one account.
+              SOMARNIX combines marketplace listings, AI tools, and video learning so users can access products and training from one account.
             </p>
           </div>
           <div className="rounded-2xl border border-slate-200 p-5 dark:border-slate-800">

@@ -5,7 +5,7 @@ import 'server-only';
 
 export const SESSION_CONFIG = {
   maxAge: 7 * 24 * 60 * 60, // 7 days in seconds
-  name: 'gstech_session',
+  name: 'somarnix_session',
   cookieOptions: {
     httpOnly: true,
     secure: process.env.NODE_ENV === 'production',

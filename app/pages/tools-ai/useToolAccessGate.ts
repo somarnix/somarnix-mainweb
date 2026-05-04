@@ -14,7 +14,7 @@ type AccessResponse = {
   product?: { id: number; slug: string; title: string };
 };
 
-const DEVICE_ID_KEY = "gstech_tool_device_id";
+const DEVICE_ID_KEY = "somarnix_tool_device_id";
 
 function getDeviceId(): string {
   if (typeof window === "undefined") return "";

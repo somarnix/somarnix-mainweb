@@ -28,7 +28,7 @@ type ShareButtonProps = {
   stopPropagation?: boolean;
 };
 
-const SHARE_LOGO_URL = "/khqr-assets/gstechkh-logo.png";
+const SHARE_LOGO_URL = "/khqr-assets/somarnix-logo.png";
 
 function buildBrowserAssetUrl(path: string) {
   if (typeof window === "undefined") return path;
@@ -256,9 +256,9 @@ async function buildPosterDataUrl({
   const qrCardX = 590;
   const qrCardY = contentTop + 12;
   const qrCardSize = 190;
-  const sellerDisplayName = sellerName?.trim() || "GSTECHKH";
+  const sellerDisplayName = sellerName?.trim() || "SOMARNIX";
   const subtitleText = subtitle.trim() || pageUrl;
-  const siteDomain = pageDomainLabel || "GSTECHKH.COM";
+  const siteDomain = pageDomainLabel || "SOMARNIX.COM";
 
   let drewImage = false;
   if (imageUrl) {
@@ -292,7 +292,7 @@ async function buildPosterDataUrl({
     ctx.restore();
     ctx.fillStyle = "#2563eb";
     ctx.font = "bold 44px Arial";
-    ctx.fillText("GSTECHKH", imageLeft + 26, imageTop + 62);
+    ctx.fillText("SOMARNIX", imageLeft + 26, imageTop + 62);
   }
 
   if (stockBadge) {
@@ -470,7 +470,7 @@ export function ShareButton({
     () => buildPosterImageUrl(sellerLogoUrl) || buildBrowserAssetUrl(SHARE_LOGO_URL),
     [sellerLogoUrl]
   );
-  const shareTitle = title?.trim() || "GSTECHKH";
+  const shareTitle = title?.trim() || "SOMARNIX";
   const shareText = text?.trim() || shareTitle;
   const sharePrice =
     price === null || price === undefined || price === ""
@@ -503,7 +503,7 @@ export function ShareButton({
     try {
       return new URL(url).hostname.replace(/^www\./i, "").toUpperCase();
     } catch {
-      return "GSTECHKH.COM";
+      return "SOMARNIX.COM";
     }
   }, [url]);
 

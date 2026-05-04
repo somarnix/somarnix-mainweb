@@ -386,7 +386,7 @@ export function BlogPage({ initialSellerId }: BlogPageProps) {
   const sellerLevel = Number(profile?.seller.level ?? 1);
   const sellerHasLevelPerks = sellerLevel >= 2;
   const sellerAvatarBorderUrl = sellerHasLevelPerks ? profile?.seller.avatarBorderUrl ?? null : null;
-  const sellerBadgeAssetSrc = `/Budget%20GSTECHKH%20SVG/${getBadgeAssetNumber(sellerLevel)}.svg`;
+  const sellerBadgeAssetSrc = `/Budget%20SOMARNIX%20SVG/${getBadgeAssetNumber(sellerLevel)}.svg`;
   const sellerCoverSrc = profile?.seller.coverUrl || getDefaultProfileCover(profile?.seller.id ?? sellerId ?? 1);
   const sellerMeta = t("blog.sellerMeta", {
     followers: formatCompact(profile?.stats.followers ?? 0),

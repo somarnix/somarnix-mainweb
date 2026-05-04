@@ -2,7 +2,7 @@
    STEP 5: DEFAULTS + SAFE BACKFILL
 ========================================================= */
 
-USE gstechedukh;
+USE somarnix;
 
 INSERT IGNORE INTO product_categories (name) VALUES
   ('course'),

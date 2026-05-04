@@ -5,7 +5,7 @@ import { POLICY_LAST_UPDATED, SUPPORT_EMAIL } from "../lib/siteConfig";
 export const metadata = buildMetadata({
   title: "Refund Policy",
   description:
-    "Read GSTECHKH guidance for refund and billing review requests for digital products, tools, and course access.",
+    "Read SOMARNIX guidance for refund and billing review requests for digital products, tools, and course access.",
   path: "/refund-policy",
 });
 
@@ -13,13 +13,13 @@ export default function RefundPolicyPage() {
   return (
     <ContentPageShell
       title="Refund Policy"
-      description={`Last updated ${POLICY_LAST_UPDATED}. GSTECHKH sells digital products and access-based services, so refund requests are reviewed carefully based on order status and delivery state.`}
+      description={`Last updated ${POLICY_LAST_UPDATED}. SOMARNIX sells digital products and access-based services, so refund requests are reviewed carefully based on order status and delivery state.`}
     >
       <div className="space-y-6 text-sm leading-7 text-slate-600 dark:text-slate-300 sm:text-base">
         <section>
           <h2 className="text-xl font-semibold text-slate-900 dark:text-slate-100">Digital Goods And Access</h2>
           <p className="mt-2">
-            Because GSTECHKH provides digital products, AI tools, and course access, refund eligibility may be limited after delivery, activation, or visible access has already been provided.
+            Because SOMARNIX provides digital products, AI tools, and course access, refund eligibility may be limited after delivery, activation, or visible access has already been provided.
           </p>
         </section>
         <section>

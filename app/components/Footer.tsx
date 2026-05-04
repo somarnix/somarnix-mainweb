@@ -91,13 +91,13 @@ export function Footer({ isAppShell = false }: FooterProps) {
           <div className="space-y-5">
             <div className="flex items-center gap-3">
               <img
-                src="/khqr-assets/gstechkh-logo.png"
-                alt="GSTECHKH"
+                src="/khqr-assets/somarnix-logo.png"
+                alt="SOMARNIX"
                 className="h-11 w-11 rounded-xl object-contain shadow-lg shadow-blue-900/20 dark:shadow-blue-900/40"
               />
               <div>
                 <p className="text-2xl font-semibold tracking-tight text-gray-900 dark:text-white">
-                  GSTECHKH
+                  SOMARNIX
                 </p>
                 <p className="text-[11px] uppercase tracking-[0.18em] text-sky-600 dark:text-sky-300">
                   Learn Faster

@@ -7,7 +7,7 @@
    - Anti-abuse system built-in
 ========================================================= */
 
-USE gstechedukh;
+USE somarnix;
 
 /* ---------------------------------------------------------
    1. ADD LEVEL COLUMNS TO users TABLE
@@ -1162,7 +1162,7 @@ WHERE NOT EXISTS (
 -- NOTE: No fee discounts or other benefits yet
 -- This is a PURE LEVEL system only
 -- Includes English (en) and Khmer (km) translations
--- Badge files should be in: public/Budget GSTECHKH SVG/
+-- Badge files should be in: public/Budget SOMARNIX SVG/
 -- You can add discounts/benefits later by inserting more records into level_benefits table
 
 /* ---------------------------------------------------------

@@ -1,4 +1,4 @@
-// gstechedukh/app/pages/tools-ai/promt-ai/components/AssetEditor.tsx
+// somarnix/app/pages/tools-ai/promt-ai/components/AssetEditor.tsx
 "use client";
 
 import type {

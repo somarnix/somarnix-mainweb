@@ -1,4 +1,4 @@
-// gstechedukh/app/pages/tools-ai/promt-ai/components/PresetSelector.tsx
+// somarnix/app/pages/tools-ai/promt-ai/components/PresetSelector.tsx
 "use client";
 
 import type { StoryPreset } from "@/app/components/storyPresets";

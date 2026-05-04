@@ -2,7 +2,7 @@
    STEP 4: TOOLS + LICENSES
 ========================================================= */
 
-USE gstechedukh;
+USE somarnix;
 
 CREATE TABLE IF NOT EXISTS tool_variants (
   id BIGINT UNSIGNED AUTO_INCREMENT PRIMARY KEY,

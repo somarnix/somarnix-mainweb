@@ -112,7 +112,7 @@ Auto-refresh when level changes
 2. Check browser console for errors
 3. Make sure database migration ran:
    ```bash
-   mysql -u root -p gstechedukh < sql/13-marketplace-level-system.sql
+   mysql -u root -p somarnix < sql/13-marketplace-level-system.sql
    ```
 
 ### "Level shows as 1"

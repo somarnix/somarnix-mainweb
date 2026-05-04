@@ -114,7 +114,7 @@ export function UserLevelBadge({
   }
 
   const badgeAssetNumber = getBadgeAssetNumber(level);
-  const badgeAssetSrc = `/Budget%20GSTECHKH%20SVG/${badgeAssetNumber}.svg`;
+  const badgeAssetSrc = `/Budget%20SOMARNIX%20SVG/${badgeAssetNumber}.svg`;
 
   function getProgressColor(level: number) {
     if (level >= 1000) return "from-yellow-400 to-orange-500";

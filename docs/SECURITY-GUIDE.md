@@ -1,4 +1,4 @@
-# 🔒 GSTECHKH Security Guide - FREE Protection
+# 🔒 SOMARNIX Security Guide - FREE Protection
 
 ## ✅ Security Features Implemented (ALL FREE!)
 
@@ -261,7 +261,7 @@ npm update
 ```bash
 # Create backup script
 #!/bin/bash
-mysqldump -u root -p'password' gstechedukh > backup_$(date +%Y%m%d).sql
+mysqldump -u root -p'password' somarnix > backup_$(date +%Y%m%d).sql
 
 # Add to crontab (daily at 2 AM)
 0 2 * * * /path/to/backup.sh

@@ -1539,16 +1539,16 @@ const getChatNoteBadgeClass = (result?: string | null) => {
               className="flex min-w-0 items-center gap-2 rounded-lg hover:bg-gray-50 dark:hover:bg-gray-800/50 transition-colors"
             >
               <img
-                src="/khqr-assets/gstechkh-logo.png"
-                alt="GSTECHKH"
+                src="/khqr-assets/somarnix-logo.png"
+                alt="SOMARNIX"
                 className="h-7 w-7 sm:h-10 sm:w-10 md:h-11 md:w-11 flex-shrink-0 object-contain rounded-lg shadow-md"
               />
               <div className="flex flex-col min-w-0 leading-tight">
                 <span className="font-bold text-blue-600 dark:text-blue-400 text-[0.7rem] sm:hidden">
-                  GSTECH
+                  SOMARNIX
                 </span>
                 <span className="font-bold text-blue-600 dark:text-blue-400 hidden sm:block sm:text-lg md:text-xl">
-                  GSTECHKH
+                  SOMARNIX
                 </span>
                 <span className="font-bold text-purple-600 dark:text-purple-400 text-xs sm:hidden">
                   KH

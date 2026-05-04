@@ -2,7 +2,7 @@
 
 import KeyLicence, { type KeyLicenceState } from "@/app/components/KeyLicence";
 
-const PROMT_AI_LICENSE_KEY_STORAGE = "gstech_promt_ai_license_key";
+const PROMT_AI_LICENSE_KEY_STORAGE = "somarnix_promt_ai_license_key";
 
 export default function PromptAiLicensePanel({
   toolSlug,

@@ -143,9 +143,9 @@ export function parseToolDefinitionConfig(input: unknown, defaults: {
     },
     access: {
       deviceIdKey:
-        access.deviceIdKey === null ? null : readString(access.deviceIdKey, "gstech_tool_device_id"),
+        access.deviceIdKey === null ? null : readString(access.deviceIdKey, "somarnix_tool_device_id"),
       licenseStorageKey:
-        access.licenseStorageKey === null ? null : readString(access.licenseStorageKey, `gstech_tool_license_${productSlug}`),
+        access.licenseStorageKey === null ? null : readString(access.licenseStorageKey, `somarnix_tool_license_${productSlug}`),
       allowGuestPreview: readBoolean(access.allowGuestPreview, false),
     },
     routing: {

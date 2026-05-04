@@ -25,17 +25,17 @@
 
 ```bash
 # Backup first!
-mysqldump -u root -p gstechedukh > backup_$(date +%Y%m%d).sql
+mysqldump -u root -p somarnix > backup_$(date +%Y%m%d).sql
 
 # Run migration
-mysql -u root -p gstechedukh < sql/13-marketplace-level-system.sql
+mysql -u root -p somarnix < sql/13-marketplace-level-system.sql
 ```
 
 ### Step 2: Test It
 
 ```sql
 -- Connect
-mysql -u root -p gstechedukh
+mysql -u root -p somarnix
 
 -- Test level calculation (replace 1 with actual user ID)
 CALL sp_calculate_user_level(1, 'test', NULL);

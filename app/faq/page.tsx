@@ -6,7 +6,7 @@ import { buildMetadata } from "../lib/buildMetadata";
 export const metadata = buildMetadata({
   title: "FAQ",
   description:
-    "Read common GSTECHKH questions about buying, orders, course access, and support.",
+    "Read common SOMARNIX questions about buying, orders, course access, and support.",
   path: "/faq",
 });
 

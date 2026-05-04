@@ -28,10 +28,10 @@ export default function CopyrightPage() {
               1. Copyright Notice
             </h2>
             <p className="text-gray-600 dark:text-gray-300 leading-relaxed">
-              © {currentYear} GSTECHKH. All rights reserved.
+              © {currentYear} SOMARNIX. All rights reserved.
             </p>
             <p className="text-gray-600 dark:text-gray-300 leading-relaxed mt-4">
-              All content, features, and functionality of this website, including but not limited to text, graphics, logos, icons, images, audio clips, digital downloads, data arrangements, and software, are the exclusive property of GSTECHKH and are protected by international copyright laws.
+              All content, features, and functionality of this website, including but not limited to text, graphics, logos, icons, images, audio clips, digital downloads, data arrangements, and software, are the exclusive property of SOMARNIX and are protected by international copyright laws.
             </p>
           </section>
 
@@ -61,7 +61,7 @@ export default function CopyrightPage() {
               3. Intellectual Property
             </h2>
             <div className="space-y-3 text-gray-600 dark:text-gray-300">
-              <p><strong>Trademarks:</strong> GSTECHKH name, logo, and brand elements</p>
+              <p><strong>Trademarks:</strong> SOMARNIX name, logo, and brand elements</p>
               <p><strong>Copyrights:</strong> All website content, code, and design</p>
               <p><strong>Patents:</strong> Proprietary technology and processes</p>
               <p><strong>Trade Secrets:</strong> Business methods and algorithms</p>
@@ -85,7 +85,7 @@ export default function CopyrightPage() {
                 If you believe your copyrighted work has been used without authorization, please contact us:
               </p>
               <p className="text-gray-600 dark:text-gray-300">
-                <strong>Email:</strong> support@gstechkh.com<br />
+                <strong>Email:</strong> support@somarnix.com<br />
                 <strong>Subject:</strong> DMCA Takedown Notice
               </p>
             </div>
@@ -143,7 +143,7 @@ export default function CopyrightPage() {
                 For copyright questions:
               </p>
               <p className="text-gray-600 dark:text-gray-300">
-                <strong>Email:</strong> support@gstechkh.com<br />
+                <strong>Email:</strong> support@somarnix.com<br />
                 <strong>Response Time:</strong> 24-48 hours
               </p>
             </div>
@@ -155,7 +155,7 @@ export default function CopyrightPage() {
               By using this website, you agree to these terms.
             </p>
             <p className="text-center text-gray-500 dark:text-gray-400 text-sm mt-2">
-              GSTECHKH Legal Team
+              SOMARNIX Legal Team
             </p>
           </div>
         </div>

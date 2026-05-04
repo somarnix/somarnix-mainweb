@@ -4,7 +4,7 @@
    - Fresh databases created from 01-core-auth-commerce.sql can skip this
 ========================================================= */
 
-USE gstechedukh;
+USE somarnix;
 
 SET @sql = IF(
   EXISTS (

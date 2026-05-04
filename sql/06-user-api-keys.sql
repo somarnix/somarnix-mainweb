@@ -2,7 +2,7 @@
    STEP 6: USER API KEYS
 ========================================================= */
 
-USE gstechedukh;
+USE somarnix;
 
 CREATE TABLE IF NOT EXISTS user_api_keys (
   user_id BIGINT UNSIGNED NOT NULL,

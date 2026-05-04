@@ -1,4 +1,4 @@
-// gstechedukh/app/pages/tools-ai/promt-ai/components/HelpAnimalPanel.tsx
+// somarnix/app/pages/tools-ai/promt-ai/components/HelpAnimalPanel.tsx
 "use client";
 
 import type { HelpAnimalIdea } from "@/app/components/promt/helpAnimal";

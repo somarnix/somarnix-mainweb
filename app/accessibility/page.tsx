@@ -5,7 +5,7 @@ import { POLICY_LAST_UPDATED, SUPPORT_EMAIL } from "../lib/siteConfig";
 export const metadata = buildMetadata({
   title: "Accessibility",
   description:
-    "Read the GSTECHKH accessibility commitment and how to report issues that block access to the website or app experience.",
+    "Read the SOMARNIX accessibility commitment and how to report issues that block access to the website or app experience.",
   path: "/accessibility",
 });
 
@@ -13,7 +13,7 @@ export default function AccessibilityPage() {
   return (
     <ContentPageShell
       title="Accessibility"
-      description={`Last updated ${POLICY_LAST_UPDATED}. GSTECHKH is working to keep core navigation, account access, support, and order flows available across devices and assistive scenarios.`}
+      description={`Last updated ${POLICY_LAST_UPDATED}. SOMARNIX is working to keep core navigation, account access, support, and order flows available across devices and assistive scenarios.`}
     >
       <div className="space-y-6 text-sm leading-7 text-slate-600 dark:text-slate-300 sm:text-base">
         <section>

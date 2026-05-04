@@ -961,7 +961,7 @@ function PresenceWatcher() {
 
     const getLoginDeviceId = () => {
       if (typeof window === "undefined") return null;
-      const key = "gstech_login_device_id";
+      const key = "somarnix_login_device_id";
       const existing = window.localStorage.getItem(key);
       if (existing && existing.trim()) return existing;
       const created =

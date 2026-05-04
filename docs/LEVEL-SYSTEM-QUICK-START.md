@@ -36,19 +36,19 @@
 
 ```bash
 # 1. Backup your database
-mysqldump -u root -p gstechedukh > backup_$(date +%Y%m%d_%H%M%S).sql
+mysqldump -u root -p somarnix > backup_$(date +%Y%m%d_%H%M%S).sql
 
 # 2. Run migration
-mysql -u root -p gstechedukh < sql/13-marketplace-level-system.sql
+mysql -u root -p somarnix < sql/13-marketplace-level-system.sql
 
 # 3. Verify it worked
-mysql -u root -p -e "USE gstechedukh; SHOW TABLES LIKE 'user_level%';"
+mysql -u root -p -e "USE somarnix; SHOW TABLES LIKE 'user_level%';"
 ```
 
 **Expected output:**
 ```
 +-------------------------------------+
-| Tables_in_gstechedukh (user_level%) |
+| Tables_in_somarnix (user_level%) |
 +-------------------------------------+
 | user_level_history                  |
 | user_level_relationships            |
@@ -63,10 +63,10 @@ mysql -u root -p -e "USE gstechedukh; SHOW TABLES LIKE 'user_level%';"
 
 ```sql
 -- Connect to database
-mysql -u root -p gstechedukh
+mysql -u root -p somarnix
 
 -- Test 1: Check stored procedures exist
-SHOW PROCEDURE STATUS WHERE Db = 'gstechedukh' AND routine_name LIKE 'sp_%level%';
+SHOW PROCEDURE STATUS WHERE Db = 'somarnix' AND routine_name LIKE 'sp_%level%';
 
 -- Test 2: Calculate level for user ID 1 (replace with actual user ID)
 CALL sp_calculate_user_level(1, 'manual_test', NULL);
@@ -345,7 +345,7 @@ CALL sp_calculate_user_level(user_id, 'manual', NULL);
 **Solution:**
 ```sql
 -- Re-run the migration
-mysql -u root -p gstechedukh < sql/13-marketplace-level-system.sql
+mysql -u root -p somarnix < sql/13-marketplace-level-system.sql
 ```
 
 ### API Returns 404

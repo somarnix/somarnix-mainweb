@@ -28,22 +28,22 @@ function ensureAbsoluteUrl(value: string | null, origin: string) {
 export async function GET(request: NextRequest) {
   const { searchParams, origin } = new URL(request.url);
 
-  const title = truncate(searchParams.get("title") || "GSTECHKH", 80);
+  const title = truncate(searchParams.get("title") || "SOMARNIX", 80);
   const subtitle = truncate(
-    searchParams.get("subtitle") || "Digital products, tools, and courses on GSTECHKH",
+    searchParams.get("subtitle") || "Digital products, tools, and courses on SOMARNIX",
     180
   );
   const kind = truncate((searchParams.get("kind") || "share").toUpperCase(), 18);
   const label = truncate(searchParams.get("label") || kind, 28);
   const price = truncate(searchParams.get("price") || "", 24);
   const comparePrice = truncate(searchParams.get("comparePrice") || "", 24);
-  const sellerName = truncate(searchParams.get("sellerName") || "GSTECHKH", 42);
+  const sellerName = truncate(searchParams.get("sellerName") || "SOMARNIX", 42);
   const stockBadge = truncate(searchParams.get("stockBadge") || "", 22);
   const pageUrl = searchParams.get("url")?.trim() || origin;
-  const domain = truncate(searchParams.get("domain") || "GSTECHKH.COM", 28);
+  const domain = truncate(searchParams.get("domain") || "SOMARNIX.COM", 28);
   const image = ensureAbsoluteUrl(searchParams.get("image"), origin);
   const sellerLogo = ensureAbsoluteUrl(searchParams.get("sellerLogo"), origin);
-  const siteLogo = ensureAbsoluteUrl("/khqr-assets/gstechkh-logo.png", origin);
+  const siteLogo = ensureAbsoluteUrl("/khqr-assets/somarnix-logo.png", origin);
   const qrDataUrl = await QRCode.toDataURL(pageUrl, {
     width: 256,
     margin: 1,
@@ -170,7 +170,7 @@ export async function GET(request: NextRequest) {
                 textAlign: "center",
               }}
             >
-              <div style={{ fontSize: 56, fontWeight: 900, marginBottom: 16 }}>GSTECHKH</div>
+              <div style={{ fontSize: 56, fontWeight: 900, marginBottom: 16 }}>SOMARNIX</div>
               <div style={{ fontSize: 30, lineHeight: 1.25, textAlign: "center" }}>{title}</div>
             </div>
           )}
@@ -217,7 +217,7 @@ export async function GET(request: NextRequest) {
                   ) : siteLogo ? (
                     <img
                       src={siteLogo}
-                      alt="GSTECHKH"
+                      alt="SOMARNIX"
                       style={{
                         width: 52,
                         height: 52,
@@ -382,7 +382,7 @@ export async function GET(request: NextRequest) {
                   {siteLogo ? (
                     <img
                       src={siteLogo}
-                      alt="GSTECHKH"
+                      alt="SOMARNIX"
                       style={{
                         width: 30,
                         height: 30,

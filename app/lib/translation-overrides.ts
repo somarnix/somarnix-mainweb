@@ -33,7 +33,7 @@ export const translationOverrides: Record<"en" | "km", Record<string, string>> =
     "login.errors.passwordNotSet": "This account uses Google login. Please continue with Google.",
 
     "register.title": "Create Your Account",
-    "register.description": "Start learning today with GSTECHKH",
+    "register.description": "Start learning today with SOMARNIX",
     "register.backHome": "Back to Home",
     "register.firstName": "First name",
     "register.firstNamePlaceholder": "John",
@@ -511,7 +511,7 @@ export const translationOverrides: Record<"en" | "km", Record<string, string>> =
     "login.errors.passwordNotSet": "គណនីនេះប្រើការចូលជាមួយ Google។ សូមបន្តជាមួយ Google។",
 
     "register.title": "បង្កើតគណនីរបស់អ្នក",
-    "register.description": "ចាប់ផ្តើមរៀនថ្ងៃនេះជាមួយ GSTECHKH",
+    "register.description": "ចាប់ផ្តើមរៀនថ្ងៃនេះជាមួយ SOMARNIX",
     "register.google": "បង្កើតគណនីជាមួយ Google",
     "register.email": "ឬបង្កើតគណនីជាមួយអ៊ីមែល",
     "register.firstName": "នាមខ្លួន",

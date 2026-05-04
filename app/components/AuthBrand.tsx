@@ -12,11 +12,11 @@ export function AuthBrand({
   return (
     <div className={wrapperClassName}>
       <img
-        src="/khqr-assets/gstechkh-logo.png"
-        alt="GSTECHKH"
+        src="/khqr-assets/somarnix-logo.png"
+        alt="SOMARNIX"
         className="h-12 w-12 rounded-lg object-contain"
       />
-      <span className={textClassName}>GSTECHKH</span>
+      <span className={textClassName}>SOMARNIX</span>
     </div>
   );
 }

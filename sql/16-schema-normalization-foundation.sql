@@ -5,7 +5,7 @@
    - Safe to run after Steps 01-15
 ========================================================= */
 
-USE gstechedukh;
+USE somarnix;
 
 /* ---------------------------------------------------------
    1. NORMALIZE video_courses category and tags

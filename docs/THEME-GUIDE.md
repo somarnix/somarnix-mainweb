@@ -1,8 +1,8 @@
-# Professional Theme System - GSTECHKH
+# Professional Theme System - SOMARNIX
 
 ## Overview
 
-This is a centralized, professional theme system for the entire GSTECHKH website. It provides consistent colors, components, and utilities across all pages with automatic light/dark mode support.
+This is a centralized, professional theme system for the entire SOMARNIX website. It provides consistent colors, components, and utilities across all pages with automatic light/dark mode support.
 
 ## Quick Start
 
@@ -249,7 +249,7 @@ className="bg-white dark:bg-gray-900 text-gray-900 dark:text-white border-gray-2
 <section className="page-bg-gradient py-20">
   <div className="max-w-7xl mx-auto px-6">
     <h1 className="text-gradient text-5xl font-bold text-center mb-6">
-      Welcome to GSTECHKH
+      Welcome to SOMARNIX
     </h1>
     <div className="grid grid-cols-3 gap-6 mt-12">
       {features.map(feature => (

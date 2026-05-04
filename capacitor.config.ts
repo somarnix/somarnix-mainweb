@@ -3,11 +3,11 @@ import type { CapacitorConfig } from "@capacitor/cli";
 const serverUrl =
   process.env.CAPACITOR_SERVER_URL ||
   process.env.NEXT_PUBLIC_SITE_URL ||
-  "https://gstechkh.com";
+  "https://somarnix.com";
 
 const config: CapacitorConfig = {
   appId: "com.edugroit.app",
-  appName: "GSTECHKH",
+  appName: "SOMARNIX",
   webDir: "capacitor-web",
   server: {
     url: serverUrl,

@@ -1,5 +1,5 @@
 "use client";
-// gstechedukh\app\pages\chat\ChatPage.tsx
+// somarnix\app\pages\chat\ChatPage.tsx
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import {
   AlertCircle,

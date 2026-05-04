@@ -1,4 +1,4 @@
-// gstechedukh\app\components\promt\promptUtils.ts
+// somarnix\app\components\promt\promptUtils.ts
 import type { CharacterDraft, ObjectDraft, SceneItem } from "@/app/components/promt/types";
 
 export const extractJsonPayload = (text: string) => {

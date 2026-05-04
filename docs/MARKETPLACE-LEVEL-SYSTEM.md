@@ -6,17 +6,17 @@
 
 ```bash
 # Backup first!
-mysqldump -u root -p gstechedukh > backup_$(date +%Y%m%d).sql
+mysqldump -u root -p somarnix > backup_$(date +%Y%m%d).sql
 
 # Run migration
-mysql -u root -p gstechedukh < sql/13-marketplace-level-system.sql
+mysql -u root -p somarnix < sql/13-marketplace-level-system.sql
 ```
 
 ### Step 2: Test the System
 
 ```sql
 -- Check tables created
-USE gstechedukh;
+USE somarnix;
 SHOW TABLES LIKE 'user_level%';
 
 -- Test level calculation (replace 1 with actual user ID)
@@ -507,7 +507,7 @@ GROUP BY tier;
 **Check:**
 1. Order state is 'completed' or 'approved'
 2. Event scheduler is enabled: `SHOW VARIABLES LIKE 'event_scheduler';`
-3. Stored procedure exists: `SHOW PROCEDURE STATUS WHERE Db = 'gstechedukh';`
+3. Stored procedure exists: `SHOW PROCEDURE STATUS WHERE Db = 'somarnix';`
 
 **Fix:**
 ```sql
@@ -586,7 +586,7 @@ ANALYZE TABLE users;
 For issues or questions:
 - Check logs: `SELECT * FROM user_level_flags WHERE status = 'open';`
 - Manual recalculation: `CALL sp_calculate_user_level(user_id, 'manual', NULL);`
-- Contact: support@gstechkh.com
+- Contact: support@somarnix.com
 
 ---
 

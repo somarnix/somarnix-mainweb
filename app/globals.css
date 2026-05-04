@@ -125,7 +125,7 @@ article * {
 }
 
 .watermark::before {
-  content: '© GSTECHKH';
+  content: '© SOMARNIX';
   position: absolute;
   bottom: 10px;
   right: 10px;

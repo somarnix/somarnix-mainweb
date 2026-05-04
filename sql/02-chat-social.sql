@@ -2,7 +2,7 @@
    STEP 2: CHAT + SOCIAL
 ========================================================= */
 
-USE gstechedukh;
+USE somarnix;
 
 CREATE TABLE IF NOT EXISTS order_conversations (
   id BIGINT UNSIGNED AUTO_INCREMENT PRIMARY KEY,

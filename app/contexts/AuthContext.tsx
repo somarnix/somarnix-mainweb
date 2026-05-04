@@ -173,7 +173,7 @@ function getErrorMessage(data: unknown): string | null {
 
 function getLoginDeviceId(): string | null {
   if (typeof window === "undefined") return null;
-  const key = "gstech_login_device_id";
+  const key = "somarnix_login_device_id";
   const existing = window.localStorage.getItem(key);
   if (existing && existing.trim()) return existing;
   const created =
@@ -194,7 +194,7 @@ function clearClientAuthArtifacts() {
   if (typeof window === "undefined") return;
 
   window.sessionStorage.clear();
-  window.localStorage.removeItem("gstech_login_device_id");
+  window.localStorage.removeItem("somarnix_login_device_id");
   window.localStorage.removeItem("edugroit-country");
 
   // Disable Google auto-select (type assertion to bypass TypeScript)

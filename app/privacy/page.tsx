@@ -5,7 +5,7 @@ import { POLICY_LAST_UPDATED, SUPPORT_EMAIL } from "../lib/siteConfig";
 export const metadata = buildMetadata({
   title: "Privacy Policy",
   description:
-    "Read the GSTECHKH privacy policy covering account data, order data, support communications, and operational analytics.",
+    "Read the SOMARNIX privacy policy covering account data, order data, support communications, and operational analytics.",
   path: "/privacy",
 });
 
@@ -13,13 +13,13 @@ export default function PrivacyPage() {
   return (
     <ContentPageShell
       title="Privacy Policy"
-      description={`Last updated ${POLICY_LAST_UPDATED}. This page explains what information GSTECHKH collects, why it is used, and how users can contact the team about privacy-related questions.`}
+      description={`Last updated ${POLICY_LAST_UPDATED}. This page explains what information SOMARNIX collects, why it is used, and how users can contact the team about privacy-related questions.`}
     >
       <div className="space-y-6 text-sm leading-7 text-slate-600 dark:text-slate-300 sm:text-base">
         <section>
           <h2 className="text-xl font-semibold text-slate-900 dark:text-slate-100">Information We Use</h2>
           <p className="mt-2">
-            GSTECHKH processes account details, order records, payment-related status data, course access data, and support conversation content to operate the platform.
+            SOMARNIX processes account details, order records, payment-related status data, course access data, and support conversation content to operate the platform.
           </p>
         </section>
         <section>

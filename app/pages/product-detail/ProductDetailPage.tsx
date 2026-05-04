@@ -401,7 +401,7 @@ export default function ProductDetailPage({
       return;
     }
 
-    const deviceKey = "gstech_tool_device_id";
+    const deviceKey = "somarnix_tool_device_id";
     const existing =
       typeof window !== "undefined" ? window.localStorage.getItem(deviceKey) : null;
     const deviceId =

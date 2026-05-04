@@ -27,7 +27,7 @@ export const metadata: Metadata = {
   },
   description: SITE_DESCRIPTION,
   keywords: [
-    "GSTECHKH",
+    "SOMARNIX",
     "digital products",
     "AI tools",
     "online courses",

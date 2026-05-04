@@ -1,4 +1,4 @@
-﻿// gstechedukh\app\pages\tools-ai\promt-ai\PromtAi.tsx
+// somarnix\app\pages\tools-ai\promt-ai\PromtAi.tsx
 "use client";
 
 import { useEffect, useState } from "react";

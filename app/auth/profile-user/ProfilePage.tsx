@@ -256,7 +256,7 @@ export function ProfilePage({ onNavigate, onOpenProductDetail, onOpenToolDetail,
 
   const getLoginDeviceId = useCallback((): string | null => {
     if (typeof window === "undefined") return null;
-    const key = "gstech_login_device_id";
+    const key = "somarnix_login_device_id";
     const existing = window.localStorage.getItem(key);
     if (existing && existing.trim()) return existing;
     return null;

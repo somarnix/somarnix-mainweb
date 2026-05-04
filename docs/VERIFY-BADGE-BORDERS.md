@@ -20,7 +20,7 @@
 
 ### Location
 ```
-C:\Users\Sophanaroth Lem\Documents\Word\Lesson\gstechkh\gstechedukh\public\Budget GSTECHKH SVG\
+C:\Users\Sophanaroth Lem\Documents\Word\Lesson\somarnix\somarnix\public\Budget SOMARNIX SVG\
 ```
 
 ### Blue Verify Badge
@@ -152,7 +152,7 @@ WHERE benefit_key = 'border_collection_1_15';
 | **Blue Verify Badge** | Unlocks at Level 2, file: `blue_verify.svg` |
 | **Borders** | 15 borders (1-15), unlock at Level 2 |
 | **Size** | 64x64 pixels (SVG format) |
-| **Location** | `public/Budget GSTECHKH SVG/` |
+| **Location** | `public/Budget SOMARNIX SVG/` |
 | **Total Files** | 16 SVG files (1 badge + 15 borders) |
 
 ---

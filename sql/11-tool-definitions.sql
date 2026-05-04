@@ -2,7 +2,7 @@
    STEP 11: TOOL DEFINITIONS + ROUTE ALIASES
 ========================================================= */
 
-USE gstechedukh;
+USE somarnix;
 
 CREATE TABLE IF NOT EXISTS tool_definitions (
   id BIGINT UNSIGNED AUTO_INCREMENT PRIMARY KEY,

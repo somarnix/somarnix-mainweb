@@ -7,7 +7,7 @@ import { SUPPORT_EMAIL } from "../lib/siteConfig";
 export const metadata = buildMetadata({
   title: "Contact",
   description:
-    "Reach GSTECHKH support for orders, account access, business inquiries, partnerships, and instructor requests.",
+    "Reach SOMARNIX support for orders, account access, business inquiries, partnerships, and instructor requests.",
   path: "/contact",
 });
 
@@ -16,7 +16,7 @@ const telegramSupportUrl = process.env.NEXT_PUBLIC_TELEGRAM_SUPPORT_URL || "/sup
 export default function ContactPage() {
   return (
     <ContentPageShell
-      title="Contact GSTECHKH"
+      title="Contact SOMARNIX"
       description="Use the right channel for support, billing questions, partnerships, careers, or instructor-related requests."
     >
       <div className="space-y-8 text-sm leading-7 text-slate-600 dark:text-slate-300 sm:text-base">
@@ -57,7 +57,7 @@ export default function ContactPage() {
             <li>Include your order number if the issue is related to a purchase.</li>
             <li>Include product, course, or tool name when possible.</li>
             <li>Add screenshots or a short screen recording for technical issues.</li>
-            <li>Use the same email address that you used on your GSTECHKH account.</li>
+            <li>Use the same email address that you used on your SOMARNIX account.</li>
           </ul>
         </section>
 

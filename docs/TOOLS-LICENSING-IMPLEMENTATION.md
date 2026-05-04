@@ -9,7 +9,7 @@
 mysql -u root -p
 
 # Run the migration
-USE gstechedukh;
+USE somarnix;
 SOURCE sql/12-enhanced-tools-licenses.sql;
 ```
 
@@ -741,5 +741,5 @@ describe('License API', () => {
 ## Support
 
 For issues or questions:
-- Email: support@gstechkh.com
-- Telegram: @gstechkh_support
+- Email: support@somarnix.com
+- Telegram: @somarnix_support

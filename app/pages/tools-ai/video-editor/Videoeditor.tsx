@@ -126,7 +126,7 @@ export default function VideoEditorPage({ toolSlug }: { toolSlug?: string }) {
 
   const handleDeactivateFromHeader = () => {
     if (typeof window !== "undefined") {
-      window.localStorage.removeItem(`gstech_tool_license_${resolvedToolSlug}`);
+      window.localStorage.removeItem(`somarnix_tool_license_${resolvedToolSlug}`);
     }
     setLicenseState({
       status: "missing",

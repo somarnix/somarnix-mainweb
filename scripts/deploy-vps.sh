@@ -2,8 +2,8 @@
 
 set -euo pipefail
 
-APP_DIR="${APP_DIR:-/home/gstechkh/htdocs/gstechkh.com}"
-APP_NAME="${APP_NAME:-gstechkh}"
+APP_DIR="${APP_DIR:-/home/somarnix/htdocs/somarnix.com}"
+APP_NAME="${APP_NAME:-somarnix}"
 BRANCH="${BRANCH:-main}"
 
 echo "Deploying ${APP_NAME} from ${APP_DIR} on branch ${BRANCH}"

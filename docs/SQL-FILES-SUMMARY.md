@@ -83,13 +83,13 @@ sql/
 
 ```bash
 # 1. Backup database
-mysqldump -u root -p gstechedukh > backup_$(date +%Y%m%d).sql
+mysqldump -u root -p somarnix > backup_$(date +%Y%m%d).sql
 
 # 2. Run migration
-mysql -u root -p gstechedukh < sql/12-enhanced-tools-licenses.sql
+mysql -u root -p somarnix < sql/12-enhanced-tools-licenses.sql
 
 # 3. Verify
-mysql -u root -p -e "USE gstechedukh; SHOW TABLES LIKE 'tool_%';"
+mysql -u root -p -e "USE somarnix; SHOW TABLES LIKE 'tool_%';"
 ```
 
 ### Detailed Instructions
@@ -142,26 +142,26 @@ If you're setting up a NEW database from scratch:
 
 ```bash
 # Run in this order:
-mysql -u root -p gstechedukh < sql/00-full-schema.sql
-mysql -u root -p gstechedukh < sql/01-core-auth-commerce.sql
-mysql -u root -p gstechedukh < sql/02-chat-social.sql
-mysql -u root -p gstechedukh < sql/03-video-learning.sql
-mysql -u root -p gstechedukh < sql/04-tools-and-licenses.sql
-mysql -u root -p gstechedukh < sql/05-defaults-and-sync.sql
-mysql -u root -p gstechedukh < sql/06-user-api-keys.sql
-mysql -u root -p gstechedukh < sql/07-system-notifications.sql
-mysql -u root -p gstechedukh < sql/08-order-notifications.sql
-mysql -u root -p gstechedukh < sql/09-payway-webhook-logs.sql
-mysql -u root -p gstechedukh < sql/10-user-avatar-borders.sql
-mysql -u root -p gstechedukh < sql/11-tool-definitions.sql
-mysql -u root -p gstechedukh < sql/12-enhanced-tools-licenses.sql  # ← NEW
+mysql -u root -p somarnix < sql/00-full-schema.sql
+mysql -u root -p somarnix < sql/01-core-auth-commerce.sql
+mysql -u root -p somarnix < sql/02-chat-social.sql
+mysql -u root -p somarnix < sql/03-video-learning.sql
+mysql -u root -p somarnix < sql/04-tools-and-licenses.sql
+mysql -u root -p somarnix < sql/05-defaults-and-sync.sql
+mysql -u root -p somarnix < sql/06-user-api-keys.sql
+mysql -u root -p somarnix < sql/07-system-notifications.sql
+mysql -u root -p somarnix < sql/08-order-notifications.sql
+mysql -u root -p somarnix < sql/09-payway-webhook-logs.sql
+mysql -u root -p somarnix < sql/10-user-avatar-borders.sql
+mysql -u root -p somarnix < sql/11-tool-definitions.sql
+mysql -u root -p somarnix < sql/12-enhanced-tools-licenses.sql  # ← NEW
 ```
 
 If you have an EXISTING database (already running website):
 
 ```bash
 # ONLY run file 12:
-mysql -u root -p gstechedukh < sql/12-enhanced-tools-licenses.sql
+mysql -u root -p somarnix < sql/12-enhanced-tools-licenses.sql
 ```
 
 ---
@@ -184,7 +184,7 @@ SHOW FULL TABLES WHERE TABLE_TYPE = 'VIEW';
 DESCRIBE tool_definitions;
 
 -- Check stored procedures exist
-SHOW PROCEDURE STATUS WHERE Db = 'gstechedukh';
+SHOW PROCEDURE STATUS WHERE Db = 'somarnix';
 ```
 
 ---

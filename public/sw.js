@@ -1,4 +1,4 @@
-const CACHE_NAME = "edugroit-pwa-v1";
+const CACHE_NAME = "somarnix-pwa-v2";
 const OFFLINE_URL = "/offline.html";
 
 self.addEventListener("install", (event) => {
@@ -70,7 +70,7 @@ self.addEventListener("fetch", (event) => {
 
 self.addEventListener("push", (event) => {
   const payload = event.data ? event.data.json() : {};
-  const title = payload.title || "GSTECHKH";
+  const title = payload.title || "SOMARNIX";
   const options = {
     body: payload.body || "You have a new notification.",
     icon: "/icons/icon-800.png",

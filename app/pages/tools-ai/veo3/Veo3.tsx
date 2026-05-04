@@ -14,7 +14,7 @@ const DEFAULT_TOOL_PRODUCT_SLUG = "toolveo3";
 
 function getDeviceId(): string {
   if (typeof window === "undefined") return "";
-  const key = "gstech_tool_device_id";
+  const key = "somarnix_tool_device_id";
   const existing = window.localStorage.getItem(key);
   if (existing) return existing;
   const id =

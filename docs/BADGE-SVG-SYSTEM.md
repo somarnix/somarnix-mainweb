@@ -3,7 +3,7 @@
 ## Your Badge Folder Location
 
 ```
-C:\Users\Sophanaroth Lem\Documents\Word\Lesson\gstechkh\gstechedukh\public\Budget GSTECHKH SVG\
+C:\Users\Sophanaroth Lem\Documents\Word\Lesson\somarnix\somarnix\public\Budget SOMARNIX SVG\
 ```
 
 ---
@@ -239,7 +239,7 @@ badge_level_1000 → level_1000.svg
 | **Total SVG Files** | 100 |
 | **Size** | 64x64 pixels |
 | **Format** | SVG |
-| **Location** | `public/Budget GSTECHKH SVG/` |
+| **Location** | `public/Budget SOMARNIX SVG/` |
 | **Naming** | `level_1.svg` to `level_10.svg`, then `level_11.svg`, `level_22.svg`, ... `level_990.svg`, `level_1000.svg` |
 
 ---

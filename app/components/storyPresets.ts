@@ -1,4 +1,4 @@
-// gstechedukh\app\components\storyPresets.ts
+// somarnix\app\components\storyPresets.ts
 export type StoryPreset =
   | "animation"
   | "person"

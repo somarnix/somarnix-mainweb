@@ -23,7 +23,7 @@ Set one of these for production app builds:
 
 Current fallback in config is:
 
-- `https://gstechkh.com`
+- `https://somarnix.com`
 
 Update this if your final production domain is different.
 

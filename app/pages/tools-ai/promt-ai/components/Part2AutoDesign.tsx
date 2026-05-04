@@ -1,4 +1,4 @@
-// gstechedukh/app/pages/tools-ai/promt-ai/components/Part2AutoDesign.tsx
+// somarnix/app/pages/tools-ai/promt-ai/components/Part2AutoDesign.tsx
 "use client";
 
 import { useEffect, useMemo, useState } from "react";

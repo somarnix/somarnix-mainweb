@@ -128,7 +128,7 @@ export function VideoDetailPage({
   const GLOBAL_LOGIN_MAX_DEVICES = 10;
   const getVideoDeviceId = (): string => {
     if (typeof window === "undefined") return "";
-    const key = "gstech_video_device_id";
+    const key = "somarnix_video_device_id";
     const existing = window.localStorage.getItem(key);
     if (existing && existing.trim()) return existing;
     const created =

@@ -2,7 +2,7 @@
    STEP 3: VIDEO LEARNING
 ========================================================= */
 
-USE gstechedukh;
+USE somarnix;
 
 CREATE TABLE IF NOT EXISTS video_courses (
   id BIGINT UNSIGNED AUTO_INCREMENT PRIMARY KEY,

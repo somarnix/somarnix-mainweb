@@ -249,8 +249,8 @@ export function Sidebar({
           }`}
         >
           <img
-            src="/khqr-assets/gstechkh-logo.png"
-            alt="GSTECHKH"
+            src="/khqr-assets/somarnix-logo.png"
+            alt="SOMARNIX"
             className={`flex-shrink-0 object-contain shadow-lg ${
               isAppShell
                 ? "h-20 w-20 rounded-[1.75rem] bg-white p-1.5 shadow-[0_18px_34px_rgba(37,99,235,0.16)]"
@@ -263,7 +263,7 @@ export function Sidebar({
                 isAppShell ? "text-[3.1rem] leading-[0.9]" : "text-2xl sm:text-3xl"
               }`}
             >
-              GSTECH
+              SOMARNIX
             </span>
             <span
               className={`font-bold bg-gradient-to-r from-violet-500 to-fuchsia-400 bg-clip-text text-transparent tracking-wide ${

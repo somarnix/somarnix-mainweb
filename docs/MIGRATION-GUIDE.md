@@ -1,4 +1,4 @@
-# 🚀 Complete Theme Migration Guide - GSTECHKH
+# 🚀 Complete Theme Migration Guide - SOMARNIX
 
 ## Quick Reference - Before & After
 

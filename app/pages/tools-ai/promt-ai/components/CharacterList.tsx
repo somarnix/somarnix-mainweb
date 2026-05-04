@@ -1,4 +1,4 @@
-// gstechedukh/app/pages/tools-ai/promt-ai/components/CharacterList.tsx
+// somarnix/app/pages/tools-ai/promt-ai/components/CharacterList.tsx
 "use client";
 
 import type { CharacterDraft } from "@/app/components/promt/types";

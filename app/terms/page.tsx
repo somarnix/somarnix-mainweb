@@ -5,7 +5,7 @@ import { POLICY_LAST_UPDATED, SUPPORT_EMAIL } from "../lib/siteConfig";
 export const metadata = buildMetadata({
   title: "Terms of Use",
   description:
-    "Read the GSTECHKH terms covering account use, digital products, support expectations, and prohibited activity.",
+    "Read the SOMARNIX terms covering account use, digital products, support expectations, and prohibited activity.",
   path: "/terms",
 });
 
@@ -13,7 +13,7 @@ export default function TermsPage() {
   return (
     <ContentPageShell
       title="Terms of Use"
-      description={`Last updated ${POLICY_LAST_UPDATED}. These terms summarize the expected rules for using GSTECHKH, buying digital products, and accessing support services.`}
+      description={`Last updated ${POLICY_LAST_UPDATED}. These terms summarize the expected rules for using SOMARNIX, buying digital products, and accessing support services.`}
     >
       <div className="space-y-6 text-sm leading-7 text-slate-600 dark:text-slate-300 sm:text-base">
         <section>

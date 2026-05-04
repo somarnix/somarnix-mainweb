@@ -25,7 +25,7 @@ type KeyLicenceProps = {
   children?: (state: KeyLicenceState) => React.ReactNode;
 };
 
-const DEVICE_ID_KEY = "gstech_tool_device_id";
+const DEVICE_ID_KEY = "somarnix_tool_device_id";
 
 function getDeviceId(): string {
   if (typeof window === "undefined") return "";
@@ -40,7 +40,7 @@ function getDeviceId(): string {
 }
 
 function getLicenseTokenKey(slug: string): string {
-  return `gstech_tool_license_${slug}`;
+  return `somarnix_tool_license_${slug}`;
 }
 
 export default function KeyLicence({

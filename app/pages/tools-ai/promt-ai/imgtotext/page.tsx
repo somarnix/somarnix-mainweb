@@ -1,4 +1,4 @@
-// gstechedukh\app\pages\tools-ai\promt-ai\imgtotext\page.tsx
+// somarnix\app\pages\tools-ai\promt-ai\imgtotext\page.tsx
 "use client";
 
 import { useState } from "react";

@@ -103,7 +103,7 @@ export function proxy(request: NextRequest) {
   response.headers.set('X-Frame-Options', 'SAMEORIGIN');
   
   // Add copyright header
-  response.headers.set('X-Copyright', '© GSTECHKH. All rights reserved.');
+  response.headers.set('X-Copyright', '© SOMARNIX. All rights reserved.');
   
   return response;
 }

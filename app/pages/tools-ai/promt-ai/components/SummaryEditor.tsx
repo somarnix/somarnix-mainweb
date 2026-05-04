@@ -1,4 +1,4 @@
-// gstechedukh/app/pages/tools-ai/promt-ai/components/SummaryEditor.tsx
+// somarnix/app/pages/tools-ai/promt-ai/components/SummaryEditor.tsx
 "use client";
 
 type SummaryEditorProps = {

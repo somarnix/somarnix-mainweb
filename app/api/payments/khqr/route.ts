@@ -90,7 +90,7 @@ async function getNextBillNumber(): Promise<string> {
     throw new Error("Failed to generate the next KHQR bill number.");
   }
 
-  return `APPGSTECHKH${formatSequenceCode(sequenceNumber)}`;
+  return `APPSOMARNIX${formatSequenceCode(sequenceNumber)}`;
 }
 
 function getDefaults(currency: KhqrCurrency) {
@@ -102,9 +102,9 @@ function getDefaults(currency: KhqrCurrency) {
     merchantName: process.env.KHQR_MERCHANT_NAME || "SOPANHAROTH LEM",
     merchantCity: process.env.KHQR_MERCHANT_CITY || "Phnom Penh",
     currency,
-    storeLabel: process.env.KHQR_STORE_LABEL || "GSTECHKH",
+    storeLabel: process.env.KHQR_STORE_LABEL || "SOMARNIX",
     phoneNumber: process.env.KHQR_PHONE_NUMBER || "85578409140",
-    terminalLabel: process.env.KHQR_TERMINAL_LABEL || "GSTECHKH",
+    terminalLabel: process.env.KHQR_TERMINAL_LABEL || "SOMARNIX",
     abaMerchantId: process.env.ABA_PAYWAY_ABA_MERCHANT_ID || "125071016042664",
     paywayMerchantId: process.env.ABA_PAYWAY_MERCHANT_ID || "1387988",
     paywayTerminalId: process.env.ABA_PAYWAY_TERMINAL_ID || "031877066",

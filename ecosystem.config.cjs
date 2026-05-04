@@ -1,8 +1,8 @@
 module.exports = {
   apps: [
     {
-      name: "gstechkh",
-      cwd: "/home/gstechkh/htdocs/gstechkh.com",
+      name: "somarnix",
+      cwd: "/home/somarnix/htdocs/somarnix.com",
       script: "npm",
       args: "run start",
       env: {

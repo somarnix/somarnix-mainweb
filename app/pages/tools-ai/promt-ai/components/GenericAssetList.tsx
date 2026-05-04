@@ -1,4 +1,4 @@
-// gstechedukh/app/pages/tools-ai/promt-ai/components/GenericAssetList.tsx
+// somarnix/app/pages/tools-ai/promt-ai/components/GenericAssetList.tsx
 "use client";
 
 type GenericAssetListProps<T> = {

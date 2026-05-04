@@ -1,4 +1,4 @@
-# 🎉 GSTECHKH Theme System - 100% COMPLETE!
+# 🎉 SOMARNIX Theme System - 100% COMPLETE!
 
 ## ✅ ALL PAGES NOW HAVE FULL LIGHT/DARK THEME SUPPORT
 
@@ -312,7 +312,7 @@ const { theme, toggleTheme } = useTheme();
 
 **Status: COMPLETE** ✅
 
-Every page, component, and element on the GSTECHKH website now has full, professional light and dark theme support!
+Every page, component, and element on the SOMARNIX website now has full, professional light and dark theme support!
 
 ---
 

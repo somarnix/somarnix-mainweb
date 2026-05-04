@@ -20,7 +20,7 @@ img {
 
 /* Watermark on images */
 .watermark::before {
-  content: '© GSTECHKH';
+  content: '© SOMARNIX';
 }
 ```
 
@@ -168,7 +168,7 @@ export default function App() {
 ## 🛡️ What Hackers/Scrapers See Now
 
 ```
-Target: gstechkh.com
+Target: somarnix.com
 
 Attempting to copy...
 ├── Right-Click → ❌ Blocked
@@ -268,7 +268,7 @@ export default function ProductDetail() {
 // Add user ID to watermarks
 <ProtectedImage 
   src={image} 
-  watermark={`© GSTECHKH - User: ${userId}`}
+  watermark={`© SOMARNIX - User: ${userId}`}
 />
 ```
 

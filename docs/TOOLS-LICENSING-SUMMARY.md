@@ -296,7 +296,7 @@ await download(token, deviceId);
 
 ### 1. Run Database Migration
 ```bash
-mysql -u root -p gstechedukh < sql/12-enhanced-tools-licenses.sql
+mysql -u root -p somarnix < sql/12-enhanced-tools-licenses.sql
 ```
 
 ### 2. Add Environment Variables
@@ -442,8 +442,8 @@ None - all new files created to avoid breaking existing functionality.
 
 For questions or issues:
 - **Documentation:** See `docs/TOOLS-LICENSING-*.md`
-- **Security Issues:** Contact security@gstechkh.com
-- **General Support:** @gstechkh_support
+- **Security Issues:** Contact security@somarnix.com
+- **General Support:** @somarnix_support
 
 ---
 

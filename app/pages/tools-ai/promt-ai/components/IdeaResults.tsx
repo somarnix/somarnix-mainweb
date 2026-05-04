@@ -1,4 +1,4 @@
-// gstechedukh/app/pages/tools-ai/promt-ai/components/IdeaResults.tsx
+// somarnix/app/pages/tools-ai/promt-ai/components/IdeaResults.tsx
 "use client";
 
 import type { StoryIdea } from "@/app/components/promt/types";

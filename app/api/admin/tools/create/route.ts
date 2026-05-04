@@ -213,8 +213,8 @@ function buildToolDefinitionPayload(args: {
           requiresLicenseActivation: args.activationRequired && args.licenseRequired,
         },
         access: {
-          deviceIdKey: "gstech_tool_device_id",
-          licenseStorageKey: args.licenseRequired ? `gstech_tool_license_${args.slug}` : null,
+          deviceIdKey: "somarnix_tool_device_id",
+          licenseStorageKey: args.licenseRequired ? `somarnix_tool_license_${args.slug}` : null,
           allowGuestPreview: false,
         },
         routing: {
@@ -259,8 +259,8 @@ function buildToolDefinitionPayload(args: {
           requiresLicenseActivation: args.activationRequired && args.licenseRequired,
         },
         access: {
-          deviceIdKey: "gstech_tool_device_id",
-          licenseStorageKey: args.licenseRequired ? `gstech_tool_license_${args.slug}` : null,
+          deviceIdKey: "somarnix_tool_device_id",
+          licenseStorageKey: args.licenseRequired ? `somarnix_tool_license_${args.slug}` : null,
           allowGuestPreview: args.allowGuestPreview,
         },
         routing: {
@@ -303,8 +303,8 @@ function buildToolDefinitionPayload(args: {
           requiresLicenseActivation: true,
         },
         access: {
-          deviceIdKey: "gstech_tool_device_id",
-          licenseStorageKey: `gstech_tool_license_${args.slug}`,
+          deviceIdKey: "somarnix_tool_device_id",
+          licenseStorageKey: `somarnix_tool_license_${args.slug}`,
           allowGuestPreview: false,
         },
         routing: {
@@ -345,8 +345,8 @@ function buildToolDefinitionPayload(args: {
         requiresLicenseActivation: args.activationRequired && args.licenseRequired,
       },
       access: {
-        deviceIdKey: "gstech_tool_device_id",
-        licenseStorageKey: args.licenseRequired ? `gstech_tool_license_${args.slug}` : null,
+        deviceIdKey: "somarnix_tool_device_id",
+        licenseStorageKey: args.licenseRequired ? `somarnix_tool_license_${args.slug}` : null,
         allowGuestPreview: false,
       },
       routing: {

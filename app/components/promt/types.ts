@@ -1,4 +1,4 @@
-// gstechedukh\app\components\promt\types.ts
+// somarnix\app\components\promt\types.ts
 export type CharacterDraft = {
   name: string;
   appearance?: string;

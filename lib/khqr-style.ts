@@ -11,7 +11,7 @@ type StyleAssetName =
   | "usd.png"
   | "khr.png"
   | "khqr.png"
-  | "gstechkh-logo.png";
+  | "somarnix-logo.png";
 
 type StyledKhqrInput = {
   payload: string;
@@ -85,7 +85,7 @@ async function buildStyledKhqrSvg(input: StyledKhqrInput): Promise<string> {
     loadAssetDataUri("usd.png"),
     loadAssetDataUri("khr.png"),
     loadAssetDataUri("khqr.png"),
-    loadAssetDataUri("gstechkh-logo.png"),
+    loadAssetDataUri("somarnix-logo.png"),
   ]);
 
   const qrDataUrl = await QRCode.toDataURL(input.payload, {

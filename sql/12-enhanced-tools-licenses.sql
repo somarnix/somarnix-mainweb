@@ -5,7 +5,7 @@
    - Compatible with 11-tool-definitions.sql
 ========================================================= */
 
-USE gstechedukh;
+USE somarnix;
 
 /* ---------------------------------------------------------
    1. tool_definitions comes fully from file 11
@@ -640,6 +640,6 @@ WHERE table_schema = DATABASE()
    4. Set up cron job for sp_cleanup_expired_tokens
    
    Cron example (hourly cleanup):
-   0 * * * * mysql -u root -p'password' -e "CALL gstechedukh.sp_cleanup_expired_tokens();"
+   0 * * * * mysql -u root -p'password' -e "CALL somarnix.sp_cleanup_expired_tokens();"
    
    --------------------------------------------------------- */

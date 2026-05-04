@@ -1,4 +1,4 @@
-// gstechedukh\app\components\promt\helpAnimal.ts
+// somarnix\app\components\promt\helpAnimal.ts
 
 export type HelpAnimalIdea = {
   title: string;

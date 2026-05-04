@@ -26,7 +26,7 @@ const ensuredTargetGroupId = targetGroupId;
 const client = new TelegramClient(new StringSession(sessionString), apiId, apiHash, {
   connectionRetries: 10,
   useWSS: true,
-  deviceModel: "GSTECH Server",
+  deviceModel: "SOMARNIX Server",
   systemVersion: "Windows/Linux",
   appVersion: "1.0",
 });

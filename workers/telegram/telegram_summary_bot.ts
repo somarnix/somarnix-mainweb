@@ -76,7 +76,7 @@ if (!apiId || !apiHash || !abaSourceGroupId || !summaryBotToken) {
 const client = new TelegramClient(new StringSession(sessionString), apiId, apiHash, {
   connectionRetries: 10,
   useWSS: true,
-  deviceModel: "GSTECH Summary Menu Bot",
+  deviceModel: "SOMARNIX Summary Menu Bot",
   systemVersion: "Windows/Linux",
   appVersion: "1.0",
 });
@@ -339,7 +339,7 @@ async function handleText(chatId: string, userId: string, text: string): Promise
   if (normalized === "/start" || normalized === "/menu") {
     await sendMenu(
       chatId,
-      "👋 <b>Welcome to GSTECHKHBanks Summary</b>\n\nUse the operation buttons below for ABA / PayWay, Bakong, export, and order search."
+      "👋 <b>Welcome to SOMARNIX Banks Summary</b>\n\nUse the operation buttons below for ABA / PayWay, Bakong, export, and order search."
     );
     return;
   }

@@ -7,12 +7,12 @@
    STEP 1: CORE AUTH + COMMERCE
 ========================================================= */
 
--- DROP DATABASE IF EXISTS gstechedukh;
--- CREATE DATABASE gstechedukh
+-- DROP DATABASE IF EXISTS somarnix;
+-- CREATE DATABASE somarnix
 --   CHARACTER SET utf8mb4
 --   COLLATE utf8mb4_unicode_ci;
 
-USE gstechedukh;
+USE somarnix;
 
 CREATE TABLE IF NOT EXISTS users (
   id BIGINT UNSIGNED AUTO_INCREMENT PRIMARY KEY,
@@ -305,7 +305,7 @@ CREATE TABLE IF NOT EXISTS payments (
    STEP 2: CHAT + SOCIAL
 ========================================================= */
 
-USE gstechedukh;
+USE somarnix;
 
 CREATE TABLE IF NOT EXISTS order_conversations (
   id BIGINT UNSIGNED AUTO_INCREMENT PRIMARY KEY,
@@ -378,7 +378,7 @@ CREATE TABLE IF NOT EXISTS user_followers (
    STEP 3: VIDEO LEARNING
 ========================================================= */
 
-USE gstechedukh;
+USE somarnix;
 
 CREATE TABLE IF NOT EXISTS video_courses (
   id BIGINT UNSIGNED AUTO_INCREMENT PRIMARY KEY,
@@ -552,7 +552,7 @@ CREATE TABLE IF NOT EXISTS video_course_cart_items (
    STEP 4: TOOLS + LICENSES
 ========================================================= */
 
-USE gstechedukh;
+USE somarnix;
 
 CREATE TABLE IF NOT EXISTS tool_variants (
   id BIGINT UNSIGNED AUTO_INCREMENT PRIMARY KEY,
@@ -654,7 +654,7 @@ CREATE TABLE IF NOT EXISTS license_failed_attempts (
    STEP 5: DEFAULTS + SAFE BACKFILL
 ========================================================= */
 
-USE gstechedukh;
+USE somarnix;
 
 INSERT IGNORE INTO product_categories (name) VALUES
   ('course'),
@@ -800,7 +800,7 @@ CREATE TABLE IF NOT EXISTS promotion_combo_items (
    STEP 6: USER API KEYS
 ========================================================= */
 
-USE gstechedukh;
+USE somarnix;
 
 CREATE TABLE IF NOT EXISTS user_api_keys (
   user_id BIGINT UNSIGNED NOT NULL,
@@ -814,7 +814,7 @@ CREATE TABLE IF NOT EXISTS user_api_keys (
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;/* =========================================================
    STEP 7: SYSTEM NOTIFICATIONS
 ========================================================= */
-USE gstechedukh;
+USE somarnix;
 CREATE TABLE IF NOT EXISTS system_notifications (
   id BIGINT UNSIGNED NOT NULL AUTO_INCREMENT,
   user_id BIGINT NULL,
@@ -882,7 +882,7 @@ ON DUPLICATE KEY UPDATE
 /* =========================================================
    STEP 8: ORDER NOTIFICATION READS
 ========================================================= */
-USE gstechedukh;
+USE somarnix;
 CREATE TABLE IF NOT EXISTS order_notification_reads (
   id BIGINT UNSIGNED NOT NULL AUTO_INCREMENT,
   user_id BIGINT NOT NULL,
@@ -898,7 +898,7 @@ CREATE TABLE IF NOT EXISTS order_notification_reads (
 /* =========================================================
    STEP 9: PAYWAY WEBHOOK LOGS
 ========================================================= */
-USE gstechedukh;
+USE somarnix;
 CREATE TABLE IF NOT EXISTS payway_webhook_logs (
   id BIGINT UNSIGNED AUTO_INCREMENT PRIMARY KEY,
   trx_id VARCHAR(120) NOT NULL,
@@ -923,7 +923,7 @@ CREATE TABLE IF NOT EXISTS payway_webhook_logs (
 /* =========================================================
    STEP 10: USER AVATAR BORDERS
 ========================================================= */
-USE gstechedukh;
+USE somarnix;
 -- No action needed in full schema.
 -- The base users table created in Step 1 already includes avatar_border_url.
 
@@ -931,7 +931,7 @@ USE gstechedukh;
    STEP 11: TOOL DEFINITIONS + ROUTE ALIASES
 ========================================================= */
 
-USE gstechedukh;
+USE somarnix;
 
 CREATE TABLE IF NOT EXISTS tool_definitions (
   id BIGINT UNSIGNED AUTO_INCREMENT PRIMARY KEY,
@@ -1103,7 +1103,7 @@ WHERE td.canonical_slug = 'translatevideo'
    - Compatible with 11-tool-definitions.sql
 ========================================================= */
 
-USE gstechedukh;
+USE somarnix;
 
 /* ---------------------------------------------------------
    1. tool_definitions comes fully from Step 11
@@ -1738,7 +1738,7 @@ WHERE table_schema = DATABASE()
    4. Set up cron job for sp_cleanup_expired_tokens
    
    Cron example (hourly cleanup):
-   0 * * * * mysql -u root -p'password' -e "CALL gstechedukh.sp_cleanup_expired_tokens();"
+   0 * * * * mysql -u root -p'password' -e "CALL somarnix.sp_cleanup_expired_tokens();"
    
    --------------------------------------------------------- */
 
@@ -1751,7 +1751,7 @@ WHERE table_schema = DATABASE()
    - Anti-abuse system built-in
 ========================================================= */
 
-USE gstechedukh;
+USE somarnix;
 
 /* ---------------------------------------------------------
    1. ADD LEVEL COLUMNS TO users TABLE
@@ -2906,7 +2906,7 @@ WHERE NOT EXISTS (
 -- NOTE: No fee discounts or other benefits yet
 -- This is a PURE LEVEL system only
 -- Includes English (en) and Khmer (km) translations
--- Badge files should be in: public/Budget GSTECHKH SVG/
+-- Badge files should be in: public/Budget SOMARNIX SVG/
 -- You can add discounts/benefits later by inserting more records into level_benefits table
 
 /* ---------------------------------------------------------
@@ -3025,7 +3025,7 @@ WHERE event_schema = DATABASE();
 /* =========================================================
    STEP 14: AVATAR URL LENGTH
 ========================================================= */
-USE gstechedukh;
+USE somarnix;
 -- No action needed in full schema.
 -- The base users table created in Step 1 already uses avatar_url VARCHAR(2000).
 

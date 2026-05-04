@@ -264,7 +264,7 @@ export function buildSummaryMessage(
   end: Date,
   sourceGroupId: string,
   sourceBotUsername: string,
-  summaryTitle = "GSTECHKHBanks Summary"
+  summaryTitle = "SOMARNIX Banks Summary"
 ): string {
   const topBuyerLines = Array.from(totals.topBuyers.entries())
     .sort((left, right) => {

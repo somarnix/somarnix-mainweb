@@ -1,6 +1,6 @@
-export const FAVORITES_STORAGE_KEY = "gstechkh-favorites";
-export const FAVORITES_CHANGED_EVENT = "gstechkh-favorites-change";
-export const OPEN_FAVORITES_EVENT = "gstechkh-open-favorites";
+export const FAVORITES_STORAGE_KEY = "somarnix-favorites";
+export const FAVORITES_CHANGED_EVENT = "somarnix-favorites-change";
+export const OPEN_FAVORITES_EVENT = "somarnix-open-favorites";
 
 export type FavoriteItemType =
   | "product"

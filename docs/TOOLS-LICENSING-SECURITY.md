@@ -2,7 +2,7 @@
 
 ## Executive Summary
 
-This document provides a complete security model for the GSTECHKH tools and licensing system. It covers architecture, threat models, protection strategies, and implementation guidelines.
+This document provides a complete security model for the SOMARNIX tools and licensing system. It covers architecture, threat models, protection strategies, and implementation guidelines.
 
 ---
 
@@ -550,8 +550,8 @@ LICENSE_AUDIT_LOG_ENABLED=true
 ## 10. Contact & Support
 
 For security issues, contact:
-- Email: security@gstechkh.com
-- Telegram: @gstechkh_support
+- Email: security@somarnix.com
+- Telegram: @somarnix_support
 
 **DO NOT** disclose vulnerabilities publicly before they are fixed.
 

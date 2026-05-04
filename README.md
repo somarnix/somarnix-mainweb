@@ -1,6 +1,6 @@
-# GSTECHKH
+# SOMARNIX
 
-GSTECHKH is a Next.js 16 application for digital products, AI tools, video courses, order management, payments, support chat, and admin operations. The repository also includes Capacitor mobile packaging, Telegram payment/support workers, and a packaged flow-extension build pipeline.
+SOMARNIX is a Next.js 16 application for digital products, AI tools, video courses, order management, payments, support chat, and admin operations. The repository also includes Capacitor mobile packaging, Telegram payment/support workers, and a packaged flow-extension build pipeline.
 
 ## What This Project Includes
 
@@ -26,7 +26,7 @@ GSTECHKH is a Next.js 16 application for digital products, AI tools, video cours
 ## Project Structure
 
 ```text
-gstechedukh/
+somarnix/
   app/                  Next app routes, app shell, pages, API routes, contexts, UI
   docs/                 Supporting guides for theme, platform apps, security, migration
   lib/                  Shared server/runtime utilities

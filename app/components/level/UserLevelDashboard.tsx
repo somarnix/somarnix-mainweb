@@ -112,7 +112,7 @@ export function UserLevelDashboard({
   }
 
   const badgeAssetNumber = getBadgeAssetNumber(user.level);
-  const badgeAssetSrc = `/Budget%20GSTECHKH%20SVG/${badgeAssetNumber}.svg`;
+  const badgeAssetSrc = `/Budget%20SOMARNIX%20SVG/${badgeAssetNumber}.svg`;
 
   return (
     <div className={`bg-white dark:bg-gray-800 rounded-lg shadow p-6 ${className}`}>
