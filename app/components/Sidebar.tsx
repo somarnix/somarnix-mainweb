@@ -265,13 +265,6 @@ export function Sidebar({
             >
               SOMARNIX
             </span>
-            <span
-              className={`font-bold bg-gradient-to-r from-violet-500 to-fuchsia-400 bg-clip-text text-transparent tracking-wide ${
-                isAppShell ? "mt-1 text-[2.35rem] leading-[0.9]" : "text-lg sm:text-xl"
-              }`}
-            >
-              KH
-            </span>
           </div>
         </div>
 

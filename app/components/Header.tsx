@@ -1550,9 +1550,6 @@ const getChatNoteBadgeClass = (result?: string | null) => {
                 <span className="font-bold text-blue-600 dark:text-blue-400 hidden sm:block sm:text-lg md:text-xl">
                   SOMARNIX
                 </span>
-                <span className="font-bold text-purple-600 dark:text-purple-400 text-xs sm:hidden">
-                  KH
-                </span>
               </div>
             </button>
           </div>

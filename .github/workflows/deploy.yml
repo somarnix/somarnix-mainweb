@@ -12,10 +12,41 @@ jobs:
     steps:
       - name: Deploy via SSH
         uses: appleboy/ssh-action@v1.0.3
+        env:
+          APP_DIR: ${{ secrets.VPS_APP_DIR }}
+          APP_NAME: ${{ vars.PM2_APP_NAME || 'somarnix' }}
+          BRANCH: ${{ github.ref_name }}
+          GITHUB_REPOSITORY: ${{ github.repository }}
+          NODE_BIN_DIR: ${{ secrets.VPS_NODE_BIN_DIR }}
+          REPO_URL: ${{ secrets.VPS_REPO_URL }}
         with:
           host: ${{ secrets.VPS_HOST }}
           username: ${{ secrets.VPS_USER }}
           key: ${{ secrets.VPS_SSH_KEY }}
+          envs: APP_DIR,APP_NAME,BRANCH,GITHUB_REPOSITORY,NODE_BIN_DIR,REPO_URL
+          command_timeout: 30m
           script: |
-            cd /home/somarnix/htdocs/somarnix.com
-            bash scripts/deploy-vps.sh
+            set -eu
+
+            APP_DIR="${APP_DIR:-$HOME/htdocs/somarnix.com}"
+            APP_NAME="${APP_NAME:-somarnix}"
+            REPO_URL="${REPO_URL:-https://github.com/${GITHUB_REPOSITORY}.git}"
+
+            echo "Deploy target: ${APP_DIR}"
+            echo "Deploy branch: ${BRANCH}"
+
+            if [ ! -d "${APP_DIR}/.git" ]; then
+              if [ -e "${APP_DIR}" ] && [ "$(ls -A "${APP_DIR}" 2>/dev/null)" ]; then
+                echo "APP_DIR exists but is not a git repository: ${APP_DIR}"
+                echo "Set the GitHub secret VPS_APP_DIR to the folder that contains this repo, or move the existing files."
+                exit 1
+              fi
+
+              mkdir -p "$(dirname "${APP_DIR}")"
+              git clone --branch "${BRANCH}" "${REPO_URL}" "${APP_DIR}"
+            fi
+
+            cd "${APP_DIR}"
+            git fetch origin "${BRANCH}"
+            git checkout -B "${BRANCH}" "origin/${BRANCH}"
+            APP_DIR="${APP_DIR}" APP_NAME="${APP_NAME}" BRANCH="${BRANCH}" bash scripts/deploy-vps.sh
