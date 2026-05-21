@@ -48,6 +48,7 @@ const FALLBACK_FAQ_ITEMS: SupportFaqRecord[] = [
 
 export function SupportCenterPage() {
   const { language } = useLanguage();
+  const staticLanguage = language === "km" ? "km" : "en";
   const [faqItems, setFaqItems] = useState<SupportFaqRecord[]>([]);
   const [faqLoading, setFaqLoading] = useState(true);
   const [searchQuery, setSearchQuery] = useState("");
@@ -134,7 +135,7 @@ export function SupportCenterPage() {
         id: nextMessageId(),
         role: "bot",
         text: matched
-          ? `${getSupportFaqQuestion(matched, language)}\n${getSupportFaqAnswer(matched, language)}`
+          ? `${getSupportFaqQuestion(matched, staticLanguage)}\n${getSupportFaqAnswer(matched, staticLanguage)}`
           : "I could not find a clear answer. Please contact human support.",
       },
     ]);
@@ -207,8 +208,8 @@ export function SupportCenterPage() {
               )}
               {filteredFaqs.map((item) => {
                 const expanded = expandedId === item.id;
-                const question = getSupportFaqQuestion(item, language);
-                const answer = getSupportFaqAnswer(item, language);
+                const question = getSupportFaqQuestion(item, staticLanguage);
+                const answer = getSupportFaqAnswer(item, staticLanguage);
                 const embedVideoUrl = getEmbedVideoUrl(item.videoUrl);
 
                 return (

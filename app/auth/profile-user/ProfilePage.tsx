@@ -34,6 +34,7 @@ import {
 
 import { Button } from "../../components/ui/button";
 import { Input } from "../../components/ui/input";
+import { LanguageSelect } from "../../components/LanguageSelect";
 import { Pagination } from "../../components/Pagination";
 import { ProfileAvatar } from "../../components/ProfileAvatar";
 import { DEFAULT_PROFILE_COVERS, getDefaultProfileCover, ProfileCoverArt } from "../../components/ProfileCoverArt";
@@ -251,7 +252,7 @@ const mapStateCounts = (
 
 export function ProfilePage({ onNavigate, onOpenProductDetail, onOpenToolDetail, onOpenOrderDetail }: ProfilePageProps) {
   const { user, logout, updateProfile, deleteAccount } = useAuth();
-  const { language, setLanguage, t } = useLanguage(); // ✅ must have t()
+  const { language, t } = useLanguage(); // ✅ must have t()
   const { theme, toggleTheme } = useTheme();
 
   const getLoginDeviceId = useCallback((): string | null => {
@@ -1176,7 +1177,7 @@ export function ProfilePage({ onNavigate, onOpenProductDetail, onOpenToolDetail,
     setDeleteLoading(true);
     try {
       await deleteAccount({
-        confirmText: deleteText,
+        confirmText: deleteText.trim() === "លុប" ? "DELETE" : deleteText,
         currentPassword: deleteRequiresPassword ? deleteCurrentPassword : undefined,
         code: deleteCode,
       });
@@ -1626,11 +1627,11 @@ export function ProfilePage({ onNavigate, onOpenProductDetail, onOpenToolDetail,
     }
   };
   const verifiedBadgeSrc = "/border/blue%20verify.svg";
+  const userPresence = useUserPresence(user?.id);
   if (!user) return null;
   const userLevel = Number(user.level ?? 1);
   const userHasLevelPerks = userLevel >= 2;
   const userAvatarBorderUrl = userHasLevelPerks ? user.avatarBorderUrl ?? null : null;
-  const userPresence = useUserPresence(user.id);
   const previewAvatarUrl =
     normalizeAvatarInputUrl(avatarUrlInput) ?? user.avatarUrl ?? "/Job Jik.jpg";
   const userCoverSrc = user.coverUrl || getDefaultProfileCover(user.id);
@@ -3450,14 +3451,13 @@ export function ProfilePage({ onNavigate, onOpenProductDetail, onOpenToolDetail,
                     </p>
                   </div>
                 </div>
-                <Button
-                  size="sm"
-                  variant="outline"
-                  onClick={() => setLanguage(language === "en" ? "km" : "en")}
-                  className="w-full sm:w-auto"
+                <div
+                  className="inline-flex w-full items-center gap-2 rounded-md border border-gray-200 bg-white px-3 py-2 text-sm font-medium text-gray-700 shadow-sm dark:border-gray-700 dark:bg-gray-900 dark:text-gray-200 sm:w-auto"
+                  data-no-auto-translate
                 >
-                  <Globe className="w-4 h-4 mr-2" /> {translate("profile.switch", "Switch")}
-                </Button>
+                  <Globe className="h-4 w-4" />
+                  <LanguageSelect buttonClassName="w-full bg-transparent p-0 text-sm" />
+                </div>
 
                 <div className="h-px bg-gray-100"></div>
 
@@ -3565,7 +3565,7 @@ export function ProfilePage({ onNavigate, onOpenProductDetail, onOpenToolDetail,
                       <Button
                         variant="destructive"
                         disabled={
-                          deleteText !== "DELETE" ||
+                          !["DELETE", "លុប"].includes(deleteText.trim()) ||
                           (deleteRequiresPassword && deleteCurrentPassword.trim().length === 0) ||
                           deleteCode.trim().length !== 6 ||
                           deleteLoading

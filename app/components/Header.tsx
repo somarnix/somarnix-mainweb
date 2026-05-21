@@ -2,6 +2,7 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { ShoppingCart, Menu, X, User, Globe, Moon, Sun, LogOut, Settings, BookOpen, Wallet, DollarSign, Package, FileText, Layers, ChevronRight, Facebook, Youtube, Send, MessageCircle, Loader2, Smile, SmilePlus, Sticker, Pin, ArrowLeft, MoreVertical, Edit3, Trash2, Check, Bell, Search, Heart } from 'lucide-react';
 import { Button } from './ui/button';
+import { LanguageSelect } from "./LanguageSelect";
 import { ProfileAvatar } from "./ProfileAvatar";
 import { UserOnlineStatus } from "./UserOnlineStatus";
 import { useLanguage } from '../contexts/LanguageContext';
@@ -125,6 +126,12 @@ type HeaderSystemNotification = {
   isRead: boolean;
 };
 
+type CmsMenuItem = {
+  id: number;
+  label: string;
+  href: string;
+};
+
 const normalizeHeaderSystemNotificationIcon = (
   value: unknown
 ): HeaderSystemNotification["icon"] => {
@@ -168,6 +175,7 @@ export function Header({
   const [accountPopupOpen, setAccountPopupOpen] = useState(false);
   const [favoriteOpen, setFavoriteOpen] = useState(false);
   const [favoriteItems, setFavoriteItems] = useState<FavoriteItem[]>([]);
+  const [cmsMenuItems, setCmsMenuItems] = useState<CmsMenuItem[]>([]);
   const [notificationOpen, setNotificationOpen] = useState(false);
   const [notificationTab, setNotificationTab] = useState<"orders" | "system">("orders");
   const [notificationLoading, setNotificationLoading] = useState(false);
@@ -195,7 +203,7 @@ export function Header({
   const [systemNotificationLoading, setSystemNotificationLoading] = useState(false);
   const [orderNotificationSaving, setOrderNotificationSaving] = useState<string | "all" | null>(null);
   const [systemNotificationSaving, setSystemNotificationSaving] = useState<string | "all" | null>(null);
-  const { language, setLanguage, t } = useLanguage();
+  const { language, t } = useLanguage();
   const { theme, toggleTheme } = useTheme();
   const { user, isAuthenticated, logout } = useAuth();
   const { currency, setCurrency, formatPrice, balance } = useCurrency();
@@ -472,8 +480,41 @@ export function Header({
     []
   );
 
+  useEffect(() => {
+    let cancelled = false;
+    const loadCmsMenu = async () => {
+      try {
+        const res = await fetch("/api/cms/menu", { cache: "no-store" });
+        const data = await res.json().catch(() => ({}));
+        if (!cancelled && Array.isArray(data.items)) {
+          setCmsMenuItems(
+            data.items
+              .map((item: any) => ({
+                id: Number(item.id ?? 0),
+                label: String(item.label ?? ""),
+                href: String(item.href ?? ""),
+              }))
+              .filter((item: CmsMenuItem) => item.id > 0 && item.label && item.href)
+          );
+        }
+      } catch {
+        if (!cancelled) setCmsMenuItems([]);
+      }
+    };
+    void loadCmsMenu();
+    return () => {
+      cancelled = true;
+    };
+  }, []);
+
   const navLinks = [
     { name: t('nav.home'), value: 'home' },
+    { name: t('nav.news'), value: '/news', href: '/news' },
+    ...cmsMenuItems.map((item) => ({
+      name: item.label,
+      value: item.href,
+      href: item.href,
+    })),
     { name: t('nav.all'), value: 'all' },
     { name: t('nav.ai'), value: 'courses' },
     { name: t('nav.programs'), value: 'programs' },
@@ -481,7 +522,7 @@ export function Header({
     { name: t('nav.tools'), value: 'tools' },
     { name: t('nav.videoCourses'), value: 'video-courses' },
     { name: t('nav.blog'), value: 'blog' },
-    { name: t('nav.about'), value: 'services' }
+    { name: t('nav.about'), value: 'services' },
   ];
 
   const formatWidgetTime = (value: string | null) => {
@@ -1444,14 +1485,17 @@ const getChatNoteBadgeClass = (result?: string | null) => {
               </button>
 
               {/* Language Switcher */}
-              <button
-                onClick={() => setLanguage(language === 'en' ? 'km' : 'en')}
-                className="flex items-center gap-1 sm:gap-2 px-2 sm:px-2.5 py-1.5 rounded-lg text-xs sm:text-sm font-medium text-gray-700 dark:text-gray-300 hover:bg-gray-200 dark:hover:bg-gray-700 transition-colors"
-                title={language === 'en' ? 'Switch to Khmer' : 'Switch to English'}
+              <div
+                className="flex items-center gap-1 sm:gap-2 rounded-lg px-2 sm:px-2.5 py-1.5 text-xs sm:text-sm font-medium text-gray-700 transition-colors hover:bg-gray-200 dark:text-gray-300 dark:hover:bg-gray-700"
+                title="Language"
+                data-no-auto-translate
               >
                 <Globe className="w-3 h-3 sm:w-4 sm:h-4" />
-                <span className="font-medium">{language === 'en' ? 'KM' : 'EN'}</span>
-              </button>
+                <LanguageSelect
+                  buttonClassName="max-w-32 bg-transparent p-0 text-xs sm:max-w-40"
+                  menuClassName="text-xs"
+                />
+              </div>
 
               {/* Theme Toggle */}
               <button
@@ -1516,7 +1560,7 @@ const getChatNoteBadgeClass = (result?: string | null) => {
       <div className={`max-w-7xl mx-auto overflow-x-clip ${isAppShell ? "px-3 sm:px-4 lg:px-6" : "px-4 sm:px-6 lg:px-8"}`}>
         <div className={`flex items-center justify-between ${isAppShell ? "h-[4rem] sm:h-[4.25rem] md:h-[4.5rem]" : "h-[4.25rem] sm:h-[4.5rem] md:h-[4.75rem]"}`}>
           {/* Left: Hamburger Menu + Logo */}
-          <div className="flex min-w-0 items-center gap-2 sm:gap-3">
+          <div className="flex shrink-0 items-center gap-2 sm:gap-3">
             <button
               onClick={toggleSidebarMenu}
               className={`p-2 transition-colors ${
@@ -1536,18 +1580,18 @@ const getChatNoteBadgeClass = (result?: string | null) => {
             {/* Logo - Mobile: Logo + Name, Desktop: Logo + Name */}
             <button
               onClick={() => onNavigate('home')}
-              className="flex min-w-0 items-center gap-2 rounded-lg hover:bg-gray-50 dark:hover:bg-gray-800/50 transition-colors"
+              className="flex shrink-0 items-center gap-2 rounded-lg hover:bg-gray-50 dark:hover:bg-gray-800/50 transition-colors"
             >
               <img
                 src="/khqr-assets/somarnix-logo.png"
                 alt="SOMARNIX"
                 className="h-7 w-7 sm:h-10 sm:w-10 md:h-11 md:w-11 flex-shrink-0 object-contain rounded-lg shadow-md"
               />
-              <div className="flex flex-col min-w-0 leading-tight">
-                <span className="font-bold text-blue-600 dark:text-blue-400 text-[0.7rem] sm:hidden">
+              <div className="flex flex-col leading-tight">
+                <span className="whitespace-nowrap font-bold text-blue-600 dark:text-blue-400 text-[0.7rem] sm:hidden">
                   SOMARNIX
                 </span>
-                <span className="font-bold text-blue-600 dark:text-blue-400 hidden sm:block sm:text-lg md:text-xl">
+                <span className="hidden whitespace-nowrap font-bold text-blue-600 dark:text-blue-400 sm:block sm:text-lg md:text-xl">
                   SOMARNIX
                 </span>
               </div>
@@ -1555,12 +1599,18 @@ const getChatNoteBadgeClass = (result?: string | null) => {
           </div>
 
           {/* Desktop Navigation - Hidden on mobile/tablet */}
-          <nav className="hidden lg:flex items-center gap-1 xl:gap-2">
+          <nav className="hidden min-w-0 flex-1 items-center justify-center gap-0.5 lg:flex xl:gap-1">
             {navLinks.map((link) => (
               <button
                 key={link.value}
-                onClick={() => onNavigate(link.value)}
-                className={`px-3 py-2 rounded-lg font-medium text-sm transition-all hover:bg-gray-100 dark:hover:bg-gray-800 ${
+                onClick={() => {
+                  if ("href" in link && link.href) {
+                    window.location.href = link.href;
+                    return;
+                  }
+                  onNavigate(link.value);
+                }}
+                className={`whitespace-nowrap rounded-lg px-2 py-2 text-sm font-medium transition-all hover:bg-gray-100 dark:hover:bg-gray-800 xl:px-3 ${
                   currentPage === link.value
                     ? 'text-blue-600 dark:text-blue-400 bg-blue-50 dark:bg-blue-900/20'
                     : 'text-gray-700 dark:text-gray-300'

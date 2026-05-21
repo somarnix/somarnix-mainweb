@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useMemo, useState } from "react";
+import { usePathname } from "next/navigation";
 import { Download, MonitorSmartphone, Smartphone, X } from "lucide-react";
 
 type DeferredInstallPromptEvent = Event & {
@@ -11,6 +12,7 @@ type DeferredInstallPromptEvent = Event & {
 const STORAGE_KEY = "edugroit-install-dismissed";
 
 export default function PWAInstallPrompt() {
+  const pathname = usePathname();
   const [promptEvent, setPromptEvent] = useState<DeferredInstallPromptEvent | null>(null);
   const [dismissed, setDismissed] = useState(false);
   const [installing, setInstalling] = useState(false);
@@ -50,9 +52,11 @@ export default function PWAInstallPrompt() {
   }, []);
 
   const canShow = useMemo(() => {
+    const isAdminRoute = pathname === "/wp-admin" || pathname?.startsWith("/admin");
+    if (isAdminRoute) return false;
     if (!hydrated || dismissed || isStandalone) return false;
     return Boolean(promptEvent) || isIos;
-  }, [dismissed, isStandalone, promptEvent, isIos, hydrated]);
+  }, [dismissed, isStandalone, pathname, promptEvent, isIos, hydrated]);
 
   const dismiss = () => {
     setDismissed(true);

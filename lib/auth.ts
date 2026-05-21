@@ -7,24 +7,25 @@ import {
   getLoginDeviceByRowId,
   hasTable,
 } from "./trusted-devices";
+import { normalizeAppRole, type AppRole } from "./roles";
 import type { RowDataPacket } from "mysql2";
 
 export type AuthUser = {
   id?: number;
   userId: number;
-  role: "user" | "admin";
+  role: AppRole;
   loginDeviceId?: number;
 };
 
 type TokenPayload = JwtPayload & {
   userId: number;
-  role: "user" | "admin";
+  role: AppRole;
   loginDeviceId?: number;
 };
 
 type DbUserRow = RowDataPacket & {
   id: number;
-  role: "user" | "admin";
+  role: AppRole;
   is_active: number;
   deleted_at: string | Date | null;
   ban_until?: string | Date | null;
@@ -183,7 +184,7 @@ async function getAuthUserFromToken(token: string): Promise<AuthUser | null> {
 
     const authUser: AuthUser = {
       userId: Number(user.id),
-      role: user.role === "admin" ? "admin" : "user",
+      role: normalizeAppRole(user.role),
       loginDeviceId: resolvedLoginDeviceId,
     };
     return authUser;

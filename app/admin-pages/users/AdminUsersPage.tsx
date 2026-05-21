@@ -2,12 +2,13 @@
 
 import { useEffect, useMemo, useState } from "react";
 import PaginationNext from "@/app/components/PaginationNext";
+import type { AppRole } from "@/lib/roles";
 
 type AdminUser = {
   id: number;
   email: string;
   username?: string | null;
-  role: "user" | "admin";
+  role: AppRole;
   is_active: number;
   level?: number | null;
   buying_score?: number | null;
@@ -106,7 +107,7 @@ export default function AdminUsersPage() {
   const [error, setError] = useState<string | null>(null);
 
   const [search, setSearch] = useState("");
-  const [roleFilter, setRoleFilter] = useState<"all" | "user" | "admin">("all");
+  const [roleFilter, setRoleFilter] = useState<"all" | AppRole>("all");
   const [statusFilter, setStatusFilter] = useState<"all" | "active" | "banned" | "deleted">("all");
   const [presenceFilter, setPresenceFilter] = useState<"all" | "online" | "offline">("all");
   const [monthFilter, setMonthFilter] = useState<"all" | string>("all");
@@ -115,7 +116,7 @@ export default function AdminUsersPage() {
 
   const [newEmail, setNewEmail] = useState("");
   const [newPassword, setNewPassword] = useState("");
-  const [newRole, setNewRole] = useState<"user" | "admin">("user");
+  const [newRole, setNewRole] = useState<AppRole>("user");
 
   useEffect(() => {
     if (typeof window === "undefined") return;
@@ -124,14 +125,19 @@ export default function AdminUsersPage() {
       if (!raw) return;
       const parsed = JSON.parse(raw) as {
         search?: string;
-        roleFilter?: "all" | "user" | "admin";
+        roleFilter?: "all" | AppRole;
         statusFilter?: "all" | "active" | "banned" | "deleted";
         presenceFilter?: "all" | "online" | "offline";
         monthFilter?: string;
         yearFilter?: string;
       };
       if (typeof parsed.search === "string") setSearch(parsed.search);
-      if (parsed.roleFilter === "all" || parsed.roleFilter === "user" || parsed.roleFilter === "admin") {
+      if (
+        parsed.roleFilter === "all" ||
+        parsed.roleFilter === "user" ||
+        parsed.roleFilter === "editor" ||
+        parsed.roleFilter === "admin"
+      ) {
         setRoleFilter(parsed.roleFilter);
       }
       if (
@@ -300,7 +306,7 @@ export default function AdminUsersPage() {
   const updateUser = async (
     userId: number,
     patch: {
-      role?: "user" | "admin";
+      role?: AppRole;
       isActive?: 0 | 1;
       status?: "active" | "banned" | "deleted";
       banDays?: number | null;
@@ -529,10 +535,11 @@ export default function AdminUsersPage() {
           />
           <select
             value={newRole}
-            onChange={(e) => setNewRole(e.target.value as "user" | "admin")}
+            onChange={(e) => setNewRole(e.target.value as AppRole)}
             className="border rounded-lg px-3 py-2 text-sm"
           >
             <option value="user">Role: user</option>
+            <option value="editor">Role: editor</option>
             <option value="admin">Role: admin</option>
           </select>
           <button
@@ -577,11 +584,12 @@ export default function AdminUsersPage() {
           />
           <select
             value={roleFilter}
-            onChange={(e) => setRoleFilter(e.target.value as "all" | "user" | "admin")}
+            onChange={(e) => setRoleFilter(e.target.value as "all" | AppRole)}
             className="border rounded-lg px-3 py-2 text-sm"
           >
             <option value="all">All role</option>
             <option value="user">User</option>
+            <option value="editor">Editor</option>
             <option value="admin">Admin</option>
           </select>
           <select
@@ -675,6 +683,10 @@ export default function AdminUsersPage() {
                         <span className="inline-flex items-center rounded-full border border-violet-200 bg-violet-50 px-2 py-0.5 text-xs font-semibold text-violet-700">
                           admin
                         </span>
+                      ) : u.role === "editor" ? (
+                        <span className="inline-flex items-center rounded-full border border-blue-200 bg-blue-50 px-2 py-0.5 text-xs font-semibold text-blue-700">
+                          editor
+                        </span>
                       ) : (
                         <span className="inline-flex items-center rounded-full border border-gray-200 bg-gray-50 px-2 py-0.5 text-xs font-semibold text-gray-700">
                           user
@@ -761,15 +773,16 @@ export default function AdminUsersPage() {
                     <td className="p-3">{fmtDate(u.created_at)}</td>
                     <td className="p-3">
                       <div className="flex justify-end gap-2">
-                        <button
-                          onClick={() =>
-                            void updateUser(u.id, { role: u.role === "admin" ? "user" : "admin" })
-                          }
+                        <select
+                          value={u.role}
+                          onChange={(e) => void updateUser(u.id, { role: e.target.value as AppRole })}
                           disabled={saving || isDeleted}
-                          className="rounded-md border px-3 py-1.5 text-xs font-semibold hover:bg-gray-50 disabled:opacity-50"
+                          className="rounded-md border px-2 py-1.5 text-xs font-semibold hover:bg-gray-50 disabled:opacity-50"
                         >
-                          Toggle Role
-                        </button>
+                          <option value="user">user</option>
+                          <option value="editor">editor</option>
+                          <option value="admin">admin</option>
+                        </select>
 	                        <button
 	                          onClick={() => {
 	                            if (status !== "active") {

@@ -116,6 +116,7 @@ type BlogPageProps = {
 export function BlogPage({ initialSellerId }: BlogPageProps) {
   const { user } = useAuth();
   const { language, t } = useLanguage();
+  const staticLanguage = language === "km" ? "km" : "en";
   const router = useRouter();
   const searchParams = useSearchParams();
   const isAppShell = useAppShellMode();
@@ -559,7 +560,7 @@ export function BlogPage({ initialSellerId }: BlogPageProps) {
                 <div className="grid grid-cols-[minmax(0,1fr)_auto] items-start gap-2 border-b border-slate-100 pb-2 text-[10px] dark:border-slate-800 sm:flex sm:items-center sm:justify-between sm:text-xs">
                   <span className="min-w-0">{t("blog.memberSince")}</span>
                   <span className="text-right font-semibold text-slate-900 dark:text-white">
-                    {formatMemberSince(profile?.seller.memberSince ?? null, language)}
+                    {formatMemberSince(profile?.seller.memberSince ?? null, staticLanguage)}
                   </span>
                 </div>
                 <div className="grid grid-cols-[minmax(0,1fr)_auto] items-start gap-2 border-b border-slate-100 pb-2 text-[10px] dark:border-slate-800 sm:flex sm:items-center sm:justify-between sm:text-xs">

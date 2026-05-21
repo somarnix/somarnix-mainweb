@@ -1,5 +1,6 @@
 import { db } from "@/lib/db";
 import { buildSessionCookie, getJwtSecret } from "@/lib/security";
+import { normalizeAppRole, type AppRole } from "@/lib/roles";
 import { getSiteUrl } from "@/app/lib/siteUrl";
 import jwt from "jsonwebtoken";
 import type { ResultSetHeader, RowDataPacket } from "mysql2";
@@ -277,7 +278,7 @@ export async function POST(req: Request): Promise<Response> {
     );
 
     let userId = 0;
-    let role: "user" | "admin" = "user";
+    let role: AppRole = "user";
     if (rows.length > 0) {
       const user = rows[0];
       if (user.deleted_at) {
@@ -320,7 +321,7 @@ export async function POST(req: Request): Promise<Response> {
         }
       }
       userId = Number(user.id);
-      role = user.role === "admin" ? "admin" : "user";
+      role = normalizeAppRole(user.role);
 
       const firstName = normalizeString(tokenInfo.given_name);
       const lastName = normalizeString(tokenInfo.family_name);
@@ -507,11 +508,9 @@ export async function POST(req: Request): Promise<Response> {
       }
     );
   } catch (err) {
+    console.error("GOOGLE AUTH ERROR:", err);
     return Response.json(
-      {
-        error: "Server error",
-        detail: err instanceof Error ? err.message : String(err),
-      },
+      { error: "Server error", code: "SERVER_ERROR" },
       { status: 500 }
     );
   }

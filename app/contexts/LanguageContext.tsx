@@ -1,14 +1,50 @@
 "use client";
 
-import { createContext, useContext, useState, useEffect, ReactNode } from "react";
+import { createContext, useContext, useState, useEffect, ReactNode, useRef, type RefObject } from "react";
 import { translationOverrides } from "../lib/translation-overrides";
 
-type Language = "en" | "km";
+export const SUPPORTED_LANGUAGES = [
+  { code: "en", label: "English", shortLabel: "EN", flagCode: "us" },
+  { code: "km", label: "Khmer", shortLabel: "KM", flagCode: "kh" },
+  { code: "zh", label: "Chinese", shortLabel: "ZH", flagCode: "cn" },
+  { code: "ja", label: "Japanese", shortLabel: "JA", flagCode: "jp" },
+  { code: "ko", label: "Korean", shortLabel: "KO", flagCode: "kr" },
+  { code: "vi", label: "Vietnamese", shortLabel: "VI", flagCode: "vn" },
+  { code: "fr", label: "French", shortLabel: "FR", flagCode: "fr" },
+  { code: "de", label: "German", shortLabel: "DE", flagCode: "de" },
+  { code: "es", label: "Spanish", shortLabel: "ES", flagCode: "es" },
+  { code: "ru", label: "Russian", shortLabel: "RU", flagCode: "ru" },
+  { code: "ar", label: "Arabic", shortLabel: "AR", flagCode: "sa" },
+  { code: "hi", label: "Hindi", shortLabel: "HI", flagCode: "in" },
+  { code: "tl", label: "Filipino / Tagalog", shortLabel: "TL", flagCode: "ph" },
+  { code: "sv", label: "Swedish", shortLabel: "SV", flagCode: "se" },
+  { code: "th", label: "Thai", shortLabel: "TH", flagCode: "th" },
+  { code: "id", label: "Indonesian", shortLabel: "ID", flagCode: "id" },
+  { code: "ms", label: "Malay", shortLabel: "MS", flagCode: "my" },
+  { code: "pt", label: "Portuguese", shortLabel: "PT", flagCode: "pt" },
+  { code: "it", label: "Italian", shortLabel: "IT", flagCode: "it" },
+  { code: "nl", label: "Dutch", shortLabel: "NL", flagCode: "nl" },
+  { code: "tr", label: "Turkish", shortLabel: "TR", flagCode: "tr" },
+  { code: "pl", label: "Polish", shortLabel: "PL", flagCode: "pl" },
+  { code: "uk", label: "Ukrainian", shortLabel: "UK", flagCode: "ua" },
+] as const;
+
+export type Language = (typeof SUPPORTED_LANGUAGES)[number]["code"];
+export type SupportedLanguage = (typeof SUPPORTED_LANGUAGES)[number];
+
+const SUPPORTED_LANGUAGE_CODES = new Set<string>(SUPPORTED_LANGUAGES.map((item) => item.code));
+const DEFAULT_LANGUAGE: Language = "km";
+const DEFAULT_LANGUAGE_VERSION = "khmer-default-v1";
+
+export function getLanguageFlagUrl(language: Pick<SupportedLanguage, "flagCode">) {
+  return `https://flagcdn.com/w40/${language.flagCode}.png`;
+}
 
 interface LanguageContextType {
   language: Language;
   setLanguage: (lang: Language) => void;
   t: (key: string, values?: Record<string, string | number>) => string;
+  languages: typeof SUPPORTED_LANGUAGES;
 }
 
 const LanguageContext = createContext<LanguageContextType | undefined>(undefined);
@@ -16,13 +52,27 @@ const LanguageContext = createContext<LanguageContextType | undefined>(undefined
 /* ================= PROVIDER ================= */
 export function LanguageProvider({ children }: { children: ReactNode }) {
   // ✅ SAFE DEFAULT (SSR)
-  const [language, setLanguage] = useState<Language>("en");
+  const [language, setLanguage] = useState<Language>(DEFAULT_LANGUAGE);
+  const [mounted, setMounted] = useState(false);
+  const translateScopeRef = useRef<HTMLDivElement | null>(null);
+
+  useEffect(() => {
+    setMounted(true);
+  }, []);
 
   // ✅ READ localStorage AFTER MOUNT
   useEffect(() => {
     const saved = localStorage.getItem("edugroit-language");
-    if ((saved === "en" || saved === "km") && saved !== language) {
-      setLanguage(saved);
+    const defaultVersion = localStorage.getItem("edugroit-language-default-version");
+    if (!defaultVersion) {
+      localStorage.setItem("edugroit-language-default-version", DEFAULT_LANGUAGE_VERSION);
+      if (!saved || saved === "en") {
+        if (language !== DEFAULT_LANGUAGE) setLanguage(DEFAULT_LANGUAGE);
+        return;
+      }
+    }
+    if (saved && SUPPORTED_LANGUAGE_CODES.has(saved) && saved !== language) {
+      setLanguage(saved as Language);
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
@@ -31,13 +81,18 @@ export function LanguageProvider({ children }: { children: ReactNode }) {
   useEffect(() => {
     localStorage.setItem("edugroit-language", language);
     document.documentElement.lang = language;
+    document.documentElement.dir = language === "ar" ? "rtl" : "ltr";
   }, [language]);
 
 
   const t = (key: string, values?: Record<string, string | number>): string => {
+    const overrideMap = translationOverrides as Partial<Record<Language, Record<string, string>>>;
+    const translationMap = translations as Partial<Record<Language, Record<string, string>>>;
     const template =
-      translationOverrides[language]?.[key] ??
-      translations[language]?.[key] ??
+      overrideMap[language]?.[key] ??
+      translationMap[language]?.[key] ??
+      overrideMap.en?.[key] ??
+      translationMap.en?.[key] ??
       key;
 
     if (!values) {
@@ -51,10 +106,472 @@ export function LanguageProvider({ children }: { children: ReactNode }) {
   };
 
   return (
-    <LanguageContext.Provider value={{ language, setLanguage, t }}>
-      {children}
+    <LanguageContext.Provider value={{ language, setLanguage, t, languages: SUPPORTED_LANGUAGES }}>
+      <div key={language} ref={translateScopeRef} className="contents" data-auto-translate-scope>
+        {children}
+      </div>
+      {mounted ? <AutoTranslatePage language={language} rootRef={translateScopeRef} /> : null}
     </LanguageContext.Provider>
   );
+}
+
+const SKIP_AUTO_TRANSLATE_SELECTOR =
+  [
+    "[data-no-auto-translate]",
+    "[translate='no']",
+    "script",
+    "style",
+    "noscript",
+    "code",
+    "pre",
+    "svg",
+    "canvas",
+    "iframe",
+  ].join(", ");
+const TRANSLATABLE_ATTRIBUTES = ["placeholder", "title", "aria-label", "alt"] as const;
+
+type TranslateApply = (translated: string) => void;
+type DomUpdate = () => void;
+
+const MAX_TRANSLATE_BATCH_SIZE = 64;
+const DOM_UPDATE_BATCH_SIZE = 20;
+const SCAN_TEXT_NODE_BATCH_SIZE = 180;
+const SCAN_ELEMENT_BATCH_SIZE = 120;
+const INITIAL_SCAN_DELAY_MS = 120;
+const RESCAN_DELAY_MS = 120;
+
+function normalizeAutoTranslateText(value: string) {
+  return value.replace(/\s+/g, " ").trim();
+}
+
+function shouldAutoTranslate(value: string) {
+  const text = normalizeAutoTranslateText(value);
+  if (text.length < 2 || text.length > 1200) return false;
+  if (/^[\d\s$€£¥៛.,:;%()+\-/#|]+$/.test(text)) return false;
+  if (/^(https?:\/\/|mailto:|tel:)/i.test(text)) return false;
+  return /[\p{L}\p{Script=Khmer}\p{Script=Han}\p{Script=Hangul}\p{Script=Hiragana}\p{Script=Katakana}\p{Script=Arabic}\p{Script=Devanagari}]/u.test(
+    text
+  );
+}
+
+function applyTranslatedTextLikeOriginal(originalWithSpacing: string, translated: string) {
+  const leading = originalWithSpacing.match(/^\s*/)?.[0] ?? "";
+  const trailing = originalWithSpacing.match(/\s*$/)?.[0] ?? "";
+  return `${leading}${translated}${trailing}`;
+}
+
+function AutoTranslatePage({
+  language,
+  rootRef,
+}: {
+  language: Language;
+  rootRef: RefObject<HTMLElement | null>;
+}) {
+  const textOriginalsRef = useRef<WeakMap<Text, string>>(new WeakMap());
+  const cacheRef = useRef<Map<string, string>>(new Map());
+  const pendingRef = useRef<Map<string, Set<TranslateApply>>>(new Map());
+  const flushTimerRef = useRef<number | null>(null);
+  const scanTimerRef = useRef<number | null>(null);
+  const languageRef = useRef(language);
+  const applyingRef = useRef(false);
+  const flushInFlightRef = useRef(false);
+  const requestVersionRef = useRef(0);
+  const scanRunIdRef = useRef(0);
+  const translatedTextRef = useRef<WeakMap<Text, { language: Language; value: string }>>(
+    new WeakMap()
+  );
+
+  useEffect(() => {
+    languageRef.current = language;
+  }, [language]);
+
+  useEffect(() => {
+    const effectVersion = requestVersionRef.current + 1;
+    requestVersionRef.current = effectVersion;
+    applyingRef.current = false;
+    const pendingMap = pendingRef.current;
+    let disposed = false;
+
+    const isCurrentRequest = (targetLanguage: Language) =>
+      !disposed &&
+      requestVersionRef.current === effectVersion &&
+      languageRef.current === targetLanguage;
+
+    const getRoot = () => rootRef.current ?? document.body;
+
+    const applyDomUpdates = (targetLanguage: Language, updates: DomUpdate[]) => {
+      if (!updates.length || !isCurrentRequest(targetLanguage)) return;
+
+      applyingRef.current = true;
+      let index = 0;
+
+      const runBatch = () => {
+        if (!isCurrentRequest(targetLanguage)) {
+          applyingRef.current = false;
+          return;
+        }
+
+        const end = Math.min(index + DOM_UPDATE_BATCH_SIZE, updates.length);
+        for (; index < end; index += 1) {
+          updates[index]();
+        }
+
+        if (index < updates.length) {
+          window.requestAnimationFrame(runBatch);
+          return;
+        }
+
+        window.setTimeout(() => {
+          if (isCurrentRequest(targetLanguage)) {
+            applyingRef.current = false;
+          }
+        }, 0);
+      };
+
+      window.requestAnimationFrame(runBatch);
+    };
+
+    const scheduleFlush = () => {
+      if (flushTimerRef.current || flushInFlightRef.current) return;
+      flushTimerRef.current = window.setTimeout(() => {
+        flushTimerRef.current = null;
+        void flushPendingTranslations();
+      }, 180);
+    };
+
+    const flushPendingTranslations = async () => {
+      if (flushInFlightRef.current) return;
+      flushInFlightRef.current = true;
+      const targetLanguage = languageRef.current;
+
+      try {
+        const allPending = Array.from(pendingRef.current.entries());
+        pendingRef.current.clear();
+        if (!allPending.length || targetLanguage === "en") return;
+
+        const pending = allPending.slice(0, MAX_TRANSLATE_BATCH_SIZE);
+        const overflow = allPending.slice(MAX_TRANSLATE_BATCH_SIZE);
+        overflow.forEach(([text, applies]) => {
+          const existing = pendingRef.current.get(text) ?? new Set<TranslateApply>();
+          applies.forEach((apply) => existing.add(apply));
+          pendingRef.current.set(text, existing);
+        });
+
+        const sourceTexts = pending.map(([text]) => text);
+        try {
+          const res = await fetch("/api/translate", {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({
+              q: sourceTexts,
+              source: "auto",
+              target: targetLanguage,
+            }),
+          });
+          if (!res.ok) throw new Error("Translation request failed");
+          const data = await res.json();
+          const returnedOriginalText =
+            typeof data?.warning === "string" && data.warning.includes("returned original text");
+          const translatedItems = Array.isArray(data?.translatedText)
+            ? data.translatedText
+            : [data?.translatedText];
+
+          if (!isCurrentRequest(targetLanguage)) return;
+
+          const updates: DomUpdate[] = [];
+          sourceTexts.forEach((sourceText, index) => {
+            const translated = String(translatedItems[index] ?? sourceText);
+            if (!returnedOriginalText) {
+              cacheRef.current.set(`${targetLanguage}\u0000${sourceText}`, translated);
+            }
+            pending[index][1].forEach((apply) => updates.push(() => apply(translated)));
+          });
+          applyDomUpdates(targetLanguage, updates);
+        } catch {
+          if (!isCurrentRequest(targetLanguage)) return;
+          const updates: DomUpdate[] = [];
+          pending.forEach(([sourceText, applies]) => {
+            applies.forEach((apply) => updates.push(() => apply(sourceText)));
+          });
+          applyDomUpdates(targetLanguage, updates);
+        }
+      } finally {
+        flushInFlightRef.current = false;
+        if (!disposed && pendingRef.current.size > 0) {
+          scheduleFlush();
+        }
+      }
+    };
+
+    const enqueueTranslation = (original: string, apply: TranslateApply) => {
+      const normalized = normalizeAutoTranslateText(original);
+      if (!shouldAutoTranslate(normalized)) return;
+
+      const cacheKey = `${languageRef.current}\u0000${normalized}`;
+      const cached = cacheRef.current.get(cacheKey);
+      if (cached) {
+        apply(cached);
+        return;
+      }
+
+      const applies = pendingRef.current.get(normalized) ?? new Set<TranslateApply>();
+      applies.add(apply);
+      pendingRef.current.set(normalized, applies);
+
+      scheduleFlush();
+    };
+
+    const translateTextNode = (node: Text) => {
+      const parent = node.parentElement;
+      if (!parent || parent.closest(SKIP_AUTO_TRANSLATE_SELECTOR)) return;
+      const currentText = node.textContent ?? "";
+      const lastTranslated = translatedTextRef.current.get(node);
+      if (lastTranslated?.language === languageRef.current && lastTranslated.value === currentText) {
+        return;
+      }
+
+      const savedOriginal = textOriginalsRef.current.get(node);
+      const original =
+        savedOriginal !== undefined && lastTranslated?.value === currentText
+          ? savedOriginal
+          : currentText;
+      textOriginalsRef.current.set(node, original);
+      if (!shouldAutoTranslate(original)) return;
+
+      enqueueTranslation(original, (translated) => {
+        if (!node.parentElement) return;
+        const nextText = applyTranslatedTextLikeOriginal(original, translated);
+        translatedTextRef.current.set(node, {
+          language: languageRef.current,
+          value: nextText,
+        });
+        if (node.textContent !== nextText) {
+          node.textContent = nextText;
+        }
+      });
+    };
+
+    const isActiveScan = (targetLanguage: Language, scanRunId: number) =>
+      scanRunIdRef.current === scanRunId && isCurrentRequest(targetLanguage);
+
+    const translateAttributes = (root: ParentNode, targetLanguage: Language, scanRunId: number) => {
+      const elements =
+        root instanceof Element
+          ? [root, ...Array.from(root.querySelectorAll("*"))]
+          : Array.from(root.querySelectorAll("*"));
+
+      let index = 0;
+
+      const runBatch = () => {
+        if (!isActiveScan(targetLanguage, scanRunId)) return;
+
+        const end = Math.min(index + SCAN_ELEMENT_BATCH_SIZE, elements.length);
+        for (; index < end; index += 1) {
+          const element = elements[index];
+          if (!(element instanceof HTMLElement)) continue;
+          if (element.closest(SKIP_AUTO_TRANSLATE_SELECTOR)) continue;
+
+          TRANSLATABLE_ATTRIBUTES.forEach((attributeName) => {
+            const value = element.getAttribute(attributeName);
+            if (!value || !shouldAutoTranslate(value)) return;
+
+            const originalKey = `autoTranslateOriginal${attributeName
+              .split("-")
+              .map((part) => part.charAt(0).toUpperCase() + part.slice(1))
+              .join("")}`;
+            const original = element.dataset[originalKey] ?? value;
+            element.dataset[originalKey] = original;
+
+            enqueueTranslation(original, (translated) => {
+              if (!element.isConnected) return;
+              const nextValue = applyTranslatedTextLikeOriginal(original, translated);
+              if (element.getAttribute(attributeName) !== nextValue) {
+                element.setAttribute(attributeName, nextValue);
+              }
+            });
+          });
+        }
+
+        if (index < elements.length) {
+          window.requestAnimationFrame(runBatch);
+        }
+      };
+
+      window.requestAnimationFrame(runBatch);
+    };
+
+    const scan = (root: ParentNode = document.body) => {
+      if (!root) return;
+      const targetLanguage = languageRef.current;
+      const scanRunId = scanRunIdRef.current + 1;
+      scanRunIdRef.current = scanRunId;
+      const walker = document.createTreeWalker(root, NodeFilter.SHOW_TEXT, {
+        acceptNode(node) {
+          const textNode = node as Text;
+          const parent = textNode.parentElement;
+          if (!parent || parent.closest(SKIP_AUTO_TRANSLATE_SELECTOR)) {
+            return NodeFilter.FILTER_REJECT;
+          }
+          return shouldAutoTranslate(textNode.textContent ?? "")
+            ? NodeFilter.FILTER_ACCEPT
+            : NodeFilter.FILTER_SKIP;
+        },
+      });
+
+      const runTextBatch = () => {
+        if (!isActiveScan(targetLanguage, scanRunId)) return;
+
+        let processed = 0;
+        while (processed < SCAN_TEXT_NODE_BATCH_SIZE && walker.nextNode()) {
+          translateTextNode(walker.currentNode as Text);
+          processed += 1;
+        }
+
+        if (processed === SCAN_TEXT_NODE_BATCH_SIZE) {
+          window.requestAnimationFrame(runTextBatch);
+          return;
+        }
+
+        translateAttributes(root, targetLanguage, scanRunId);
+      };
+
+      window.requestAnimationFrame(runTextBatch);
+    };
+
+    const restoreTextNode = (node: Text) => {
+      const parent = node.parentElement;
+      if (!parent || parent.closest(SKIP_AUTO_TRANSLATE_SELECTOR)) return;
+      const original = textOriginalsRef.current.get(node);
+      if (original !== undefined && node.textContent !== original) {
+        node.textContent = original;
+      }
+    };
+
+    const restoreAttributes = (root: ParentNode) => {
+      const elements =
+        root instanceof Element
+          ? [root, ...Array.from(root.querySelectorAll("*"))]
+          : Array.from(root.querySelectorAll("*"));
+
+      elements.forEach((element) => {
+        if (!(element instanceof HTMLElement)) return;
+        if (element.closest(SKIP_AUTO_TRANSLATE_SELECTOR)) return;
+
+        TRANSLATABLE_ATTRIBUTES.forEach((attributeName) => {
+          const originalKey = `autoTranslateOriginal${attributeName
+            .split("-")
+            .map((part) => part.charAt(0).toUpperCase() + part.slice(1))
+            .join("")}`;
+          const original = element.dataset[originalKey];
+          if (original !== undefined && element.getAttribute(attributeName) !== original) {
+            element.setAttribute(attributeName, original);
+          }
+        });
+      });
+    };
+
+    const restore = (root: ParentNode = document.body) => {
+      if (!root) return;
+      applyingRef.current = true;
+
+      const walker = document.createTreeWalker(root, NodeFilter.SHOW_TEXT, {
+        acceptNode(node) {
+          const textNode = node as Text;
+          const parent = textNode.parentElement;
+          if (!parent || parent.closest(SKIP_AUTO_TRANSLATE_SELECTOR)) {
+            return NodeFilter.FILTER_REJECT;
+          }
+          return textOriginalsRef.current.get(textNode) !== undefined
+            ? NodeFilter.FILTER_ACCEPT
+            : NodeFilter.FILTER_SKIP;
+        },
+      });
+
+      const textNodes: Text[] = [];
+      while (walker.nextNode()) textNodes.push(walker.currentNode as Text);
+      textNodes.forEach(restoreTextNode);
+      restoreAttributes(root);
+
+      window.setTimeout(() => {
+        if (isCurrentRequest("en")) {
+          applyingRef.current = false;
+        }
+      }, 0);
+    };
+
+    const scheduleScan = (root: ParentNode = document.body, delay = RESCAN_DELAY_MS) => {
+      if (scanTimerRef.current) window.clearTimeout(scanTimerRef.current);
+      scanTimerRef.current = window.setTimeout(() => {
+        scanTimerRef.current = null;
+        scan(root);
+      }, delay);
+    };
+
+    if (language === "en") {
+      pendingRef.current.clear();
+      flushInFlightRef.current = false;
+      if (flushTimerRef.current) {
+        window.clearTimeout(flushTimerRef.current);
+        flushTimerRef.current = null;
+      }
+      if (scanTimerRef.current) {
+        window.clearTimeout(scanTimerRef.current);
+        scanTimerRef.current = null;
+      }
+      restore(getRoot());
+      return () => {
+        disposed = true;
+        requestVersionRef.current += 1;
+        scanRunIdRef.current += 1;
+        applyingRef.current = false;
+        flushInFlightRef.current = false;
+        pendingMap.clear();
+      };
+    }
+
+    scheduleScan(getRoot(), INITIAL_SCAN_DELAY_MS);
+
+    const observer = new MutationObserver((mutations) => {
+      if (applyingRef.current) return;
+      let shouldRescanRoot = false;
+      mutations.forEach((mutation) => {
+        if (mutation.type === "characterData") {
+          translateTextNode(mutation.target as Text);
+          return;
+        }
+        mutation.addedNodes.forEach((node) => {
+          if (node.nodeType === Node.TEXT_NODE) {
+            translateTextNode(node as Text);
+          } else if (node instanceof Element) {
+            shouldRescanRoot = true;
+          }
+        });
+      });
+      if (shouldRescanRoot) {
+        scheduleScan(getRoot());
+      }
+    });
+
+    observer.observe(getRoot(), {
+      childList: true,
+      subtree: true,
+      characterData: true,
+    });
+
+    return () => {
+      disposed = true;
+      requestVersionRef.current += 1;
+      scanRunIdRef.current += 1;
+      applyingRef.current = false;
+      flushInFlightRef.current = false;
+      observer.disconnect();
+      if (flushTimerRef.current) window.clearTimeout(flushTimerRef.current);
+      if (scanTimerRef.current) window.clearTimeout(scanTimerRef.current);
+      pendingMap.clear();
+    };
+  }, [language, rootRef]);
+
+  return null;
 }
 
 /* ================= HOOK ================= */
@@ -67,10 +584,12 @@ export function useLanguage() {
 }
 
 /* ================= TRANSLATIONS (MUST BE FIRST) ================= */
-const translations: Record<Language, Record<string, string>> = {
+const translations: Partial<Record<Language, Record<string, string>>> = {
   en: {
     // Header/Navigation
     'nav.home': 'Home',
+    'nav.news': 'News',
+    'nav.shorts': 'Shorts',
     'nav.all': 'All',
     'nav.courses': 'AI',
     'nav.ai': 'AI',
@@ -90,6 +609,8 @@ const translations: Record<Language, Record<string, string>> = {
 
     'blog.title': 'Blog',
     'blog.subtitle': 'Latest news and updates',
+    'news.categories': 'Categories',
+    'news.noCategories': 'No categories yet.',
     'nodata.title': 'No data yet',
     'nodata.subtitle': 'We will update later',
     
@@ -412,9 +933,11 @@ const translations: Record<Language, Record<string, string>> = {
   km: {
     // Header/Navigation
     'nav.home': 'ទំព័រដើម',
+    'nav.news': 'ព័ត៌មាន',
+    'nav.shorts': 'ខ្លី',
     'nav.all': 'ទាំងអស់',
-    'nav.courses': 'AI',
-    'nav.ai': 'AI',
+    'nav.courses': 'បញ្ញាសិប្បនិម្មិត',
+    'nav.ai': 'បញ្ញាសិប្បនិម្មិត',
     'nav.videoCourses': 'វគ្គសិក្សា',
     'nav.programs': 'កម្មវិធី',
     'nav.games': 'ហ្គេម',
@@ -431,6 +954,8 @@ const translations: Record<Language, Record<string, string>> = {
 
     'blog.title': 'ប្លុក',
     'blog.subtitle': 'ព័ត៌មានថ្មីៗ និងការអាប់ដេត',
+    'news.categories': 'ប្រភេទ',
+    'news.noCategories': 'មិនទាន់មានប្រភេទទេ។',
     'nodata.title': 'មិនមានទិន្នន័យទេ',
     'nodata.subtitle': 'យើងនឹងអាប់ដេតនៅពេលក្រោយ',
     
@@ -456,7 +981,7 @@ const translations: Record<Language, Record<string, string>> = {
     'featured.viewAll': 'មើលវគ្គសិក្សាទាំងអស់',
     
     // Why Choose Us
-    'why.title': 'ហេតុអ្វីជ្រើសរើស Edugroit?',
+    'why.title': 'ហេតុអ្វីជ្រើសរើស អេឌូហ្គ្រូត?',
     'why.description': 'យើងផ្តល់នូវបទពិសោធន៍សិក្សាល្អបំផុតសម្រាប់សិស្សទូទាំងពិភពលោក',
     'why.pace.title': 'រៀនតាមល្បឿនរបស់អ្នក',
     'why.pace.description': 'ចូលប្រើសម្ភារសិក្សាគ្រប់ពេលវេលា គ្រប់ទីកន្លែង។ រៀនតាមកាលវិភាគរបស់អ្នកជាមួយនឹងការចូលប្រើមួយជីវិតទៅកាន់មាតិកាវគ្គសិក្សាទាំងអស់។',
@@ -467,7 +992,7 @@ const translations: Record<Language, Record<string, string>> = {
     
     // CTA Section
     'cta.title': 'ចាប់ផ្តើមការធ្វើដំណើរសិក្សារបស់អ្នកថ្ងៃនេះ',
-    'cta.description': 'ចូលរួមជាមួយសិស្សរាប់ពាន់នាក់ដែលកំពុងសិក្សានៅលើ Edugroit',
+    'cta.description': 'ចូលរួមជាមួយសិស្សរាប់ពាន់នាក់ដែលកំពុងសិក្សានៅលើ អេឌូហ្គ្រូត',
     'cta.getStarted': 'ចាប់ផ្តើមដោយឥតគិតថ្លៃ',
     'cta.browse': 'រុករកវគ្គសិក្សា',
     
@@ -498,7 +1023,7 @@ const translations: Record<Language, Record<string, string>> = {
     'footer.faqs': 'សំណួរញឹកញាប់',
     'footer.terms': 'លក្ខខណ្ឌសេវាកម្ម',
     'footer.privacy': 'គោលការណ៍​ភាព​ឯកជន',
-    'footer.cookies': 'គោលការណ៍ Cookie',
+    'footer.cookies': 'គោលការណ៍ខូគី',
     'footer.accessibility': 'ភាពអាចចូលប្រើបាន',
     'footer.newsletter': 'ព័ត៌មានព្រឹត្តិបត្រ',
     'footer.newsletterDesc': 'ជាវដើម្បីទទួលបានការអាប់ដេតអំពីវគ្គសិក្សាថ្មី និងការផ្តល់ជូនពិសេស។',
@@ -542,11 +1067,11 @@ const translations: Record<Language, Record<string, string>> = {
     // Login Page
     'login.title': 'សូមស្វាគមន៍ការត្រឡប់មកវិញ!',
     'login.description': 'ចូលគណនីដើម្បីបន្តដំណើរសិក្សារបស់អ្នក',
-    'login.google': 'បន្តជាមួយ Google',
-    'login.facebook': 'បន្តជាមួយ Facebook',
+    'login.google': 'បន្តជាមួយ ហ្គូហ្គល',
+    'login.facebook': 'បន្តជាមួយ ហ្វេសប៊ុក',
     'login.email': 'ឬបន្តជាមួយអ៊ីមែល',
     'login.emailLabel': 'អាសយដ្ឋានអ៊ីមែល',
-    'login.emailPlaceholder': 'you@example.com',
+    'login.emailPlaceholder': 'បញ្ចូលអ៊ីមែលរបស់អ្នក',
     'login.passwordLabel': 'ពាក្យសម្ងាត់',
     'login.passwordPlaceholder': 'បញ្ចូលពាក្យសម្ងាត់',
     'login.remember': 'ចងចាំខ្ញុំ',
@@ -565,14 +1090,14 @@ const translations: Record<Language, Record<string, string>> = {
     
     // Register Page
     'register.title': 'បង្កើតគណនីរបស់អ្នក',
-    'register.description': 'ចាប់ផ្តើមសិក្សាថ្ងៃនេះជាមួយ Edugroit',
-    'register.google': 'ចុះឈ្មោះជាមួយ Google',
-    'register.facebook': 'ចុះឈ្មោះជាមួយ Facebook',
+    'register.description': 'ចាប់ផ្តើមសិក្សាថ្ងៃនេះជាមួយ អេឌូហ្គ្រូត',
+    'register.google': 'ចុះឈ្មោះជាមួយ ហ្គូហ្គល',
+    'register.facebook': 'ចុះឈ្មោះជាមួយ ហ្វេសប៊ុក',
     'register.email': 'ឬចុះឈ្មោះជាមួយអ៊ីមែល',
     'register.fullName': 'ឈ្មោះពេញ',
     'register.namePlaceholder': 'ឈ្មោះរបស់អ្នក',
     'register.emailLabel': 'អាសយដ្ឋានអ៊ីមែល',
-    'register.emailPlaceholder': 'you@example.com',
+    'register.emailPlaceholder': 'បញ្ចូលអ៊ីមែលរបស់អ្នក',
     'register.passwordLabel': 'ពាក្យសម្ងាត់',
     'register.passwordPlaceholder': 'បង្កើតពាក្យសម្ងាត់',
     'register.confirmPassword': 'បញ្ជាក់ពាក្យសម្ងាត់',
@@ -648,8 +1173,8 @@ const translations: Record<Language, Record<string, string>> = {
 
     'profile.deleteAccount': 'លុបគណនី',
     'profile.deleteWarnTitle': 'លុបគណនីមែនទេ?',
-    'profile.deleteWarnBody': 'វានឹងបិទគណនី (deleted_at) ហើយអ្នកនឹងត្រូវចាកចេញ។',
-    'profile.confirmDelete': 'វាយ DELETE ដើម្បីបញ្ជាក់',
+    'profile.deleteWarnBody': 'វានឹងបិទគណនី ហើយអ្នកនឹងត្រូវចាកចេញ។',
+    'profile.confirmDelete': 'វាយ លុប ដើម្បីបញ្ជាក់',
     'profile.confirm': 'បញ្ជាក់',
     'profile.close': 'បិទ',
   
@@ -668,68 +1193,68 @@ const translations: Record<Language, Record<string, string>> = {
     'courses.noResults': 'រកមិនឃើញវគ្គសិក្សា',
     'courses.noResultsDesc': 'សូមព្យាយាមកែតម្រងរបស់អ្នកដើម្បីស្វែងរកអ្វីដែលអ្នកកំពុងស្វែងរក',
     'courses.viewAll': 'មើលវគ្គសិក្សាទាំងអស់',
-    'courses.newReleases': '??????????',
-    'courses.latestUploads': '?????????????',
-    'courses.popularVideos': '?????????????',
-    'courses.mostWatched': '????????',
-    'courses.videosAvailable': '??????',
-    'courses.viewVideo': '?????????',
+    'courses.newReleases': 'ចេញផ្សាយថ្មី',
+    'courses.latestUploads': 'វីដេអូបានបង្ហោះថ្មីៗ',
+    'courses.popularVideos': 'វីដេអូពេញនិយម',
+    'courses.mostWatched': 'មើលច្រើនបំផុត',
+    'courses.videosAvailable': 'វីដេអូមាន',
+    'courses.viewVideo': 'មើលវីដេអូ',
     'courses.videoBlogTitle': 'វិឌីអូប្លុក',
-    'courses.videoBlogSubtitle': '??????????????????',
-    'courses.searchVideos': '?????????????',
+    'courses.videoBlogSubtitle': 'រកវីដេអូថ្មីៗបានរហ័ស',
+    'courses.searchVideos': 'ស្វែងរកវីដេអូ',
 
-    'filters.title': '?????',
-    'filters.categories': '??????',
-    'filters.sortBy': '?????????',
-    'filters.mostPopular': '???????',
-    'filters.highestRated': '?????????????',
-    'filters.priceLowHigh': '???????????????',
-    'filters.priceHighLow': '???????????????',
-    'filters.allVideos': '?????????????',
-    'filters.tag': '?????',
-    'filters.level': '??????',
-    'filters.levelAll': '??????????',
-    'filters.levelBeginner': '????????',
-    'filters.levelAdvanced': '????????',
-    'filters.levelPro': '???',
-    'filters.price': '?????',
-    'filters.priceAll': '???',
-    'filters.priceFree': '????',
-    'filters.pricePaid': '????',
-    'filters.clearAll': '??????????????????',
-    'filters.slugs': 'Slugs',
-    'filters.all': '???????',
-    'filters.ai': 'AI',
-    'filters.programs': 'Programs',
-    'filters.games': 'Games',
-    'filters.tools': 'Tools',
+    'filters.title': 'តម្រង',
+    'filters.categories': 'ប្រភេទ',
+    'filters.sortBy': 'តម្រៀបតាម',
+    'filters.mostPopular': 'ពេញនិយមបំផុត',
+    'filters.highestRated': 'វាយតម្លៃខ្ពស់បំផុត',
+    'filters.priceLowHigh': 'តម្លៃពីទាបទៅខ្ពស់',
+    'filters.priceHighLow': 'តម្លៃពីខ្ពស់ទៅទាប',
+    'filters.allVideos': 'វីដេអូទាំងអស់',
+    'filters.tag': 'ស្លាក',
+    'filters.level': 'កម្រិត',
+    'filters.levelAll': 'គ្រប់កម្រិត',
+    'filters.levelBeginner': 'កម្រិតដើម',
+    'filters.levelAdvanced': 'កម្រិតខ្ពស់',
+    'filters.levelPro': 'កម្រិតជំនាញ',
+    'filters.price': 'តម្លៃ',
+    'filters.priceAll': 'ទាំងអស់',
+    'filters.priceFree': 'ឥតគិតថ្លៃ',
+    'filters.pricePaid': 'បង់ប្រាក់',
+    'filters.clearAll': 'សម្អាតតម្រងទាំងអស់',
+    'filters.slugs': 'ស្លាក',
+    'filters.all': 'ទាំងអស់',
+    'filters.ai': 'បញ្ញាសិប្បនិម្មិត',
+    'filters.programs': 'កម្មវិធី',
+    'filters.games': 'ហ្គេម',
+    'filters.tools': 'ឧបករណ៍',
 
-    'all.title': 'Explore All Products',
-    'all.subtitle': 'Discover courses, programs, games, and tools all in one place',
-    'all.allProducts': 'All Products',
-    'all.products': 'products',
-    'all.available': 'available',
-    'all.noResults': 'No results',
-    'all.noResultsDesc': 'Try adjusting your filters.',
-    'programs.title': '????????????????',
-    'programs.subtitle': '????????????????????????????',
-    'games.title': '?????',
-    'games.subtitle': '????????????????????????????',
-    'tools.title': '??????',
-    'tools.subtitle': '????????????????????????????',
-    'search.slug': '??????? slug...',
+    'all.title': 'ស្វែងរកផលិតផលទាំងអស់',
+    'all.subtitle': 'រកឃើញវគ្គសិក្សា កម្មវិធី ហ្គេម និងឧបករណ៍នៅកន្លែងតែមួយ',
+    'all.allProducts': 'ផលិតផលទាំងអស់',
+    'all.products': 'ផលិតផល',
+    'all.available': 'មាន',
+    'all.noResults': 'មិនមានលទ្ធផល',
+    'all.noResultsDesc': 'សូមកែតម្រងរបស់អ្នកម្តងទៀត។',
+    'programs.title': 'កម្មវិធីជំនាញ',
+    'programs.subtitle': 'ស្វែងរកកម្មវិធីជំនាញសម្រាប់អាជីពរបស់អ្នក',
+    'games.title': 'ហ្គេម និងការកម្សាន្ត',
+    'games.subtitle': 'ស្វែងរកហ្គេមល្អៗសម្រាប់ការកម្សាន្ត',
+    'tools.title': 'ឧបករណ៍ផលិតភាព',
+    'tools.subtitle': 'ស្វែងរកឧបករណ៍ដើម្បីបង្កើនផលិតភាព និងប្រសិទ្ធភាព',
+    'search.slug': 'ស្វែងរកស្លាក...',
 
-    'labels.programs': 'programs',
-    'labels.games': 'games',
-    'labels.tools': 'tools',
-    'labels.video': '????',
-    'labels.students': '????????',
-    'labels.lessons': '???????',
-    'labels.free': '????',
-    'labels.instructor': '????????',
+    'labels.programs': 'កម្មវិធី',
+    'labels.games': 'ហ្គេម',
+    'labels.tools': 'ឧបករណ៍',
+    'labels.video': 'វីដេអូ',
+    'labels.students': 'សិស្ស',
+    'labels.lessons': 'មេរៀន',
+    'labels.free': 'ឥតគិតថ្លៃ',
+    'labels.instructor': 'គ្រូបង្រៀន',
 
-    'common.loading': '??????????...',
-    'common.available': 'available',
+    'common.loading': 'កំពុងផ្ទុក...',
+    'common.available': 'មាន',
     
     // Course Detail
     'detail.createdBy': 'បង្កើតដោយ',

@@ -23,6 +23,8 @@ import {
   MessageCircle,
   LifeBuoy,
   Sparkles,
+  FileText,
+  Newspaper,
 } from "lucide-react";
 import { Button } from "./ui/button";
 import { ProfileAvatar } from "./ProfileAvatar";
@@ -44,6 +46,7 @@ type NavLink = {
   page: string;
   label: string;
   icon: ComponentType<{ className?: string }>;
+  href?: string;
 };
 
 type ActionItem = {
@@ -75,6 +78,7 @@ export function Sidebar({
   const userPresence = useUserPresence(user?.id ?? null);
   const verifiedBadgeSrc = "/border/blue%20verify.svg";
   const [sidebarCountry, setSidebarCountry] = useState<SidebarCountry | null>(null);
+  const [cmsMenuItems, setCmsMenuItems] = useState<Array<{ id: number; label: string; href: string }>>([]);
 
   useEffect(() => {
     const readCountry = () => {
@@ -109,8 +113,43 @@ export function Sidebar({
     return () => window.removeEventListener("edugroit-country-change", handler);
   }, []);
 
+  useEffect(() => {
+    let cancelled = false;
+    const loadCmsMenu = async () => {
+      try {
+        const res = await fetch("/api/cms/menu", { cache: "no-store" });
+        const data = await res.json().catch(() => ({}));
+        if (!cancelled && Array.isArray(data.items)) {
+          setCmsMenuItems(
+            data.items
+              .map((item: any) => ({
+                id: Number(item.id ?? 0),
+                label: String(item.label ?? ""),
+                href: String(item.href ?? ""),
+              }))
+              .filter((item: { id: number; label: string; href: string }) => item.id > 0 && item.label && item.href)
+          );
+        }
+      } catch {
+        if (!cancelled) setCmsMenuItems([]);
+      }
+    };
+    void loadCmsMenu();
+    return () => {
+      cancelled = true;
+    };
+  }, []);
+
   const navigationLinks: NavLink[] = [
     { id: "home", icon: Home, label: t("nav.home"), page: "home" },
+    { id: "news", icon: Newspaper, label: t("nav.news"), page: "/news", href: "/news" },
+    ...cmsMenuItems.map((item) => ({
+      id: `cms-${item.id}`,
+      icon: FileText,
+      label: item.label,
+      page: item.href,
+      href: item.href,
+    })),
     { id: "all", icon: Grid, label: t("nav.all"), page: "all" },
     { id: "courses", icon: GraduationCap, label: "AI", page: "courses" },
     { id: "programs", icon: Code, label: t("nav.programs"), page: "programs" },
@@ -192,6 +231,7 @@ export function Sidebar({
     { id: "admin-orders-seller", label: t("admin.ordersSeller"), page: "admin-orders-seller" },
     { id: "admin-products", label: t("admin.products"), page: "admin-products" },
     { id: "admin-tools", label: t("admin.tools"), page: "admin-tools" },
+    { id: "admin-cms", label: "CMS Pages", page: "admin-cms" },
     { id: "admin-tool-licenses", label: t("admin.toolLicenses"), page: "admin-tool-licenses" },
     { id: "admin-video-courses", label: t("admin.videoCourses"), page: "admin-video-courses" },
     { id: "admin-video-courses-promotions", label: t("admin.promotions"), page: "admin-video-courses-promotions" },
@@ -448,6 +488,10 @@ export function Sidebar({
                   label={item.label}
                   emphasize
                   onClick={() => {
+                    if (item.href) {
+                      window.location.href = item.href;
+                      return;
+                    }
                     onNavigate(item.page);
                     if (onClose) onClose();
                   }}
@@ -462,6 +506,10 @@ export function Sidebar({
                   icon={item.icon}
                   label={item.label}
                   onClick={() => {
+                    if (item.href) {
+                      window.location.href = item.href;
+                      return;
+                    }
                     onNavigate(item.page);
                     if (onClose) onClose();
                   }}
@@ -486,6 +534,10 @@ export function Sidebar({
               <button
                 key={item.id}
                 onClick={() => {
+                  if (item.href) {
+                    window.location.href = item.href;
+                    return;
+                  }
                   onNavigate(item.page);
                   if (onClose) onClose();
                 }}

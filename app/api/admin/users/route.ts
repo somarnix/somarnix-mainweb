@@ -1,5 +1,6 @@
 import { db } from "@/lib/db";
 import { getAuthUser } from "@/lib/auth";
+import { normalizeAppRole, type AppRole } from "@/lib/roles";
 import type { RowDataPacket, ResultSetHeader } from "mysql2";
 import bcrypt from "bcryptjs";
 
@@ -7,7 +8,7 @@ type UserRow = RowDataPacket & {
   id: number;
   email: string;
   username?: string | null;
-  role: "user" | "admin";
+  role: AppRole;
   is_active: number;
   level?: number | null;
   buying_score?: number | null;
@@ -351,7 +352,7 @@ export async function POST(req: Request) {
     const b = body as Record<string, unknown>;
     const email = getString(b.email).toLowerCase();
     const password = typeof b.password === "string" ? b.password : "";
-    const role = b.role === "admin" ? "admin" : "user";
+    const role = normalizeAppRole(b.role);
 
     if (!email || !password) {
       return Response.json({ error: "Email and password are required" }, { status: 400 });
@@ -404,21 +405,22 @@ export async function PUT(req: Request) {
       );
     }
 
-    const { userId, role } = body as {
+    const { userId } = body as {
       userId?: number;
-      role?: "user" | "admin";
       isActive?: number | boolean;
       status?: AdminUserStatus;
       banDays?: number | null;
       banReason?: string | null;
       maxDevices?: number | null;
     };
+    const roleRaw = (body as { role?: unknown }).role;
+    const hasRole = roleRaw === "user" || roleRaw === "editor" || roleRaw === "admin";
+    const role: AppRole | undefined = hasRole ? roleRaw : undefined;
     const isActiveRaw = (body as { isActive?: number | boolean }).isActive;
     const statusRaw = (body as { status?: AdminUserStatus }).status;
     const banDaysRaw = (body as { banDays?: number | null }).banDays;
     const banReasonRaw = (body as { banReason?: string | null }).banReason;
     const maxDevicesRaw = (body as { maxDevices?: number | null }).maxDevices;
-    const hasRole = role === "user" || role === "admin";
     const hasIsActive = isActiveRaw === 0 || isActiveRaw === 1 || typeof isActiveRaw === "boolean";
     const hasStatus = statusRaw === "active" || statusRaw === "banned" || statusRaw === "deleted";
     const hasMaxDevices =
@@ -471,7 +473,7 @@ export async function PUT(req: Request) {
     }
 
     const [currentRows] = await db.query<RowDataPacket[]>(
-      `SELECT ${usersHasDeletedAt ? "deleted_at" : "id"} FROM users WHERE id = ? LIMIT 1`,
+      `SELECT role, ${usersHasDeletedAt ? "deleted_at" : "id"} FROM users WHERE id = ? LIMIT 1`,
       [userId as number]
     );
     if (currentRows.length === 0) {
@@ -489,12 +491,25 @@ export async function PUT(req: Request) {
       }
     }
 
+    const currentRole = normalizeAppRole((currentRows[0] as { role?: unknown }).role);
+    if (hasRole && currentRole === "admin" && role !== "admin") {
+      const [adminRows] = await db.query<CountRow[]>(
+        `SELECT COUNT(*) AS total FROM users WHERE role = 'admin'`
+      );
+      if (Number(adminRows[0]?.total ?? 0) <= 1) {
+        return Response.json(
+          { error: "You must keep at least one admin account" },
+          { status: 400 }
+        );
+      }
+    }
+
     const sets: string[] = [];
     const values: Array<string | number> = [];
 
     if (hasRole) {
       sets.push("role = ?");
-      values.push(role as "user" | "admin");
+      values.push(role ?? "user");
     }
 
     if (hasIsActive) {

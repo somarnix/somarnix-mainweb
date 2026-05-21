@@ -1,8 +1,9 @@
 "use client";
 // app/App.tsx
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useState, type ReactNode } from "react";
 import { usePathname } from "next/navigation";
 import { MainLayout } from "./layouts/MainLayout";
+import { AdminLayout } from "./layouts/AdminLayout";
 import { useAppShellMode } from "./lib/app-shell";
 
 import HomePage from "./pages/homepage/HomePage";
@@ -44,6 +45,7 @@ import AdminVideoCoursesPage from "./admin-pages/video-courses/AdminVideoCourses
 import AdminToolLicensesPage from "./admin-pages/tool-licenses/AdminToolLicensesPage";
 import AdminNotificationsPage from "./admin-pages/notifications/AdminNotificationsPage";
 import AdminSupportFaqPage from "./admin-pages/support-faq/AdminSupportFaqPage";
+import AdminCmsPage from "./admin-pages/cms/AdminCmsPage";
 
 import ProductDetailPage from "./pages/product-detail/ProductDetailPage";
 import { ChatPage } from "./pages/chat/ChatPage";
@@ -82,6 +84,7 @@ type AppPage =
   | "admin-orders-seller"
   | "admin-products"
   | "admin-tools"
+  | "admin-cms"
   | "admin-tool-licenses"
   | "admin-orders"
   | "admin-users"
@@ -132,6 +135,7 @@ const ALL_PAGES: ReadonlyArray<AppPage> = [
   "admin-orders-seller",
   "admin-products",
   "admin-tools",
+  "admin-cms",
   "admin-tool-licenses",
   "admin-orders",
   "admin-users",
@@ -165,10 +169,13 @@ const STATIC_ROUTES: Record<string, AppPage> = {
   "/cart": "cart",
   "/checkout": "checkout",
   "/orders": "orders",
+  "/admin": "admin-dashboard",
+  "/wp-admin": "admin-cms",
   "/admin/dashboard": "admin-dashboard",
   "/admin/orders-seller": "admin-orders-seller",
   "/admin/products": "admin-products",
   "/admin/tools": "admin-tools",
+  "/admin/cms": "admin-cms",
   "/admin/tools/licenses": "admin-tool-licenses",
   "/admin/orders": "admin-orders",
   "/admin/users": "admin-users",
@@ -303,6 +310,10 @@ function toAppPage(value: string): AppPage {
   return ALL_PAGES.includes(value as AppPage) ? (value as AppPage) : "home";
 }
 
+function isAdminPage(page: AppPage): boolean {
+  return page.startsWith("admin-");
+}
+
 function buildPathForPage(
   page: AppPage,
   ctx?: {
@@ -368,6 +379,8 @@ function buildPathForPage(
       return "/admin/products";
     case "admin-tools":
       return "/admin/tools";
+    case "admin-cms":
+      return "/admin/cms";
     case "admin-tool-licenses":
       return "/admin/tools/licenses";
     case "admin-orders":
@@ -854,6 +867,8 @@ export default function App() {
         return <AdminProductsPage />;
       case "admin-tools":
         return <AdminProductsPage mode="tools" />;
+      case "admin-cms":
+        return <AdminCmsPage />;
       case "admin-tool-licenses":
         return <AdminToolLicensesPage />;
 
@@ -907,7 +922,15 @@ export default function App() {
     }
   };
 
+  const guardedPage = (
+    <AdminRouteGuard activePage={activePage} onNavigate={handleNavigate}>
+      {renderPage()}
+    </AdminRouteGuard>
+  );
+
+const isAdminRoute = isAdminPage(activePage);
 const showHeaderFooter =
+  !isAdminRoute &&
   activePage !== "login" &&
   activePage !== "register" &&
   activePage !== "forgot-password" &&
@@ -928,7 +951,11 @@ const showHeaderFooter =
             >
               <Toaster position="top-right" richColors />
 
-              {showHeaderFooter ? (
+              {isAdminRoute ? (
+                <AdminLayout currentPage={activePage} onNavigate={handleNavigate}>
+                  {guardedPage}
+                </AdminLayout>
+              ) : showHeaderFooter ? (
                 <MainLayout
                   currentPage={activePage}
                   onNavigate={handleNavigate}
@@ -940,10 +967,10 @@ const showHeaderFooter =
                   onOpenChat={handleOpenChat}
                   isAppShell={isAppShell}
                 >
-                  {renderPage()}
+                  {guardedPage}
                 </MainLayout>
               ) : (
-                <div className="flex-1">{renderPage()}</div>
+                <div className="flex-1">{guardedPage}</div>
               )}
             </div>
           </CurrencyProvider>
@@ -951,6 +978,97 @@ const showHeaderFooter =
       </ThemeProvider>
     </LanguageProvider>
   );
+}
+
+function AdminRouteGuard({
+  activePage,
+  onNavigate,
+  children,
+}: {
+  activePage: AppPage;
+  onNavigate: (page: string) => void;
+  children: ReactNode;
+}) {
+  const { user, loading, refreshMe } = useAuth();
+  const [checkingAccess, setCheckingAccess] = useState(false);
+  const needsAdmin = isAdminPage(activePage);
+
+  useEffect(() => {
+    if (!needsAdmin || loading) return;
+    let cancelled = false;
+
+    const verifyLatestRole = async () => {
+      if (!user) {
+        onNavigate("login");
+        return;
+      }
+
+      if (user.role === "admin") return;
+
+      setCheckingAccess(true);
+      try {
+        const res = await fetch("/api/me", {
+          credentials: "include",
+          cache: "no-store",
+        });
+        const data = (await res.json().catch(() => null)) as {
+          loggedIn?: boolean;
+          user?: { role?: string };
+        } | null;
+
+        if (cancelled) return;
+
+        if (res.ok && data?.loggedIn === true && data.user?.role === "admin") {
+          await refreshMe();
+          return;
+        }
+
+        onNavigate(data?.loggedIn === false ? "login" : "home");
+      } finally {
+        if (!cancelled) setCheckingAccess(false);
+      }
+    };
+
+    void verifyLatestRole();
+
+    return () => {
+      cancelled = true;
+    };
+  }, [loading, needsAdmin, onNavigate, refreshMe, user]);
+
+  if (!needsAdmin) {
+    return <>{children}</>;
+  }
+
+  if (loading || checkingAccess) {
+    return (
+      <div className="flex min-h-[60vh] items-center justify-center bg-slate-50 px-4 dark:bg-slate-950">
+        <div className="rounded-lg border border-slate-200 bg-white px-6 py-5 text-center shadow-sm dark:border-slate-800 dark:bg-slate-900">
+          <div className="mx-auto h-10 w-10 animate-spin rounded-full border-2 border-blue-600 border-t-transparent" />
+          <p className="mt-3 text-sm font-medium text-slate-600 dark:text-slate-300">
+            Checking admin access...
+          </p>
+        </div>
+      </div>
+    );
+  }
+
+  if (!user || user.role !== "admin") {
+    return (
+      <div className="flex min-h-[60vh] items-center justify-center bg-slate-50 px-4 dark:bg-slate-950">
+        <div className="max-w-md rounded-lg border border-red-200 bg-white px-6 py-5 text-center shadow-sm dark:border-red-900/60 dark:bg-slate-900">
+          <h1 className="text-xl font-bold text-slate-950 dark:text-white">
+            Admin Access Required
+          </h1>
+          <p className="mt-2 text-sm text-slate-600 dark:text-slate-300">
+            This area is only available to administrator accounts.
+          </p>
+        </div>
+      </div>
+    );
+  }
+
+  return <>{children}</>;
 }
 
 function PresenceWatcher() {

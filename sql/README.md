@@ -28,6 +28,12 @@ Use these files:
 8. `16-schema-normalization-foundation.sql`
    Optional advanced normalization foundation and redundant index cleanup.
 
+9. `18-news-web-cms-wordpress-style.sql`
+   CMS pages, posts, media references, and settings for WordPress-style content management.
+
+10. `19-user-role-editor.sql`
+    Updates `users.role` so the database accepts `editor` between `user` and `admin`.
+
 Recommended:
 
 - If you want everything at once, run `00-full-schema.sql`.
@@ -39,6 +45,8 @@ Recommended:
   5. `05-defaults-and-sync.sql`
   6. `06-user-api-keys.sql`
   7. Optional: `16-schema-normalization-foundation.sql`
+  8. Optional: `18-news-web-cms-wordpress-style.sql`
+  9. Optional: `19-user-role-editor.sql`
 
 Important:
 

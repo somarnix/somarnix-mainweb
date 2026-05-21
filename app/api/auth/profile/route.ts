@@ -2,6 +2,7 @@ import bcrypt from "bcryptjs";
 import type { RowDataPacket, ResultSetHeader } from "mysql2";
 import { db } from "@/lib/db";
 import { getAuthUser } from "@/lib/auth";
+import { normalizeAppRole, type AppRole } from "@/lib/roles";
 import { createSystemNotification } from "@/lib/system-notifications";
 import { normalizeAvatarBorderUrl } from "@/app/lib/avatar-borders";
 
@@ -144,7 +145,7 @@ type ProfileUpdateBody = {
 interface UserRow extends RowDataPacket {
   id: number;
   email: string;
-  role: "user" | "admin";
+  role: AppRole;
   level: number | null;
 
   first_name: string | null;
@@ -242,7 +243,7 @@ export async function GET(req: Request): Promise<Response> {
       user: {
         id: u.id,
         email: u.email,
-        role: u.role,
+        role: normalizeAppRole(u.role),
         level: Number(u.level ?? 1) || 1,
 
         firstName: u.first_name,

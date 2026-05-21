@@ -3,7 +3,7 @@
 import { useEffect, useRef, useState } from "react";
 
 import { Button } from "../../components/ui/button";
-import { useLanguage } from "../../contexts/LanguageContext";
+import { useLanguage, type Language } from "../../contexts/LanguageContext";
 import { ensureGoogleGsiReady } from "./useGoogleGsiReady";
 
 type GoogleSignInButtonProps = {
@@ -14,6 +14,32 @@ type GoogleSignInButtonProps = {
   onCredential: (credential: string) => Promise<void> | void;
 };
 
+const GOOGLE_LOCALES: Partial<Record<Language, string>> = {
+  en: "en",
+  km: "km",
+  zh: "zh-CN",
+  ja: "ja",
+  ko: "ko",
+  vi: "vi",
+  fr: "fr",
+  de: "de",
+  es: "es",
+  ru: "ru",
+  ar: "ar",
+  hi: "hi",
+  tl: "fil",
+  sv: "sv",
+  th: "th",
+  id: "id",
+  ms: "ms",
+  pt: "pt",
+  it: "it",
+  nl: "nl",
+  tr: "tr",
+  pl: "pl",
+  uk: "uk",
+};
+
 export function GoogleSignInButton({
   text,
   clientId,
@@ -22,10 +48,12 @@ export function GoogleSignInButton({
   onCredential,
 }: GoogleSignInButtonProps) {
   const { language } = useLanguage();
+  const googleLocale = GOOGLE_LOCALES[language] ?? "en";
   const frameRef = useRef<HTMLDivElement | null>(null);
   const containerRef = useRef<HTMLDivElement | null>(null);
-  const [ready, setReady] = useState(false);
+  const [readyLocale, setReadyLocale] = useState<string | null>(null);
   const [buttonWidth, setButtonWidth] = useState(320);
+  const ready = readyLocale === googleLocale;
 
   useEffect(() => {
     const element = frameRef.current;
@@ -55,7 +83,8 @@ export function GoogleSignInButton({
     const setup = async () => {
       if (!clientId || !containerRef.current) return;
 
-      const googleReady = await ensureGoogleGsiReady();
+      containerRef.current.innerHTML = "";
+      const googleReady = await ensureGoogleGsiReady(googleLocale);
       if (!active || !googleReady || !window.google?.accounts?.id || !containerRef.current) {
         return;
       }
@@ -77,19 +106,18 @@ export function GoogleSignInButton({
         use_fedcm_for_button: false,
       });
 
-      containerRef.current.innerHTML = "";
       googleId.renderButton(containerRef.current, {
         type: "standard",
         theme: "outline",
         size: "large",
         text,
-        locale: language === "km" ? "km" : "en",
+        locale: googleLocale,
         shape: "pill",
         logo_alignment: "left",
         width: String(buttonWidth),
       });
 
-      setReady(true);
+      setReadyLocale(googleLocale);
     };
 
     void setup();
@@ -97,11 +125,15 @@ export function GoogleSignInButton({
     return () => {
       active = false;
     };
-  }, [buttonWidth, clientId, language, onCredential, text]);
+  }, [buttonWidth, clientId, googleLocale, onCredential, text]);
 
   if (!clientId) {
     return (
-      <div className="w-full rounded-2xl border border-slate-200/80 bg-gradient-to-b from-white to-slate-50/80 p-2 shadow-sm dark:border-slate-700 dark:from-slate-900 dark:to-slate-900/80">
+      <div
+        className="w-full rounded-2xl border border-slate-200/80 bg-gradient-to-b from-white to-slate-50/80 p-2 shadow-sm dark:border-slate-700 dark:from-slate-900 dark:to-slate-900/80"
+        data-no-auto-translate
+        translate="no"
+      >
         <Button
           type="button"
           variant="outline"
@@ -118,6 +150,8 @@ export function GoogleSignInButton({
     <div
       ref={frameRef}
       className="w-full rounded-2xl border border-slate-200/80 bg-gradient-to-b from-white to-slate-50/80 p-2 shadow-sm dark:border-slate-700 dark:from-slate-900 dark:to-slate-900/80"
+      data-no-auto-translate
+      translate="no"
     >
       {!ready && (
         <Button
@@ -130,6 +164,7 @@ export function GoogleSignInButton({
         </Button>
       )}
       <div
+        key={googleLocale}
         ref={containerRef}
         className={ready ? "min-h-[48px] w-full flex items-center justify-center" : "hidden"}
         aria-hidden={!ready}

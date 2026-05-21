@@ -22,6 +22,7 @@ import {
   DEVICE_ACTION_LOCK_HOURS,
   verifyLoginVerificationCode,
 } from "@/lib/trusted-devices";
+import { normalizeAppRole } from "@/lib/roles";
 import type { RowDataPacket, ResultSetHeader } from "mysql2";
 
 interface UserRow extends RowDataPacket {
@@ -309,8 +310,9 @@ export async function POST(req: Request): Promise<Response> {
 
     // JWT valid for 7 days
     const jwtSecret = getJwtSecret();
+    const role = normalizeAppRole(user.role);
     const token = jwt.sign(
-      { userId: user.id, role: user.role, loginDeviceId: loginDeviceRowId ?? undefined },
+      { userId: user.id, role, loginDeviceId: loginDeviceRowId ?? undefined },
       jwtSecret,
       { expiresIn: "7d" }
     );
@@ -321,7 +323,7 @@ export async function POST(req: Request): Promise<Response> {
         user: {
           id: user.id,
           email: user.email,
-          role: user.role,
+          role,
         },
       }),
       {
@@ -333,11 +335,9 @@ export async function POST(req: Request): Promise<Response> {
       }
     );
   } catch (err) {
+    console.error("LOGIN ERROR:", err);
     return Response.json(
-      {
-        error: "Server error",
-        detail: err instanceof Error ? err.message : String(err),
-      },
+      { error: "Server error", code: "SERVER_ERROR" },
       { status: 500 }
     );
   }

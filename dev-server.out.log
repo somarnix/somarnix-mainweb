@@ -1,14 +1,42 @@
 
 > somarnix@0.1.0 dev
-> next dev --hostname 127.0.0.1 --port 3000
+> next dev
 
 ▲ Next.js 16.1.1 (Turbopack)
-- Local:         http://127.0.0.1:3000
-- Network:       http://127.0.0.1:3000
+- Local:         http://localhost:3000
+- Network:       http://169.254.123.238:3000
+- Environments: .env.local
 
 ✓ Starting...
 Creating turbopack project {
   dir: 'C:\\Users\\Sophanaroth Lem\\Documents\\Word\\Lesson\\somarnix-mainweb',
   testMode: true
 }
-✓ Ready in 3.7s
+✓ Ready in 2.1s
+○ Compiling /api/presence ...
+[getAuthUser] Found token(s) in cookie header: 1
+[getAuthUser] Found token(s) in cookie header: 1
+[getAuthUser] Found token(s) in cookies(): 1
+[getAuthUser] Total unique tokens: 1
+[getAuthUser] Found token(s) in cookies(): 1
+[getAuthUser] Total unique tokens: 1
+[getAuthUser] Authenticated user: 1
+ POST /api/presence 200 in 10.8s (compile: 7.8s, proxy.ts: 59ms, render: 2.8s)
+[getAuthUser] Authenticated user: 1
+ POST /api/presence 200 in 10.9s (compile: 10.5s, proxy.ts: 171ms, render: 213ms)
+[getAuthUser] Found token(s) in cookie header: 1
+[getAuthUser] Found token(s) in cookies(): 1
+[getAuthUser] Total unique tokens: 1
+[getAuthUser] Authenticated user: 1
+ POST /api/presence 200 in 245ms (compile: 17ms, proxy.ts: 17ms, render: 211ms)
+[getAuthUser] Found token(s) in cookie header: 1
+[getAuthUser] Found token(s) in cookies(): 1
+[getAuthUser] Total unique tokens: 1
+[getAuthUser] Found token(s) in cookie header: 1
+[getAuthUser] Found token(s) in cookies(): 1
+[getAuthUser] Total unique tokens: 1
+[getAuthUser] Authenticated user: 1
+ POST /api/presence 200 in 527ms (compile: 7ms, proxy.ts: 17ms, render: 503ms)
+[getAuthUser] Authenticated user: 1
+ POST /api/presence 200 in 564ms (compile: 7ms, proxy.ts: 9ms, render: 549ms)
+ GET /news/trump-state-of-the-union-copy-copy-copy-copy-copy-copy-copy 200 in 40s (compile: 38.1s, proxy.ts: 166ms, render: 2.1s)

@@ -7,13 +7,14 @@ import React, {
   useState,
   ReactNode,
 } from "react";
+import { normalizeAppRole, type AppRole } from "@/lib/roles";
 
 /* ================= TYPES ================= */
 
 type AuthUser = {
   id: number;
   email: string;
-  role: "user" | "admin";
+  role: AppRole;
   level?: number;
 
   firstName?: string | null;
@@ -38,7 +39,7 @@ type AuthUser = {
 type ProfilePayload = {
   id: number;
   email: string;
-  role: "user" | "admin";
+  role: AppRole;
   level: number | null;
   firstName: string | null;
   lastName: string | null;
@@ -165,6 +166,7 @@ function getErrorMessage(data: unknown): string | null {
   if (!isObject(data)) return null;
   const err = typeof data.error === "string" ? data.error.trim() : "";
   const detail = typeof data.detail === "string" ? data.detail.trim() : "";
+  if (err.toLowerCase() === "server error") return err;
   if (err && detail) return `${err}: ${detail}`;
   if (err) return err;
   if (detail) return detail;
@@ -197,11 +199,10 @@ function clearClientAuthArtifacts() {
   window.localStorage.removeItem("somarnix_login_device_id");
   window.localStorage.removeItem("edugroit-country");
 
-  // Disable Google auto-select (type assertion to bypass TypeScript)
-  const googleAccounts = window.google?.accounts as any;
-  if (googleAccounts?.id?.disableAutoSelect) {
-    googleAccounts.id.disableAutoSelect();
-  }
+  const googleId = window.google?.accounts?.id as
+    | { disableAutoSelect?: () => void }
+    | undefined;
+  googleId?.disableAutoSelect?.();
 }
 
 /* ================= PROVIDER ================= */
@@ -234,7 +235,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       setUser({
         id: Number(u.id ?? 0),
         email: String(u.email ?? ""),
-        role: u.role === "admin" ? "admin" : "user",
+        role: normalizeAppRole(u.role),
         level: 1,
       });
       return true;
@@ -265,7 +266,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       setUser({
         id: u.id,
         email: u.email,
-        role: u.role,
+        role: normalizeAppRole(u.role),
         level: typeof u.level === "number" && Number.isFinite(u.level) ? u.level : 1,
         firstName: u.firstName,
         lastName: u.lastName,

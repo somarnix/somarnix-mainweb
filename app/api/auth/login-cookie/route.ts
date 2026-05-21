@@ -21,6 +21,7 @@ import {
   verifyLoginVerificationCode,
 } from "@/lib/trusted-devices";
 import { createSystemNotification } from "@/lib/system-notifications";
+import { normalizeAppRole } from "@/lib/roles";
 import bcrypt from "bcryptjs";
 import jwt from "jsonwebtoken";
 import type { RowDataPacket, ResultSetHeader } from "mysql2";
@@ -319,8 +320,9 @@ export async function POST(req: Request): Promise<Response> {
     }
 
     const jwtSecret = getJwtSecret();
+    const role = normalizeAppRole(user.role);
     const token = jwt.sign(
-      { userId: user.id, role: user.role, loginDeviceId: loginDeviceRowId ?? undefined },
+      { userId: user.id, role, loginDeviceId: loginDeviceRowId ?? undefined },
       jwtSecret,
       { expiresIn: "7d" }
     );
@@ -342,7 +344,7 @@ export async function POST(req: Request): Promise<Response> {
     return new Response(
       JSON.stringify({
         success: true,
-        user: { id: user.id, email: user.email, role: user.role },
+        user: { id: user.id, email: user.email, role },
       }),
       {
         status: 200,
@@ -353,11 +355,9 @@ export async function POST(req: Request): Promise<Response> {
       }
     );
   } catch (err) {
+    console.error("LOGIN COOKIE ERROR:", err);
     return Response.json(
-      {
-        error: "Server error",
-        detail: err instanceof Error ? err.message : String(err),
-      },
+      { error: "Server error", code: "SERVER_ERROR" },
       { status: 500 }
     );
   }

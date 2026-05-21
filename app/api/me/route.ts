@@ -1,11 +1,12 @@
 import { db } from "@/lib/db";
 import { getAuthUser } from "@/lib/auth";
+import { normalizeAppRole, type AppRole } from "@/lib/roles";
 import type { RowDataPacket } from "mysql2";
 
 type UserRow = RowDataPacket & {
   id: number;
   email: string;
-  role: "user" | "admin";
+  role: AppRole;
 };
 
 export async function GET(req: Request): Promise<Response> {
@@ -38,7 +39,7 @@ export async function GET(req: Request): Promise<Response> {
   return Response.json(
     {
       loggedIn: true,
-      user: { id: u.id, email: u.email, role: u.role },
+      user: { id: u.id, email: u.email, role: normalizeAppRole(u.role) },
     },
     { headers: { "Cache-Control": "no-store" } }
   );

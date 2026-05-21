@@ -15,19 +15,20 @@ const EMPTY_PRESENCE: PresenceState = {
 };
 
 export function useUserPresence(userId: number | null | undefined, pollMs = 30000) {
-  const [presence, setPresence] = useState<PresenceState>(EMPTY_PRESENCE);
+  const effectiveUserId = userId && userId > 0 ? userId : null;
+  const [presenceRow, setPresenceRow] = useState<{
+    userId: number;
+    presence: PresenceState;
+  } | null>(null);
 
   useEffect(() => {
-    if (!userId || userId <= 0) {
-      setPresence(EMPTY_PRESENCE);
-      return;
-    }
+    if (!effectiveUserId) return;
 
     let active = true;
 
     const loadPresence = async () => {
       try {
-        const res = await fetch(`/api/presence/users?ids=${userId}`, {
+        const res = await fetch(`/api/presence/users?ids=${effectiveUserId}`, {
           cache: "no-store",
           credentials: "include",
         });
@@ -42,10 +43,13 @@ export function useUserPresence(userId: number | null | undefined, pollMs = 3000
         };
         if (!active) return;
         const row = Array.isArray(data.users) ? data.users[0] : null;
-        setPresence({
-          status: row?.status ?? null,
-          lastActiveAt: row?.lastActiveAt ?? null,
-          online: row?.online === true,
+        setPresenceRow({
+          userId: effectiveUserId,
+          presence: {
+            status: row?.status ?? null,
+            lastActiveAt: row?.lastActiveAt ?? null,
+            online: row?.online === true,
+          },
         });
       } catch {
         if (!active) return;
@@ -58,7 +62,9 @@ export function useUserPresence(userId: number | null | undefined, pollMs = 3000
       active = false;
       window.clearInterval(interval);
     };
-  }, [pollMs, userId]);
+  }, [effectiveUserId, pollMs]);
 
-  return presence;
+  return presenceRow?.userId === effectiveUserId
+    ? presenceRow.presence
+    : EMPTY_PRESENCE;
 }

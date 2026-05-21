@@ -1,0 +1,15 @@
+services:
+  libretranslate:
+    image: libretranslate/libretranslate:latest
+    container_name: somarnix-libretranslate
+    restart: unless-stopped
+    ports:
+      - "5000:5000"
+    environment:
+      LT_LOAD_ONLY: en,km,zh,ja,ko,vi,fr,de,es,ru,ar,hi,tl,sv
+      LT_UPDATE_MODELS: "true"
+    volumes:
+      - libretranslate-data:/home/libretranslate/.local/share
+
+volumes:
+  libretranslate-data:

@@ -9,12 +9,24 @@ function hasGoogleGsi() {
   return typeof window !== "undefined" && Boolean(window.google?.accounts?.id);
 }
 
-function ensureGoogleScriptTag() {
+function getGoogleGsiScriptSrc(locale?: string) {
+  if (!locale) return GOOGLE_GSI_SCRIPT_SRC;
+  return `${GOOGLE_GSI_SCRIPT_SRC}?hl=${encodeURIComponent(locale)}`;
+}
+
+function ensureGoogleScriptTag(locale?: string) {
+  const scriptSrc = getGoogleGsiScriptSrc(locale);
   let script = document.getElementById(GOOGLE_GSI_SCRIPT_ID) as HTMLScriptElement | null;
+  if (script && script.dataset.googleLocale !== (locale ?? "") && script.src !== scriptSrc) {
+    script.remove();
+    delete window.google;
+    script = null;
+  }
   if (!script) {
     script = document.createElement("script");
     script.id = GOOGLE_GSI_SCRIPT_ID;
-    script.src = GOOGLE_GSI_SCRIPT_SRC;
+    script.src = scriptSrc;
+    script.dataset.googleLocale = locale ?? "";
     script.async = true;
     script.defer = true;
     document.head.appendChild(script);
@@ -22,11 +34,11 @@ function ensureGoogleScriptTag() {
   return script;
 }
 
-export async function ensureGoogleGsiReady(timeoutMs = 5000): Promise<boolean> {
+export async function ensureGoogleGsiReady(locale?: string, timeoutMs = 5000): Promise<boolean> {
   if (typeof window === "undefined") return false;
-  if (hasGoogleGsi()) return true;
 
-  const script = ensureGoogleScriptTag();
+  const script = ensureGoogleScriptTag(locale);
+  if (hasGoogleGsi()) return true;
 
   await new Promise<void>((resolve) => {
     let resolved = false;

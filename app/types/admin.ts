@@ -1,10 +1,12 @@
 /* ================= ADMIN TYPES ================= */
 
+import type { AppRole } from "@/lib/roles";
+
 /* USERS */
 export interface AdminUser {
   id: number;
   email: string;
-  role: "user" | "admin";
+  role: AppRole;
   is_active: number;
   created_at: string;
 }
